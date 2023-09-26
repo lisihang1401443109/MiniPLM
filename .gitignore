@@ -161,3 +161,10 @@ cython_debug/
 
 pythia*
 opt*
+
+minillm_ckpts
+pretrain_data
+processed_data
+results
+checkpoints
+data

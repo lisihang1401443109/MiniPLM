@@ -8,11 +8,11 @@ from speculative_sampling import speculative_sampling
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-target_model = AutoModelForCausalLM.from_pretrained("facebook/opt-13b").to(device)
+target_model = AutoModelForCausalLM.from_pretrained("checkpoints/opt-13B", device_map={"": torch.cuda.current_device()}, torch_dtype=torch.float16).to(device)
 
-draft_model = AutoModelForCausalLM.from_pretrained("facebook/opt-1.3b").to(device)
+draft_model = AutoModelForCausalLM.from_pretrained("checkpoints/opt-1.3B", device_map={"": torch.cuda.current_device()}, torch_dtype=torch.float16).to(device)
 
-tokenizer = AutoTokenizer.from_pretrained("facebook/opt-13b")
+tokenizer = AutoTokenizer.from_pretrained("checkpoints/opt-13B")
 
 prompts_sample_1 = [
     'What did Rutherford discover?\n',

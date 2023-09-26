@@ -27,8 +27,8 @@ if args.method == "speculative":
     print("Using target model:", args.target_model)
     print("Using draft model:", args.draft_model)
 
-    target_model = AutoModelForCausalLM.from_pretrained(args.target_model).to(device)
-    draft_model = AutoModelForCausalLM.from_pretrained(args.draft_model).to(device)
+    target_model = AutoModelForCausalLM.from_pretrained(args.target_model, device_map={"": torch.cuda.current_device()}, torch_dtype=torch.float16).to(device)
+    draft_model = AutoModelForCausalLM.from_pretrained(args.draft_model, device_map={"": torch.cuda.current_device()}, torch_dtype=torch.float16).to(device)
     tokenizer = AutoTokenizer.from_pretrained(args.target_model)
 
     inputs = tokenizer(args.prompt, return_tensors="pt").to(device)
@@ -47,7 +47,7 @@ if args.method == "speculative":
 elif args.method == "autoregressive":
     print("Using target model:", args.target_model)
 
-    target_model = AutoModelForCausalLM.from_pretrained(args.target_model).to(device)
+    target_model = AutoModelForCausalLM.from_pretrained(args.target_model, device_map={"": torch.cuda.current_device()}, torch_dtype=torch.float16).to(device)
     tokenizer = AutoTokenizer.from_pretrained(args.target_model)
 
     inputs = tokenizer(args.prompt, return_tensors="pt").to(device)
