@@ -7,7 +7,13 @@ import os
 from datetime import timedelta
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 import time
+from torch.distributed import get_rank
+from accelerate import load_checkpoint_and_dispatch, init_empty_weights
 
+try:
+    from transformers import mpu
+except:
+    mpu = None
 
 
 def get_distribution(logits, temperature):
@@ -179,3 +185,21 @@ def get_tokenizer(args, model_path=None):
         tokenizer.pad_token_id = tokenizer.eos_token_id
     
     return tokenizer
+
+
+def load_parallel(model, load_dir):
+    mp_rank = mpu.get_model_parallel_rank()
+    assert mpu.get_model_parallel_world_size() != 1
+    checkpoint_name = os.path.join(load_dir, f"mp{mpu.get_model_parallel_world_size()}", f"pytorch_model_{mp_rank}.bin")
+    assert os.path.exists(checkpoint_name), f"{checkpoint_name} does not exist."
+    model = load_checkpoint_and_dispatch(model=model, checkpoint=checkpoint_name, device_map={"": torch.cuda.current_device()}, dtype=torch.float16)
+    dist.barrier()
+    print(f"Rank {get_rank()}: {checkpoint_name} loaded.")
+
+
+def save_parallel(model, save_dir):
+    mp_rank = mpu.get_model_parallel_rank()
+    os.makedirs(os.path.join(save_dir, f"mp{mpu.get_model_parallel_world_size()}"), exist_ok=True)
+    checkpoint_name = os.path.join(save_dir, f"mp{mpu.get_model_parallel_world_size()}", f"pytorch_model_{mp_rank}.bin")
+    torch.save(model.state_dict(), checkpoint_name)
+    print(f"Rank {get_rank()}: {checkpoint_name} saved.")

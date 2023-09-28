@@ -146,7 +146,8 @@ class PromptDataset(Dataset):
 
     def move_to_device(self, model_batch, no_model_batch, device):
         for k in model_batch:
-            model_batch[k] = model_batch[k].to(device)        
+            model_batch[k] = model_batch[k].to(device)   
+             
         for k in no_model_batch:
             no_model_batch[k] = no_model_batch[k].to(device)    
         

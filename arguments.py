@@ -152,7 +152,7 @@ def add_ppo_args(parser: argparse.ArgumentParser):
     
     group.add_argument("--reward-scaling", type=float, default=None)
     group.add_argument("--cliprange-reward", type=float, default=1)
-    group.add_argument("--ppo-epochs", type=int, default=None)
+    group.add_argument("--inner-epochs", type=int, default=None)
     group.add_argument("--num-rollouts", type=int, default=None)
     group.add_argument("--cliprange", type=float, default=0.2)
     group.add_argument("--chunk-size", type=int, default=None)
@@ -264,12 +264,8 @@ def get_args():
         )
         args.save = save_path
     elif args.type == "minillm":
-        ppo_prefix = f"pe{args.ppo_epochs}" + \
-                     (f"_rs{args.reward_scaling}" if args.ppo_epochs is not None else "") + \
-                     (f"_nr{args.num_rollouts}" if args.num_rollouts is not None else "") + \
-                     (f"_ln" if args.length_norm else "") + \
-                     (f"_sr" if args.single_step_reg else "") + \
-                     (f"_tm{args.teacher_mixed_alpha}" if args.teacher_mixed_alpha is not None else "")
+        ppo_prefix = f"pe{args.inner_epochs}" + \
+                     (f"_nr{args.num_rollouts}" if args.num_rollouts is not None else "")
         save_path = os.path.join(
             args.save,
             (f"{args.ckpt_name}-{args.teacher_ckpt_name}"),
