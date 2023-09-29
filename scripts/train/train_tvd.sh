@@ -15,7 +15,7 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
 # model
 BASE_PATH=${1-"/home/MiniLLM"}
 CKPT_NAME="base-init"
-CKPT="${BASE_PATH}/minillm_ckpts/gpt2/train/minillm_init/gpt2-base"
+CKPT="${BASE_PATH}/minillm_ckpts/gpt2/train/minillm_init/gpt2-base/"
 TEACHER_CKPT_NAME="xlarge-sft"
 TEACHER_CKPT="${BASE_PATH}/minillm_ckpts/gpt2/train/sft/gpt2-xlarge/"
 # data

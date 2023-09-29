@@ -18,7 +18,6 @@ import json
 from tqdm import tqdm
 from transformers import GenerationConfig
 from rouge_metric import compute_metrics
-from torch.nn.utils.rnn import pad_sequence
 
 
 try:

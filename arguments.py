@@ -92,7 +92,7 @@ def add_data_args(parser: argparse.ArgumentParser):
     group.add_argument("--prompt-data-dir", type=str)
     group.add_argument("--lm-data-dir", type=str)
     group.add_argument("--eval-ppl", action="store_true")
-    group.add_argument("--eval-rw", action="store_true")
+    group.add_argument("--eval-tvd", action="store_true")
     group.add_argument("--eval-gen", action="store_true")
     
     group.add_argument("--only-prompt", action="store_true")
@@ -183,6 +183,7 @@ def add_gen_args(parser: argparse.ArgumentParser):
     group.add_argument("--num-beams", type=int, default=1)
     group.add_argument("--temperature", type=float, default=1)
     group.add_argument("--decode-type", type=str, default="ar")
+    group.add_argument("--lookahead", type=int, default=1)
     
     return parser
 
@@ -231,10 +232,19 @@ def get_args():
                 ckpt_name = "_".join(tmp)
         else:
             ckpt_name = None
+        
+        if args.draft_ckpt_name is not None:
+            tmp = args.draft_ckpt_name.split("/")
+            if tmp[-1].isdigit():
+                draft_ckpt_name = "_".join(tmp[:-1]) + "/" + tmp[-1]
+            else:
+                draft_ckpt_name = "_".join(tmp)
+        
         save_path = os.path.join(
             args.save,
             f"{args.decode_type}-{args.data_names}-{args.max_length}" + (f"-mp{args.model_parallel_size}" if args.model_parallel > 0 else ""),
-            ckpt_name,
+            f"{ckpt_name}-{draft_ckpt_name}",
+            f"{args.lookahead}"
             f"{args.seed}",
         )
         args.save = save_path

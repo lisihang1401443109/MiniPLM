@@ -51,6 +51,32 @@ def compute_loss(args, model, input_ids, attention_mask, label_ids):
     return lm_loss
 
 
+def compute_neg_tvd(args, tokenizer, draft_model, target_model, prompt_ids, response_ids):
+    full_ids = torch.cat([prompt_ids, response_ids], dim=-1)
+    input_ids = full_ids [:, :-1]
+    model_batch = {"input_ids": input_ids}
+    model_batch["attention_mask"] = (input_ids != tokenizer.pad_token_id)
+    if (args.model_type in ["gpt2"]):
+        position_ids = torch.cumsum(model_batch["attention_mask"], dim=-1) - 1
+        position_ids.masked_fill_(~model_batch["attention_mask"], 0)
+        model_batch["position_ids"] = position_ids
+
+    loss_mask = (input_ids != tokenizer.pad_token_id).float()
+    loss_mask[:, :prompt_ids.size(1)-1] = 0
+
+    draft_model_outputs = draft_model(**model_batch, return_dict=True, use_cache=False)
+    draft_logits = draft_model_outputs.logits
+    draft_probs = torch.softmax(draft_logits, dim=-1)
+    
+    target_outputs = target_model(**model_batch, return_dict=True, use_cache=False)
+    target_logits = target_outputs.logits
+    target_probs = torch.softmax(target_logits, dim=-1)
+        
+    tvds = 1 - torch.sum(torch.min(draft_probs, target_probs), dim=-1)        
+    tvd = torch.sum((tvds * loss_mask), -1) / torch.sum(loss_mask, dim=-1)
+    neg_tvd = 1 - tvd 
+    return neg_tvd
+
 def run_model(args, tokenizer, model, draft_model, dataset: PromptDataset, epoch, device):
     
     collate_fn = dataset.collate
@@ -70,6 +96,7 @@ def run_model(args, tokenizer, model, draft_model, dataset: PromptDataset, epoch
     all_query_ids = []
     all_response_ids = []
     all_lm_losses, all_draft_lm_losses = [], []
+    all_tvds = []
     tot_gen_time = 0
     
     generation_config = GenerationConfig(
@@ -112,7 +139,7 @@ def run_model(args, tokenizer, model, draft_model, dataset: PromptDataset, epoch
                         generation_config=generation_config)
                 elif args.decode_type == "sp":
                     # gen_out = speculative_sampling(it, model, draft_model, query_ids, args.max_length, tokenizer, temperature=args.temperature, debug=False)
-                    gen_out = speculative_sampling2(it, model, draft_model, **model_batch, generation_config=generation_config, tokenizer=tokenizer)
+                    gen_out = speculative_sampling2(it, model, draft_model, **model_batch, generation_config=generation_config, tokenizer=tokenizer, lookahead=args.lookahead)
                     acc_times += gen_out["acc_times"]
                     rej_times += gen_out["rej_times"]
                 else:
@@ -120,6 +147,9 @@ def run_model(args, tokenizer, model, draft_model, dataset: PromptDataset, epoch
                 ed = time.time()
                 full_ids = gen_out["sequences"]
                 response_ids = full_ids[:, query_ids.size(1):] # remove prompt (may include start token)
+                if args.eval_tvd:
+                    tvd = compute_neg_tvd(args, tokenizer, draft_model, model, query_ids, response_ids)
+                    all_tvds.append(tvd)
                 all_query_ids.extend(query_ids)
                 all_response_ids.extend(response_ids)
                 
@@ -129,20 +159,27 @@ def run_model(args, tokenizer, model, draft_model, dataset: PromptDataset, epoch
     additional_stats = {"acc_times": acc_times, "rej_times": rej_times, "acc_rate": acc_times / (acc_times + rej_times + 1e-5)}
     
     if args.eval_ppl:
-        all_lm_losses = torch.cat(all_lm_losses)
+        all_lm_losses = torch.cat(all_lm_losses, dim=0)
         mean_lm_loss = all_lm_losses.mean().item()
         if draft_model is not None:
-            all_draft_lm_losses = torch.cat(all_draft_lm_losses)
+            all_draft_lm_losses = torch.cat(all_draft_lm_losses, dim=0)
             mean_draft_lm_loss = all_draft_lm_losses.mean().item()
         else:
             mean_draft_lm_loss = 0
     else:
         mean_lm_loss = 0
         mean_draft_lm_loss = 0
-        
+
+    if args.eval_tvd:
+        all_tvds = torch.cat(all_tvds, dim=0)
+        mean_tvd = all_tvds.mean().item()
+    else:
+        mean_tvd = 0
+
     return (
         mean_lm_loss,
         mean_draft_lm_loss,
+        mean_tvd,
         all_query_ids,
         all_response_ids,
         tot_gen_time,
@@ -177,7 +214,7 @@ def evaluate_sp(args, tokenizer, model, dataset: PromptDataset, split, epoch, de
     else:
         draft_model = None
     
-    lm_loss, draft_lm_loss, query_ids, response_ids, tot_gen_time, additional_stats = run_model(args, tokenizer, model, draft_model, dataset, epoch, device)
+    lm_loss, draft_lm_loss, tvd, query_ids, response_ids, tot_gen_time, additional_stats = run_model(args, tokenizer, model, draft_model, dataset, epoch, device)
     
     query_strs = tokenizer.batch_decode(query_ids, skip_special_tokens=True)
     response_strs = tokenizer.batch_decode(response_ids, skip_special_tokens=True)
@@ -211,7 +248,7 @@ def evaluate_sp(args, tokenizer, model, dataset: PromptDataset, split, epoch, de
 
     mean_gen_length = np.mean([len(tokenizer.encode(s)) for s in response_strs])
 
-    log_str = f"{split} | name: {args.data_names} | {gen_res} | lm_loss {round(lm_loss, 4)} | draft_lm_loss {round(draft_lm_loss, 4)} | avg. gen lenth: {mean_gen_length} | tokens/sec: {round(tokens_per_sec, 2)} | " + \
+    log_str = f"{split} | name: {args.data_names} | {gen_res} | lm_loss {round(lm_loss, 4)} | draft_lm_loss {round(draft_lm_loss, 4)} | tvd {round(tvd, 4)} | avg. gen lenth: {mean_gen_length} | tokens/sec: {round(tokens_per_sec, 2)} | " + \
               f"{additional_stats}"
     print_rank(log_str)
     save_rank(log_str, os.path.join(args.save, "log.txt"))
