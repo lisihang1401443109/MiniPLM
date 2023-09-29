@@ -182,7 +182,7 @@ def add_gen_args(parser: argparse.ArgumentParser):
     group.add_argument("--repetition-penalty", type=float, default=None)
     group.add_argument("--num-beams", type=int, default=1)
     group.add_argument("--temperature", type=float, default=1)
-    group.add_argument("--decode-type", type=str, default="ar")
+    group.add_argument("--decode-type", type=str, default="trm_ar")
     group.add_argument("--lookahead", type=int, default=1)
     
     return parser
@@ -243,7 +243,7 @@ def get_args():
         save_path = os.path.join(
             args.save,
             f"{args.decode_type}-{args.data_names}-{args.max_length}" + (f"-mp{args.model_parallel_size}" if args.model_parallel > 0 else ""),
-            f"{ckpt_name}-{draft_ckpt_name}",
+            f"{ckpt_name}" + (f"-{draft_ckpt_name}" if args.draft_ckpt_name is not None else ""),
             f"{args.lookahead}"
             f"{args.seed}",
         )

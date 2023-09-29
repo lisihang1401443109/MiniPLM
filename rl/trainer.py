@@ -18,6 +18,8 @@ import json
 from tqdm import tqdm
 from transformers import GenerationConfig
 from rouge_metric import compute_metrics
+from speculative_sampling import speculative_sampling2
+from autoregressive_sampling import autoregressive_sampling
 
 
 try:
@@ -116,7 +118,7 @@ class Trainer():
         )
         
         self.eval_dataloader = self.eval_dataset.create_dataloader(
-            batch_size=self.args.batch_size, shuffle=False, num_workers=args.num_workers, drop_last=False)
+            batch_size=self.args.eval_batch_size, shuffle=False, num_workers=args.num_workers, drop_last=False)
 
     def prepare_learning(self, args=None):
         args = args or self.args
@@ -310,21 +312,37 @@ class Trainer():
             self.args.num_rollouts, self.global_steps
         )  # Collect more rollouts for training
 
-    def evaluate(self):
+    def evaluate(self, decode_type=None):
+        decode_type = decode_type or self.args.decode_type
         self.model.eval()
         all_prompt_ids, all_response_ids = [], []
         all_tvds = []
+        all_gen_times = []
+        
+        if decode_type == "sp":
+            all_acc_times, all_rej_times = [], []
+            eval_dataloader = self.eval_dataset.create_dataloader(batch_size=1, shuffle=False, num_workers=self.args.num_workers, drop_last=False)
+            print_rank("WARNING: speculative sampling needs eval_batch_size = 1")      
+        else:
+            eval_dataloader = self.eval_dataloader
+            
         with torch.no_grad():
-            for batch in tqdm(self.eval_dataloader, "Generation Evaluation", disable=(not get_rank() == 0)):
+            for batch in tqdm(eval_dataloader, f"Generation Evaluation {decode_type}", disable=(not get_rank() == 0)):
                 self.eval_dataset.move_to_device(batch, self.device)
                 prompt_ids = batch.input_ids
-                gen_out = self.generate(batch.__dict__)
-                response_ids = gen_out.sequences[:, prompt_ids.size(1):]
+                st = time()
+                gen_out = self.generate(batch.__dict__, decode_type=decode_type)
+                gen_time = time() - st
+                response_ids = gen_out["sequences"][:, prompt_ids.size(1):]
                 model_inputs = self.get_model_inputs(Batch(prompt_ids, response_ids))
                 tvd = self.compute_loss(*model_inputs, mean=False)
                 all_prompt_ids.append(torch.nn.functional.pad(prompt_ids, (self.args.max_prompt_length-prompt_ids.size(1), 0), value=self.tokenizer.pad_token_id))
                 all_response_ids.append(torch.nn.functional.pad(response_ids, (0, self.args.max_length-response_ids.size(1)), value=self.tokenizer.pad_token_id))
                 all_tvds.append(tvd)
+                all_gen_times.append(gen_time)
+                if decode_type == "sp":
+                    all_acc_times.append(gen_out["acc_times"])
+                    all_rej_times.append(gen_out["rej_times"])
         
         all_prompt_ids = torch.cat(all_prompt_ids, dim=0)
         all_prompt_ids = all_gather(all_prompt_ids, dim=1, group=self.dp_group, world_size=self.dp_world_size, op="stack")
@@ -338,26 +356,44 @@ class Trainer():
         all_tvds = all_tvds.view(-1)
         tvd = torch.mean(all_tvds, dim=0).item()
 
+        all_gen_times = all_gather(torch.tensor(all_gen_times, device=self.device), dim=1, group=self.dp_group, world_size=self.dp_world_size, op="stack").view(-1)
+        gen_time = all_gen_times.sum().item()
+
+        if decode_type == "sp":
+            all_acc_times = all_gather(torch.tensor(all_acc_times, device=self.device), dim=1, group=self.dp_group, world_size=self.dp_world_size, op="stack").view(-1)
+            all_rej_times = all_gather(torch.tensor(all_rej_times, device=self.device), dim=1, group=self.dp_group, world_size=self.dp_world_size, op="stack").view(-1)
+            acc_times = all_acc_times.sum().item()
+            rej_times = all_rej_times.sum().item()
+
         if get_rank() == 0:
             response_strs = self.tokenizer.batch_decode(all_response_ids, skip_special_tokens=True)
-            
+            tot_gen_tokens = sum([len(self.tokenizer.encode(s, add_special_tokens=False)) for s in response_strs])
+            tokens_per_sec = tot_gen_tokens / gen_time
             for i in range(3):
                 print_rank(f"Input:\n{self.tokenizer.decode(all_prompt_ids[i], skip_special_tokens=True)}\n")
                 print_rank(f"Output:\n{response_strs[i]}\n")
                 print_rank(f"Ground Truth:\n{self.eval_dataset.answers[i]}\n")
-                print_rank(f"TVD: {all_tvds[i]}")
+                print_rank(f"TVD: {all_tvds[i]}, Time: {all_gen_times[i]}")
+                if decode_type == "sp":
+                    print_rank(f"Acc times: {all_acc_times[i]}, Rej times: {all_rej_times[i]}")
                 print_rank("*" * 100)
             
             res = compute_metrics(response_strs[:len(self.eval_dataset.answers)], self.eval_dataset.answers)
             self.save_evals(all_response_ids, res, response_strs)
-            stats = {"tvd": tvd, **res}
+            stats = {"tvd": tvd, "tokens/sec": tokens_per_sec, **res}
+            if decode_type == "sp":
+                stats["acc_times"] = acc_times
+                stats["rej_times"] = rej_times
+                stats["acc_rate"] = acc_times / (acc_times + rej_times)
+                stats["rej_rate"] = rej_times / (acc_times + rej_times)
+
             eval_log_str = self.get_log(stats, "eval")
             print_rank(eval_log_str)
             save_rank(eval_log_str, os.path.join(self.args.save, "log.txt"))
         
         dist.barrier()
 
-    def generate(self, batch):
+    def generate(self, batch, decode_type="trm_ar"):
         max_new_tokens = self.args.max_length - batch["input_ids"].size(1)
         generation_config = GenerationConfig(
             do_sample=self.args.do_sample,
@@ -372,7 +408,14 @@ class Trainer():
             return_dict_in_generate=True,
             output_scores=False
         )
-        gen_out = self.model.generate(**batch, generation_config=generation_config)        
+        if decode_type == "trm_ar":
+            gen_out = self.model.generate(**batch, generation_config=generation_config)
+        elif decode_type == "sp":
+            gen_out = speculative_sampling2(self.teacher_model, self.model, **batch, generation_config=generation_config, lookahead=self.args.lookahead)
+        elif decode_type == "ar":
+            gen_out = autoregressive_sampling(self.model, **batch, generation_config=generation_config)
+        else:
+            raise NotImplementedError
         return gen_out
         
     def save_evals(self, preds, results, response_texts, directory = None):

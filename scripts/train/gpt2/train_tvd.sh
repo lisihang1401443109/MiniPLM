@@ -25,6 +25,7 @@ SAVE_PATH="${BASE_PATH}/results/gpt2/train/minillm2/"
 # hp
 GRAD_ACC=1
 BATCH_SIZE=4
+EVAL_BATCH_SIZE=4
 CHUNK_SIZE=16
 
 
@@ -47,6 +48,7 @@ OPTS+=" --epochs 80000"
 OPTS+=" --total-iters 5000"
 OPTS+=" --kd-ratio 0.5"
 OPTS+=" --batch-size ${BATCH_SIZE}"
+OPTS+=" --eval-batch-size ${EVAL_BATCH_SIZE}"
 OPTS+=" --lr 5e-6"
 OPTS+=" --lr-min 5e-6"
 OPTS+=" --gradient-accumulation-steps ${GRAD_ACC}"
@@ -71,6 +73,8 @@ OPTS+=" --do-sample"
 OPTS+=" --top-k 0"
 OPTS+=" --top-p 1.0"
 OPTS+=" --temperature 1.0"
+OPTS+=" --decode-type sp"
+OPTS+=" --lookahead 3"
 # deepspeed
 OPTS+=" --deepspeed"
 OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"

@@ -19,7 +19,9 @@ class Sampler():
         self.device = trainer.device
         self.epochs = 0
     
-    def generate(self, prompt_batch):
+    def generate(self, prompt_batch, model_name="base"):
+        
+        model = self.model if model_name == "base" else self.teacher_model
         
         generation_config = GenerationConfig(
             do_sample=self.args.do_sample,
@@ -34,7 +36,7 @@ class Sampler():
             output_scores=False
         )
         
-        gen_out = self.model.generate(**prompt_batch, generation_config=generation_config)
+        gen_out = model.generate(**prompt_batch, generation_config=generation_config)
         
         return gen_out
     
@@ -51,8 +53,8 @@ class Sampler():
             prompt_batch = self.prompt_dataset.move_to_device(prompt_batch, self.device)
             
             with torch.no_grad():
-                gen_out = self.generate(prompt_batch.__dict__)
-                full_ids = gen_out.sequences
+                gen_out = self.generate(prompt_batch.__dict__, model_name="teacher")
+                full_ids = gen_out["sequences"]
                 prompt_ids = prompt_batch.input_ids
                 prompt_length = prompt_ids.shape[1]
                 response_ids = full_ids[:, prompt_length:]

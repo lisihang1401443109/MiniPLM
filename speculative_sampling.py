@@ -106,12 +106,10 @@ def draft_sample_loop(draft_model, input_ids, model_kwargs, eos_token_id_tensor,
 
 
 def speculative_sampling2(
-    it,
     target_model,
     draft_model,
     input_ids,
     generation_config: GenerationConfig,
-    tokenizer,
     lookahead=5,
     **kwargs):
 
@@ -154,15 +152,15 @@ def speculative_sampling2(
             prev_target_logits = None
         assert target_logits.shape[1] == draft_logits.shape[1] + 1, ('Target model should have exactly lookahead + 1 tokens', target_logits.shape[1], draft_logits.shape[1] + 1)
         
-        target_distribution = nn.functional.softmax(target_logits, dim=-1)
-        draft_distribution = nn.functional.softmax(draft_logits, dim=-1)
+        target_distribution = nn.functional.softmax(target_logits.float(), dim=-1)
+        draft_distribution = nn.functional.softmax(draft_logits.float(), dim=-1)
         
         accepted_flag = 1
         
         for t in range(lookahead):
             numerator = target_distribution[:, t].gather(-1, draft_output_seq[:, input_len+t].unsqueeze(dim=-1)).squeeze(dim=-1)
             denominator = draft_distribution[:, t].gather(-1, draft_output_seq[:, input_len+t].unsqueeze(dim=-1)).squeeze(dim=-1)
-            ratio = (numerator / denominator)
+            ratio = (numerator / denominator + 1e-5)
             uniform_distribution = torch.rand_like(numerator)
             ones_tensor = torch.ones_like(numerator) # [batch_size]
             # Rejection Sampling
@@ -208,8 +206,6 @@ def speculative_sampling2(
             draft_model_kwargs["attention_mask"] = extend_attention_mask(draft_model_kwargs["attention_mask"], 1)
             target_model_kwargs["attention_mask"] = extend_attention_mask(target_model_kwargs["attention_mask"], 1)
 
-        # print(f"Accepted continuations: {tokenizer.decode(input_ids[0,input_len:], skip_special_tokens=True)}")
-
         unfinished_sequences = unfinished_sequences.mul(
             next_tokens.tile(eos_token_id_tensor.shape[0], 1).ne(eos_token_id_tensor.unsqueeze(1)).prod(dim=0)
         )
@@ -219,13 +215,7 @@ def speculative_sampling2(
 
         if this_peer_finished:
             break
-        
-    #     if it == 1:
-    #         print("*" * 10)
-    
-    # if it == 1:
-    #     exit(0)
-    
+
     return {
         "sequences": input_ids,
         "acc_times": acc_times,
@@ -233,7 +223,7 @@ def speculative_sampling2(
     }
         
 
-def speculative_sampling(it, target_model, draft_model, initial_prompt_seq, max_tokens, tokenizer, lookahead=4, temperature=1.0, debug=True):
+def speculative_sampling(target_model, draft_model, initial_prompt_seq, max_tokens, tokenizer, lookahead=4, temperature=1.0, debug=True):
     '''
     Implementation of Algorithm 2 of the paper - Accelerating Large Language Model Decoding 
     with Speculative Sampling (https://arxiv.org/abs/2302.01318)

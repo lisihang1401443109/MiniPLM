@@ -139,7 +139,7 @@ def run_model(args, tokenizer, model, draft_model, dataset: PromptDataset, epoch
                         generation_config=generation_config)
                 elif args.decode_type == "sp":
                     # gen_out = speculative_sampling(it, model, draft_model, query_ids, args.max_length, tokenizer, temperature=args.temperature, debug=False)
-                    gen_out = speculative_sampling2(it, model, draft_model, **model_batch, generation_config=generation_config, tokenizer=tokenizer, lookahead=args.lookahead)
+                    gen_out = speculative_sampling2(model, draft_model, **model_batch, generation_config=generation_config, lookahead=args.lookahead)
                     acc_times += gen_out["acc_times"]
                     rej_times += gen_out["rej_times"]
                 else:
