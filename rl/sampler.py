@@ -3,6 +3,8 @@ from transformers import GenerationConfig
 
 from .storage import RolloutStorage, Element
 from .rl_datasets import ModelBatch, RLPromptDataset
+from utils import print_rank, save_rank
+import os
 
 
 class Sampler():
@@ -49,6 +51,8 @@ class Sampler():
                 self.prompt_iterator = iter(self.prompt_dataloader)
                 prompt_batch = next(self.prompt_iterator)
                 self.epochs += 1
+                print_rank(f"Sampler: Epoch {self.epochs}")
+                save_rank(f"Sampler: Epoch {self.epochs}", os.path.join(self.args.save, "log.txt"))
             
             prompt_batch = self.prompt_dataset.move_to_device(prompt_batch, self.device)
             

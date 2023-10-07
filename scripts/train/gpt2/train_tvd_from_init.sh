@@ -14,10 +14,10 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
 
 # model
 BASE_PATH=${1-"/home/MiniLLM"}
-# CKPT_NAME="base-init"
-# CKPT="${BASE_PATH}/minillm_ckpts/gpt2/train/minillm_init/gpt2-base/"
-CKPT_NAME="base-sft"
-CKPT="${BASE_PATH}/minillm_ckpts/gpt2/train/sft/gpt2-base/"
+CKPT_NAME="base-init"
+CKPT="${BASE_PATH}/minillm_ckpts/gpt2/train/minillm_init/gpt2-base/"
+# CKPT_NAME="base-sft"
+# CKPT="${BASE_PATH}/minillm_ckpts/gpt2/train/sft/gpt2-base/"
 TEACHER_CKPT_NAME="xlarge-sft"
 TEACHER_CKPT="${BASE_PATH}/minillm_ckpts/gpt2/train/sft/gpt2-xlarge/"
 # data
@@ -26,7 +26,7 @@ PROMPT_DATA_DIR="${BASE_PATH}/processed_data/dolly/gpt2/"
 SAVE_PATH="${BASE_PATH}/results/gpt2/train/minillm2/"
 # hp
 GRAD_ACC=1
-BATCH_SIZE=4
+BATCH_SIZE=16
 EVAL_BATCH_SIZE=4
 CHUNK_SIZE=16
 
@@ -51,7 +51,7 @@ OPTS+=" --total-iters 5000"
 OPTS+=" --kd-ratio 0.5"
 OPTS+=" --batch-size ${BATCH_SIZE}"
 OPTS+=" --eval-batch-size ${EVAL_BATCH_SIZE}"
-OPTS+=" --lr 5e-6"
+OPTS+=" --lr 5e-5"
 OPTS+=" --lr-min 5e-6"
 OPTS+=" --gradient-accumulation-steps ${GRAD_ACC}"
 OPTS+=" --max-length 512"

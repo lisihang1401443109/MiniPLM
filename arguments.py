@@ -244,7 +244,7 @@ def get_args():
             args.save,
             f"{args.decode_type}-{args.data_names}-{args.max_length}" + (f"-mp{args.model_parallel_size}" if args.model_parallel > 0 else ""),
             f"{ckpt_name}" + (f"-{draft_ckpt_name}" if args.draft_ckpt_name is not None else ""),
-            f"{args.lookahead}"
+            f"{args.lookahead}",
             f"{args.seed}",
         )
         args.save = save_path

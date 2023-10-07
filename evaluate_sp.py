@@ -248,7 +248,7 @@ def evaluate_sp(args, tokenizer, model, dataset: PromptDataset, split, epoch, de
 
     mean_gen_length = np.mean([len(tokenizer.encode(s)) for s in response_strs])
 
-    log_str = f"{split} | name: {args.data_names} | {gen_res} | lm_loss {round(lm_loss, 4)} | draft_lm_loss {round(draft_lm_loss, 4)} | tvd {round(tvd, 4)} | avg. gen lenth: {mean_gen_length} | tokens/sec: {round(tokens_per_sec, 2)} | " + \
+    log_str = f"{split} | name: {args.data_names} | {gen_res} | lm_loss {round(lm_loss, 4)} | draft_lm_loss {round(draft_lm_loss, 4)} | neg tvd {round(tvd, 4)} | avg. gen lenth: {mean_gen_length} | tokens/sec: {round(tokens_per_sec, 2)} | " + \
               f"{additional_stats}"
     print_rank(log_str)
     save_rank(log_str, os.path.join(args.save, "log.txt"))

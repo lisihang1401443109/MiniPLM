@@ -18,6 +18,8 @@ CKPT_NAME="xlarge-sft"
 CKPT="${BASE_PATH}/minillm_ckpts/gpt2/train/sft/gpt2-xlarge/"
 DRAFT_CKPT_NAME="base-sft"
 DRAFT_CKPT="${BASE_PATH}/minillm_ckpts/gpt2/train/sft/gpt2-base/"
+# DRAFT_CKPT_NAME="base-init-xlarge-sft/bs16-lr5e-05-G1-N2-lm1-len512/pe4_nr16/3000"
+# DRAFT_CKPT="${BASE_PATH}/results/gpt2/train/minillm2/${DRAFT_CKPT_NAME}"
 MP_SIZE=1
 # data
 DATA_NAMES="dolly"
@@ -45,7 +47,7 @@ OPTS+=" --draft-model-type gpt2"
 OPTS+=" --data-dir ${DATA_DIR}"
 OPTS+=" --data-names ${DATA_NAMES}"
 OPTS+=" --num-workers 0"
-OPTS+=" --dev-num 50"
+OPTS+=" --dev-num 100"
 OPTS+=" --data-process-workers -1"
 OPTS+=" --json-data"
 # hp
