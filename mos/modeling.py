@@ -34,8 +34,8 @@ class MOSModel(PreTrainedModel):
         else:
             raise NotImplementedError
         print(self.hidden_size, self.num_experts)
-        self.gate_mlp = nn.Linear(self.hidden_size, self.num_experts, dtype=torch.float16, device=device)
-        self.hidden_mlp = nn.Linear(self.hidden_size, self.num_experts * self.hidden_size, dtype=torch.float16, device=device)
+        self.gate_mlp = nn.Linear(self.hidden_size, self.num_experts, dtype=torch.float16, device=device, bias=False)
+        self.hidden_mlp = nn.ModuleList([nn.Linear(self.hidden_size, self.hidden_size, dtype=torch.float16, device=device, bias=False) for _ in range(self.num_experts)])
         self.act_func = nn.Tanh()
     
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, inputs_embeds=None, **kwargs):
@@ -57,13 +57,12 @@ class MOSModel(PreTrainedModel):
         hidden_states = transformer_outputs[0] # [bsz, seq_len, hidden_size]
         
         gate_probs = F.softmax(self.gate_mlp(hidden_states), dim=-1, dtype=torch.float32) # [bsz, seq_len, num_experts]
-        hidden_states = self.act_func(self.hidden_mlp(hidden_states)) # [bsz, seq_len, num_experts * hidden_size]
-        new_size = hidden_states.size()[:-1] + (self.num_experts, self.hidden_size)
-        hidden_states = hidden_states.view(new_size) # [bsz, seq_len, num_experts, hidden_size]
-        base_lm_logits = self.inner_model.lm_head(hidden_states) # [bsz, seq_len, num_experts, vocab_size]
-        
-        full_probs = F.softmax(base_lm_logits, dim=-1, dtype=torch.float32) # [bsz, seq_len, num_experts, vocab_size]
-        full_probs = torch.sum(full_probs * gate_probs.unsqueeze(-1), dim=-2) # [bsz, seq_len, vocab_size]
+        full_probs = 0
+        for e in range(self.num_experts):
+            expert_hidden_states = self.act_func(self.hidden_mlp[e](hidden_states)) # [bsz, seq_len, hidden_size]
+            expert_lm_logits = self.inner_model.lm_head(expert_hidden_states) # [bsz, seq_len, vocab_size]
+            expert_probs = F.softmax(expert_lm_logits, dim=-1, dtype=torch.float32) # [bsz, seq_len, vocab_size]
+            full_probs += gate_probs[:, :, e].unsqueeze(-1) * expert_probs
         
         if kwargs.get("return_logits", True):
             lm_logits = torch.log(full_probs)
