@@ -19,8 +19,6 @@ from tqdm import tqdm
 from transformers import GenerationConfig
 from rouge_metric import compute_metrics
 
-
-
 try:
     from transformers import mpu
 except ImportError:
@@ -70,6 +68,8 @@ class BaseTrainer():
                 power=0.5)
         else:
             raise ValueError(f"lr_scheduler of type {args.lr_decay_style} is not supported yet.")
+
+        print(args.lr_min)
 
         return lr_scheduler
     
@@ -164,7 +164,7 @@ class BaseTrainer():
         )
         
         log_midfix = " | ".join([f"{k}: {v:.4f}" for k,v in stats.items()])
-        log_suffix = " | ".join([f"{k}: {v:.4f}" for k,v in kwargs.items()])
+        log_suffix = " | ".join([(f"{k}: {v:.4f}" if isinstance(v, float) else f"{k}: {v}") for k,v in kwargs.items()])
         
         return log_prefix + " | " + log_midfix + " | " + log_suffix
 
@@ -189,9 +189,11 @@ class BaseTrainer():
                 self.train_dataset.move_to_device(model_batch, no_model_batch, self.device)
 
                 stats = {}
-                    
+                
+                # forward
                 forward_time = time()
-                loss = self.compute_loss(model_batch, no_model_batch)
+                loss, loss_stats = self.compute_loss(model_batch, no_model_batch)
+                stats.update(loss_stats)
                 forward_time = time() - forward_time
 
                 # backward
@@ -206,39 +208,44 @@ class BaseTrainer():
 
                 dist.all_reduce(loss, group=self.dp_group, op=dist.ReduceOp.SUM)
                 stats["loss"] = loss / self.dp_world_size
-                # save
-                if self.steps % self.args.gradient_accumulation_steps == 0 and \
-                    ((self.global_steps < 10000 and (self.global_steps % 1000 == 0)) or \
-                    self.global_steps % self.args.save_interval == 0):
-                    self.save(self.args.save)
-
-                # eval
-                if self.steps % self.args.gradient_accumulation_steps == 0 and \
-                    ((self.global_steps < 1000 and (self.global_steps % 100 == 0)) or \
-                    (self.global_steps % self.args.eval_interval == 0)):
-                    self.evaluate()
-                    self.model.train()
                     
                 elapsed_time = forward_time + backward_time + step_time
                 stats["elasped_time"] = elapsed_time
                 
+                # logging
                 for k in stats:
                     logging_stats[k] += stats[k]
-                    
+                
                 mid_log_step = self.args.gradient_accumulation_steps // self.args.mid_log_num
                 mid_log_step = 1 if mid_log_step == 0 else mid_log_step
                 if self.steps % mid_log_step == 0:
-                    print_rank(self.get_log(stats, "train"))
+                    print_rank(self.get_log(stats, "train",
+                                            lr="{:.4e}".format(self.lr_scheduler.get_last_lr()[0]),
+                                            scale=self.optimizer.cur_scale if hasattr(self.optimizer, "cur_scale") else 0),)
                 
                 if self.global_steps % self.args.log_interval == 0 and self.steps % self.args.gradient_accumulation_steps == 0:
                     logging_stats = {k:v/(self.args.log_interval*self.args.gradient_accumulation_steps) for k,v in logging_stats.items()}
-                    log_str = self.get_log(logging_stats, "train", step_time=logging_stats.get("elasped_time", 0) * self.args.gradient_accumulation_steps)
+                    log_str = self.get_log(logging_stats, "train", 
+                                           lr="{:.4e}".format(self.lr_scheduler.get_last_lr()[0]),
+                                           scale=self.optimizer.cur_scale if hasattr(self.optimizer, "cur_scale") else 0,
+                                           step_time=logging_stats.get("elasped_time", 0) * self.args.gradient_accumulation_steps,)
                     print_rank("*" * 100)
                     print_rank(log_str)
                     print_rank(self.args.save)
                     print_rank("*" * 100)
                     save_rank(log_str, os.path.join(self.args.save, "log.txt"))
                     logging_stats = {k:0 for k in logging_stats}
+
+                # save
+                if (self.steps % self.args.gradient_accumulation_steps == 0) and \
+                    (self.global_steps % self.args.save_interval == 0):
+                    self.save(self.args.save)
+
+                # eval
+                if (self.steps % self.args.gradient_accumulation_steps == 0) and \
+                    (self.global_steps % self.args.eval_interval == 0):
+                    self.evaluate()
+                    self.model.train()
 
                 # end
                 if self.global_steps >= self.total_steps:
@@ -262,7 +269,7 @@ class BaseTrainer():
         all_losses = []
                     
         with torch.no_grad():
-            for model_batch, no_model_batch in tqdm(eval_dataloader, f"Generation Evaluation", disable=(not get_rank() == 0)):
+            for model_batch, no_model_batch in tqdm(eval_dataloader, f"LM Evaluation", disable=(not get_rank() == 0)):
                 self.eval_dataset.move_to_device(model_batch, no_model_batch, self.device)
                 loss = self.compute_lm_loss(model_batch, no_model_batch, mean=False)
                 all_losses.append(loss)

@@ -12,7 +12,7 @@ class SFTTrainer(BaseTrainer):
         self.setup_model_and_optimizer(set_optim=do_train)
     
     def compute_loss(self, model_batch, no_model_batch):
-        return self.compute_lm_loss(model_batch, no_model_batch)
+        return self.compute_lm_loss(model_batch, no_model_batch), {}
 
     def evaluate(self):
         if self.args.eval_ppl:
