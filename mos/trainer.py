@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.distributed as dist
 from kd.trainer import KDTrainer
 from sft.trainer import SFTTrainer
 from .modeling import MOSModel, MOSConfig
@@ -15,6 +16,10 @@ class MOSKDTrainer(KDTrainer):
         device = device or self.device
         config = MOSConfig(args, inner_model_path=args.model_path, num_experts=(args.mos_experts or 1))
         model = MOSModel(config, device)
+        if dist.get_rank() == 0:
+            print('New number of parameters: {}'.format(
+                sum([p.nelement() for p in model.parameters()])), flush=True)
+        
         return model
     
     def compute_lm_kd_loss(self, model_batch, no_model_batch, mean=True):

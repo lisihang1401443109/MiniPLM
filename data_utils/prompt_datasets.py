@@ -103,6 +103,9 @@ class PromptDataset(Dataset):
                 source_len = np.where(data==65535)[0][0]
                 output_ids = data[source_len+1:]
                 data = data[:source_len]
+            else:
+                output_ids = data[1:]
+                data = data[:1] # language modeling is the same as using the first token as prompt 
         elif self.args.json_data:
             output_ids = data["output_ids"]
             data = data["prompt_ids"]
