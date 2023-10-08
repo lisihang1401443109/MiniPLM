@@ -116,8 +116,36 @@ class PromptDataset(Dataset):
             rest = output_ids  
     
         return index, prompt, rest
-    
-    def collate(self, samples):
+
+    def collate_lm(self, samples):
+        
+        bs = len(samples)
+        max_length = max([len(samp[1]) + len(samp[2]) for samp in samples])
+        max_length = min(max_length, self.max_length)
+        
+        model_batch = {
+            "input_ids": torch.ones(bs, max_length, dtype=torch.long) * self.pad_id,
+            "attention_mask": torch.zeros(bs, max_length, dtype=torch.long),
+            # "position_ids": torch.zeros(bs, self.max_length, dtype=torch.long)
+        }
+        
+        no_model_batch = {
+            "label": torch.ones(bs, max_length, dtype=torch.long) * self.pad_id,
+            "loss_mask": torch.zeros(bs, max_length, dtype=torch.float)
+        }
+        
+        for i, (idx, prompt, rest) in enumerate(samples):
+            full_ids = np.concatenate([prompt, rest], axis=0)[:max_length]
+            model_batch["input_ids"][i][:len(full_ids)-1] = torch.tensor(full_ids[:-1], dtype=torch.long)
+            model_batch["attention_mask"][i][:len(full_ids)-1] = 1
+            # model_batch["position_ids"][i][-len(prompt):] = torch.arange(len(prompt))
+            no_model_batch["label"][i][:len(full_ids)-1] = torch.tensor(full_ids[1:], dtype=torch.long)
+            st = max(len(prompt)-1, 0)
+            no_model_batch["loss_mask"][i][st:len(full_ids)-1] = 1.0
+        
+        return model_batch, no_model_batch
+
+    def collate_gen(self, samples):
         bs = len(samples)
         
         max_prompt_length = max([len(samp[1]) for samp in samples])
