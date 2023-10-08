@@ -21,7 +21,10 @@ from utils import print_rank
 from utils import save_rank
 from utils import get_tokenizer
 
-from rl.trainer import Trainer
+from kd.trainer import KDTrainer
+from sft.trainer import SFTTrainer
+from mos.trainer import MOSKDTrainer
+from mos.trainer import MOSSFTTrainer
 
 torch.set_num_threads(4)
 
@@ -54,7 +57,16 @@ def main():
     
     args.deepspeed_config = None
     
-    trainer = Trainer(args, ds_config, device, args.do_train)
+    if args.type == "kd":
+        trainer = KDTrainer(args, ds_config, device, args.do_train)
+    elif args.type == "sft":
+        trainer = SFTTrainer(args, ds_config, device, args.do_train)
+    elif args.type == "mos_kd":
+        trainer = MOSKDTrainer(args, ds_config, device, args.do_train)
+    elif args.type == "mos_sft":
+        trainer = MOSSFTTrainer(args, ds_config, device, args.do_train)
+    else:
+        raise NotImplementedError        
     
     trainer.train()
 

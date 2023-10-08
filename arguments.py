@@ -39,6 +39,7 @@ def add_model_args(parser: argparse.ArgumentParser):
     group.add_argument("--draft-model-type", type=str, default=None)
     group.add_argument("--draft-ckpt-name", type=str, default=None)
     group.add_argument("--draft-model-path", type=str, default=None)
+    group.add_argument("--mos-experts", type=int, default=None)
     
     return parser
 
@@ -248,21 +249,23 @@ def get_args():
             f"{args.seed}",
         )
         args.save = save_path
-    elif args.type == "lm":
+    elif args.type == ["sft", "mos_sft"]:
         save_path = os.path.join(
             args.save,
             (f"{args.ckpt_name}"),
             (f"e{args.epochs}-bs{args.batch_size}-lr{args.lr}-G{args.gradient_accumulation_steps}-N{args.n_gpu}") + \
             (f"-mp{args.model_parallel_size}" if args.model_parallel > 0 else "") + \
+            (f"-mos{args.mos_experts}" if args.mos_experts is not None else "") + \
             args.save_additional_suffix
         )
         args.save = save_path
-    elif args.type == "kd":
+    elif args.type in ["kd", "mos_kd"]:
         save_path = os.path.join(
             args.save,
             (f"{args.ckpt_name}-{args.teacher_ckpt_name}"),
             (f"e{args.epochs}-bs{args.batch_size}-lr{args.lr}-G{args.gradient_accumulation_steps}-N{args.n_gpu}-kd{args.kd_ratio}") + \
             (f"-mp{args.model_parallel_size}" if args.model_parallel > 0 else "") + \
+            (f"-mos{args.mos_experts}" if args.mos_experts is not None else "") + \
             args.save_additional_suffix
         )
         args.save = save_path

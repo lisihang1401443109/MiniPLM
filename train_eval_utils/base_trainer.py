@@ -41,7 +41,12 @@ class BaseTrainer():
             self.dp_world_size = dist.get_world_size()
             self.dp_rank = dist.get_rank()
             self.dp_group = None
-        
+    
+    def get_model(self, args=None, device=None):
+        args = args or self.args
+        device = device or self.device
+        return get_model(args, device)
+    
     def get_optimizer(self, model, args=None):
         args = args or self.args
         # Use AdamW.
@@ -78,7 +83,7 @@ class BaseTrainer():
         device = device or self.device
         ds_config = ds_config or self.ds_config
         # get the model
-        model = get_model(args, device)
+        model = self.get_model(args, device)
         # get the optimizer and lr_scheduler
         if set_optim:
             optimizer = self.get_optimizer(model, args)

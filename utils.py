@@ -137,26 +137,26 @@ def initialize(args):
         
         
 # Load and save model
-def get_model(args, device, model_path=None):
+def get_model(args, device, model_path=None, config=None):
     if model_path is None:
         model_path = args.model_path
     print_rank("Initializing model from {}".format(model_path), rank=0)
-    config = AutoConfig.from_pretrained(model_path)
-    if args.dropout_path_rate is not None:
-        config.drop_path_rate = args.dropout_path_rate
+    if config is None:
+        config = AutoConfig.from_pretrained(model_path)
+        if args.dropout_path_rate is not None:
+            config.drop_path_rate = args.dropout_path_rate
     
     st_time = time.time()
     if args.model_parallel:
-        # config.is_model_parallel = True
-        # with init_empty_weights():
-        #     model = parallel_model_map[args.model_type](config).half()
-        # load_parallel(model, args.model_path)
+        config.is_model_parallel = True
+        with init_empty_weights():
+            model = parallel_model_map[args.model_type].half()
+        load_parallel(model, args.model_path)
 
-        # if mpu.get_data_parallel_rank() == 0:
-        #     print(' > number of parameters on model parallel rank {}: {}'.format(
-        #         mpu.get_model_parallel_rank(),
-        #         sum([p.nelement() for p in model.parameters()])), flush=True)
-        pass
+        if mpu.get_data_parallel_rank() == 0:
+            print(' > number of parameters on model parallel rank {}: {}'.format(
+                mpu.get_model_parallel_rank(),
+                sum([p.nelement() for p in model.parameters()])), flush=True)
     else:
         config.is_model_parallel = False
         model = AutoModelForCausalLM.from_pretrained(model_path, config=config, device_map={"": device}, torch_dtype=torch.float16)
