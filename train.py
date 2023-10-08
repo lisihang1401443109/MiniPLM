@@ -38,7 +38,7 @@ def main():
     if dist.get_rank() == 0:
         print_args(args)
         with open(os.path.join(args.save, "args.json"), "w") as f:
-            json.dump(vars(args), f)
+            json.dump(vars(args), f, indent=4)
     
     device = torch.cuda.current_device()
     cur_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())

@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import json
+import os
 from transformers import PreTrainedModel, PretrainedConfig, AutoConfig, AutoModelForCausalLM
 from transformers import GPT2LMHeadModel
 from transformers.modeling_outputs import CausalLMOutputWithPast
@@ -14,13 +16,20 @@ class MOSOutput(CausalLMOutputWithPast):
 
 
 class MOSConfig(PretrainedConfig):
-    def __init__(self, args, inner_model_path, num_experts, **kwargs):
+    def __init__(self, args=None, inner_model_path=None, num_experts=None, **kwargs):
         super().__init__(**kwargs)
         self.args = args
         self.inner_model_path = inner_model_path
         self.num_experts = num_experts
         self.inner_model_config = AutoConfig.from_pretrained(self.inner_model_path)
 
+    def save_pretrained(self, path):
+        with open(os.path.join(path, "config.json"), "w") as f:
+            json.dump({
+                "inner_model_config": self.inner_model_config.to_dict(),
+                "num_experts": self.num_experts,
+                "inner_model_path": self.inner_model_path,
+            }, f, indent=4)
 
 class MOSModel(PreTrainedModel):
     def __init__(self, config: MOSConfig, device):
