@@ -186,6 +186,7 @@ class BaseTrainer():
         logging_stats = defaultdict(float)
         
         self.evaluate()
+        self.model.train()
         for epoch in range(self.args.epochs):
             self.epoch = epoch
             train_sampler.set_epoch(epoch)

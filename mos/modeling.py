@@ -31,6 +31,7 @@ class MOSConfig(PretrainedConfig):
                 "inner_model_path": self.inner_model_path,
             }, f, indent=4)
 
+
 class MOSModel(PreTrainedModel):
     def __init__(self, config: MOSConfig, device):
         super().__init__(config)
@@ -45,7 +46,9 @@ class MOSModel(PreTrainedModel):
         print(self.hidden_size, self.num_experts)
         self.gate_mlp = nn.Linear(self.hidden_size, self.num_experts, dtype=torch.float16, device=device, bias=False)
         self.hidden_mlp = nn.ModuleList([nn.Linear(self.hidden_size, self.hidden_size, dtype=torch.float16, device=device, bias=False) for _ in range(self.num_experts)])
-        self.act_func = nn.Tanh()
+        for m in self.hidden_mlp:
+            nn.init.eye_(m.weight)
+        # self.act_func = nn.Tanh()
     
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, inputs_embeds=None, **kwargs):
         return self.inner_model.prepare_inputs_for_generation(input_ids, past_key_values=past_key_values, inputs_embeds=inputs_embeds, **kwargs)
@@ -68,7 +71,8 @@ class MOSModel(PreTrainedModel):
         gate_probs = F.softmax(self.gate_mlp(hidden_states), dim=-1, dtype=torch.float32) # [bsz, seq_len, num_experts]
         full_probs = 0
         for e in range(self.num_experts):
-            expert_hidden_states = self.act_func(self.hidden_mlp[e](hidden_states)) # [bsz, seq_len, hidden_size]
+            # expert_hidden_states = self.act_func(self.hidden_mlp[e](hidden_states)) # [bsz, seq_len, hidden_size]
+            expert_hidden_states = self.hidden_mlp[e](hidden_states) # [bsz, seq_len, hidden_size]
             expert_lm_logits = self.inner_model.lm_head(expert_hidden_states) # [bsz, seq_len, vocab_size]
             expert_probs = F.softmax(expert_lm_logits, dim=-1, dtype=torch.float32) # [bsz, seq_len, vocab_size]
             full_probs += gate_probs[:, :, e].unsqueeze(-1) * expert_probs
