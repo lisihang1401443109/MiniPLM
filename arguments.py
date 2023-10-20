@@ -66,6 +66,7 @@ def add_runtime_args(parser: argparse.ArgumentParser):
     group.add_argument("--save-additional-suffix", type=str, default="")
     group.add_argument("--save-rollout", action="store_true")
     group.add_argument("--eb-sample-times", type=int, default=3)
+    group.add_argument("--from-scratch", type=int, default=5)
     return parser
 
 
@@ -97,6 +98,8 @@ def add_data_args(parser: argparse.ArgumentParser):
     group.add_argument("--eval-gen", action="store_true")
     
     group.add_argument("--only-prompt", action="store_true")
+    
+    group.add_argument("--chunk-num-per-shard", type=int, default=10000)
     return parser
 
 

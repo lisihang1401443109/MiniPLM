@@ -167,3 +167,6 @@ checkpoints
 data
 debug
 api_keys.json
+processed_data_1
+azcopy
+downstream_data

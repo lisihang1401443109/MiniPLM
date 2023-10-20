@@ -1,10 +1,10 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-name = "gpt2-xl"
-save_name = "gpt2-xlarge"
+name = "KoboldAI/fairseq-dense-125M"
+save_name = "fairseq/125M"
 
 tokenizer = AutoTokenizer.from_pretrained(name)
-model = AutoModelForCausalLM.from_pretrained(name)
+# model = AutoModelForCausalLM.from_pretrained(name)
 
-tokenizer.save_pretrained(f"checkpoints/{name}/")
-model.save_pretrained(f"checkpoints/{save_name}/")
+tokenizer.save_pretrained(f"checkpoints/{save_name}/")
+# model.save_pretrained(f"checkpoints/{save_name}/")

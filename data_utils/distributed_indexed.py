@@ -15,14 +15,12 @@
 
 import os
 import struct
-import shutil
 
 from itertools import accumulate
 
 import numpy as np
 import torch
 import torch.distributed as dist
-from utils import print_rank, save_rank
 
 
 dtypes = {
@@ -107,13 +105,16 @@ class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
         def __len__(self):
             return self._len
 
-    def __init__(self, path, name, rank_number, rank_total, cache = None):
+    def __init__(self, path, name, rank_number=0, rank_total=1, do_probe=True, min_state=0, max_state=None, cache = None, load_to_ram=False):
         
         super().__init__()
 
         self._path = path
         self._name = name
-        self._state = 0
+        self._do_probe = do_probe
+        self._load_to_ram = load_to_ram
+        self._state = min_state
+        self.min_state = min_state
         if cache is not None:
             self._cache = cache
             os.makedirs(self._cache, exist_ok=True)
@@ -124,36 +125,50 @@ class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
         self._index = None
         self._bin_buffer = None
         self._bin_buffer_mmap = None
-        self.max_state, self.history = self._probe_data_path(self._path, self._name, self._rank_total)
-        self.total_length = self.history[self.max_state-1][1]
+        self.max_state, self.history, self.lens = self._probe_data_path(self._path, self._name, self._rank_total, do_probe=do_probe, min_state=min_state, max_state=max_state)
+        self.total_length = int(self.history[self.max_state-1][1])
 
-        self._do_init(self._path, self._name, self._cache, self._state)
+        self._do_init(self._path, self._name, self._cache, self._state, do_probe, load_to_ram)
 
-    def _probe_data_path(self, path, name, rank_total):
-        print_rank("Probing Dataset")
-            
-        state = 0
-        history = {-1:(0, 0)}
-        for state in range(np.iinfo(np.int32).max):
-            source_file = path + name + f"_{state}"
+    def _probe_data_path(self, path, name, rank_total, do_probe, min_state, max_state):
+        if not dist.is_initialized() or dist.get_rank() == 0:
+            print("Probing Dataset")
+        history = {min_state-1:(0, 0)}
+        lens = []
+        state = min_state
+        max_state = np.iinfo(np.int32).max if max_state is None else max_state
+        while state < max_state:
+            if state % 10 == 0:
+                print(state)
+            if do_probe:
+                source_file = os.path.join(path, name + f"_{state}")
+            else:
+                source_file = os.path.join(path, name)
+
             if self.exists(source_file):
                 index = self.Index(index_file_path(source_file))
                 history[state] = (history[state-1][1], history[state-1][1] + len(index))
+                lens.append(len(index))
             else:
                 break
-            
-        print_rank(f"Probing end. Max data state {state}, total length {history[state-1][1]}")
+
+            state += 1
+            if not do_probe:
+                break
         
-        return state, history
+        if not dist.is_initialized() or dist.get_rank() == 0:  
+            print(f"Probing end. Max data state {state}, total length {history[state-1][1]}")
+        
+        return state, history, lens
 
     def __getstate__(self):
-        return self._path + self._name + "_%d"%(self._state)
+        return os.path.join(self._path, self._name + "_%d"%(self._state))
 
     def __setstate__(self, state):
         self._state = state
-        self._do_init(self._path, self._name, self._cache, self._state)
+        self._do_init(self._path, self._name, self._cache, self._state, self._do_probe, self._load_to_ram)
 
-    def _do_init(self, path, name, cache, state):
+    def _do_init(self, path, name, cache, state, do_probe, load_to_ram):
         if self._bin_buffer_mmap is not None:
             self._bin_buffer_mmap._mmap.close()
             del self._bin_buffer_mmap
@@ -162,10 +177,19 @@ class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
 
         self._state = state
 
-        source_file = path + name + f"_{self._state}"
+        if do_probe:
+            source_file = os.path.join(path, name + f"_{self._state}")
+        else:
+            source_file = os.path.join(path, name)
+            
         self._index = self.Index(index_file_path(source_file))
-        self._bin_buffer_mmap = np.memmap(data_file_path(source_file), mode='r', order='C')
-        self._bin_buffer = memoryview(self._bin_buffer_mmap)
+        if load_to_ram:
+            print("Loading from file")
+            self._bin_buffer = np.fromfile(data_file_path(source_file), dtype=self._index.dtype)
+            print("Loading from file done")    
+        else:
+            self._bin_buffer_mmap = np.memmap(data_file_path(source_file), mode='r', order='C')
+            self._bin_buffer = memoryview(self._bin_buffer_mmap)
 
     def __del__(self):
         if self._bin_buffer_mmap is not None:
@@ -177,12 +201,13 @@ class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
     def __len__(self):
         return self.total_length
 
-    def _next_file(self):
-        self._state += 1
-        if self._state >= self.max_state:
-            self._state = 0
-        # print_rank(f"next_file: {self._state}")
-        self._do_init(self._path, self._name, self._cache, self._state)
+    # def _next_file(self):
+    #     self._state += 1
+    #     if self._state >= self.max_state:
+    #         # self._state = 0
+    #         raise StopIteration()
+    #     # print_rank(f"next_file: {self._state}")
+    #     self._do_init(self._path, self._name, self._cache, self._state, self._do_probe, self._load_to_ram)
     
     def __relative_idx(self, idx):
         res = idx - self.history[self._state][0]
@@ -197,12 +222,22 @@ class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         if isinstance(idx, int):
+            if idx >= self.total_length:
+                print(f"idx: {idx} total_length: {self.total_length}")
+                raise StopIteration
+            
             while idx >= self.history[self._state][1] or idx < self.history[self._state][0]:
-                self._next_file()
+                self._state += 1
+                if self._state >= self.max_state:
+                    self._state = 0
+                # print(self._state)
+            self._do_init(self._path, self._name, self._cache, self._state, self._do_probe, self._load_to_ram)
             ptr, size = self._index[self.__relative_idx(idx)]
             return np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=size, offset=ptr)
         elif isinstance(idx, slice):
             raise NotImplementedError()
+        else:
+            raise TypeError()
 
     @property
     def sizes(self):

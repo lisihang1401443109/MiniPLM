@@ -25,6 +25,7 @@ from kd.trainer import KDTrainer
 from sft.trainer import SFTTrainer
 from mos.trainer import MOSKDTrainer
 from mos.trainer import MOSSFTTrainer
+from pretrain.trainer import PreTrainer
 
 torch.set_num_threads(4)
 
@@ -65,6 +66,8 @@ def main():
         trainer = MOSKDTrainer(args, ds_config, device, args.do_train)
     elif args.type == "mos_sft":
         trainer = MOSSFTTrainer(args, ds_config, device, args.do_train)
+    elif args.type == "pretrain":
+        trainer = PreTrainer(args, ds_config, device, args.do_train)
     else:
         raise NotImplementedError        
     
