@@ -1,14 +1,12 @@
 import torch
 import os
 
-from torch.optim.lr_scheduler import CosineAnnealingLR
 from utils import print_rank, get_model, save_rank, save_parallel, get_tokenizer, all_gather
 from torch.distributed import get_rank
 import torch.distributed as dist
 from torch.utils.data import DataLoader, DistributedSampler
 from torch.optim import AdamW
 import torch.nn as nn
-from transformers import get_constant_schedule_with_warmup, get_polynomial_decay_schedule_with_warmup
 import deepspeed
 import math
 from time import time
@@ -16,8 +14,14 @@ from collections import defaultdict
 from data_utils.prompt_datasets import PromptDataset
 import json
 from tqdm import tqdm
-from transformers import GenerationConfig
+from transformers import (
+    GenerationConfig,
+    get_constant_schedule_with_warmup,
+    get_polynomial_decay_schedule_with_warmup,
+)
 from rouge_metric import compute_metrics
+
+from .schedulers import WarmupCosineAnnealingLR
 
 try:
     from transformers import mpu
@@ -50,7 +54,7 @@ class BaseTrainer():
     def get_optimizer(self, model, args=None):
         args = args or self.args
         # Use AdamW.
-        optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+        optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay, eps=args.adam_eps, betas=(args.adam_beta, args.adam_beta2))
         print_rank(f'Optimizer = {optimizer.__class__.__name__}')
         return optimizer
         
@@ -61,9 +65,10 @@ class BaseTrainer():
                 optimizer,
                 num_warmup_steps=args.warmup_iters)
         elif args.lr_decay_style == "cosine":
-            lr_scheduler = CosineAnnealingLR(
+            lr_scheduler = WarmupCosineAnnealingLR(
                 optimizer,
                 T_max=self.total_steps,
+                warmup_steps=args.warmup_iters,
                 eta_min=args.lr_min)
         elif args.lr_decay_style == "noam":
             lr_scheduler = get_polynomial_decay_schedule_with_warmup(
@@ -110,7 +115,7 @@ class BaseTrainer():
         self.train_iters_per_epoch = int(len(self.train_dataset) / (args.batch_size * self.dp_world_size * args.gradient_accumulation_steps))
         assert (args.epochs is not None) ^ (args.total_iters is not None), (args.epochs, args.total_iters)
         self.total_steps = args.total_iters or self.train_iters_per_epoch * args.epochs
-        self.epochs = args.epochs or math.ceil(args.total_iters / args.train_iters_per_epoch)
+        self.epochs = args.epochs or math.ceil(args.total_iters / self.train_iters_per_epoch)
         
         if args.save_interval == -1:
             args.save_interval = self.train_iters_per_epoch
@@ -180,14 +185,14 @@ class BaseTrainer():
             self.train_dataset, sampler=train_sampler, batch_size=self.args.batch_size, num_workers=self.args.num_workers, collate_fn=self.train_dataset.collate_lm)
 
         self.steps = 1
-        self.global_steps = 1
+        self.global_steps = 0
         self.epoch = 1
         
         logging_stats = defaultdict(float)
         
         self.evaluate()
         self.model.train()
-        for epoch in range(self.args.epochs):
+        for epoch in range(1, self.epochs + 1):
             self.epoch = epoch
             train_sampler.set_epoch(epoch)
             for it, (model_batch, no_model_batch) in enumerate(train_dataloader):
@@ -227,12 +232,12 @@ class BaseTrainer():
                 
                 mid_log_step = self.args.gradient_accumulation_steps // self.args.mid_log_num
                 mid_log_step = 1 if mid_log_step == 0 else mid_log_step
-                if self.steps % mid_log_step == 0:
+                if (self.steps % mid_log_step == 0):
                     print_rank(self.get_log(stats, "train",
                                             lr="{:.4e}".format(self.lr_scheduler.get_last_lr()[0]),
                                             scale=self.optimizer.cur_scale if hasattr(self.optimizer, "cur_scale") else 0),)
                 
-                if self.global_steps % self.args.log_interval == 0 and self.steps % self.args.gradient_accumulation_steps == 0:
+                if (self.steps > 0) and (self.global_steps % self.args.log_interval == 0) and (self.steps % self.args.gradient_accumulation_steps == 0):
                     logging_stats = {k:v/(self.args.log_interval*self.args.gradient_accumulation_steps) for k,v in logging_stats.items()}
                     log_str = self.get_log(logging_stats, "train", 
                                            lr="{:.4e}".format(self.lr_scheduler.get_last_lr()[0]),
@@ -246,12 +251,12 @@ class BaseTrainer():
                     logging_stats = {k:0 for k in logging_stats}
 
                 # save
-                if (self.steps % self.args.gradient_accumulation_steps == 0) and \
+                if (self.steps > 0) and (self.steps % self.args.gradient_accumulation_steps == 0) and \
                     (self.global_steps % self.args.save_interval == 0):
                     self.save(self.args.save)
 
                 # eval
-                if (self.steps % self.args.gradient_accumulation_steps == 0) and \
+                if (self.steps > 0) and (self.steps % self.args.gradient_accumulation_steps == 0) and \
                     (self.global_steps % self.args.eval_interval == 0):
                     self.evaluate()
                     self.model.train()

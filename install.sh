@@ -14,8 +14,8 @@ pip3 install sentencepiece
 pip3 install protobuf==3.20.3
 pip3 install peft
 
-ln -s /mnt/yuxian/sps/results_residual/ results/
-ln -s /mnt/yuxian/sps/processed_data/ processed_data/
+ln -s /mnt/yuxian/sps/results_residual/ results
+ln -s /mnt/yuxian/sps/processed_data/ processed_data
 ln -s /mnt/yuxian/data downstream_data
 ln -s /mnt/yuxian/checkpoints checkpoints
 ln -s /mnt/yuxian/pretrain_data pretrain_data

@@ -32,7 +32,6 @@ class PreTrainer(BaseTrainer):
             res = {**lm_res}
             
             eval_log_str = self.get_log(res, "eval")
-            print_rank("*" * 100)
             print_rank(eval_log_str)
             save_rank(eval_log_str, os.path.join(self.args.save, "log.txt"))
             print_rank("*" * 100)

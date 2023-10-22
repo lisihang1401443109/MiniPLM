@@ -113,7 +113,7 @@ def add_hp_args(parser: argparse.ArgumentParser):
                        help='gradient clipping')
     group.add_argument('--total-iters', type=int, default=None,
                        help='total number of iterations')
-    group.add_argument('--train-iters-per-epoch', type=int, default=-1,
+    group.add_argument('--train-iters-per-epoch', type=int, default=None,
                        help='total number of iterations per epoch')
     group.add_argument('--max-length', type=int, default=1024,
                        help='max length of input')
@@ -135,6 +135,9 @@ def add_hp_args(parser: argparse.ArgumentParser):
                        help='weight-decay')
     group.add_argument('--loss-scale', type=float, default=65536,
                        help='loss scale')
+    group.add_argument('--adam-beta', type=float, default=0.9),
+    group.add_argument('--adam-beta2', type=float, default=0.999),
+    group.add_argument('--adam-eps', type=float, default=1e-8),
     group.add_argument("--kd-ratio", type=float, default=None)
 
     group.add_argument('--warmup-iters', type=int, default=0,
