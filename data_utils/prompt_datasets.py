@@ -12,7 +12,7 @@ import numpy as np
 
 
 class PromptDataset(Dataset):
-    def __init__(self, args, tokenizer, split, data_path=None, num=-1):
+    def __init__(self, args, tokenizer, split, data_path=None, num=-1, **kwargs):
         super().__init__()
         self.tokenizer = tokenizer
 
@@ -23,9 +23,13 @@ class PromptDataset(Dataset):
         self.max_length = args.max_length
         self.min_prompt_length = args.min_prompt_length
         self.max_prompt_length = args.max_prompt_length
-
+        self.answers = None
         if args.bin_data:
-            self.data = DistributedMMapIndexedDataset(data_path, f"{split}", get_rank(), get_world_size())
+            self.data = DistributedMMapIndexedDataset(data_path, f"{split}", get_rank(), get_world_size(),
+                                                      min_state=kwargs.get("min_state", 0), max_state=kwargs.get("max_state", None),
+                                                      min_offset=kwargs.get("min_offset", 0), max_offset=kwargs.get("max_offset", None),
+                                                      )
+            
         elif args.json_data:
             self.data, self.origin_data = self.load_data_json(data_path)
         else:
@@ -42,8 +46,9 @@ class PromptDataset(Dataset):
                 self.answers = [x["output"] if isinstance(x["output"], list) else [x["output"]] for x in self.raw]
         else:
             print_rank("WARNING: No answers exist")
-            
-        self.label_map = {tokenizer.encode(x[0], add_special_tokens=False)[0]: x[0] for x in self.answers}
+        
+        if self.answers is not None:
+            self.label_map = {tokenizer.encode(x[0], add_special_tokens=False)[0]: x[0] for x in self.answers}
             
         self.num = min(num, len(self.data)) if num > 0 else len(self.data)
         print_rank(f"Num PPO instances: {len(self.data)}")

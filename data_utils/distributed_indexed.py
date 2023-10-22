@@ -105,7 +105,7 @@ class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
         def __len__(self):
             return self._len
 
-    def __init__(self, path, name, rank_number=0, rank_total=1, do_probe=True, min_state=0, max_state=None, cache = None, load_to_ram=False):
+    def __init__(self, path, name, rank_number=0, rank_total=1, do_probe=True, min_state=0, max_state=None, min_offset=0, max_offset=None, cache = None, load_to_ram=False):
         
         super().__init__()
 
@@ -115,6 +115,8 @@ class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
         self._load_to_ram = load_to_ram
         self._state = min_state
         self.min_state = min_state
+        self.min_offset = min_offset
+        self.max_offset = max_offset
         if cache is not None:
             self._cache = cache
             os.makedirs(self._cache, exist_ok=True)
@@ -127,6 +129,10 @@ class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
         self._bin_buffer_mmap = None
         self.max_state, self.history, self.lens = self._probe_data_path(self._path, self._name, self._rank_total, do_probe=do_probe, min_state=min_state, max_state=max_state)
         self.total_length = int(self.history[self.max_state-1][1])
+        self.valid_length = (self.max_offset if self.max_offset is not None else self.total_length) - self.min_offset
+
+        if not dist.is_initialized() or dist.get_rank() == 0:  
+            print(f"Probing end. Max data state {self.max_state}, total length {self.history[self.max_state-1][1]}, valid_length {self.valid_length}, min_offset {self.min_offset}")
 
         self._do_init(self._path, self._name, self._cache, self._state, do_probe, load_to_ram)
 
@@ -155,10 +161,7 @@ class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
             state += 1
             if not do_probe:
                 break
-        
-        if not dist.is_initialized() or dist.get_rank() == 0:  
-            print(f"Probing end. Max data state {state}, total length {history[state-1][1]}")
-        
+                
         return state, history, lens
 
     def __getstate__(self):
@@ -199,7 +202,7 @@ class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
             del self._index
 
     def __len__(self):
-        return self.total_length
+        return self.valid_length
 
     # def _next_file(self):
     #     self._state += 1
@@ -213,14 +216,16 @@ class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
         res = idx - self.history[self._state][0]
         return res
 
-    def __slice_item(self, start, stop):
-        ptr = self._index._pointers[self.__relative_idx(start)]
-        sizes = self._index._sizes[self.__relative_idx(start):self.__relative_idx(stop)]
-        offsets = list(accumulate(sizes))
-        np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=sum(sizes), offset=ptr)
-        return np.split(np_array, offsets[:-1])
+    # def __slice_item(self, start, stop):
+    #     ptr = self._index._pointers[self.__relative_idx(start)]
+    #     sizes = self._index._sizes[self.__relative_idx(start):self.__relative_idx(stop)]
+    #     offsets = list(accumulate(sizes))
+    #     np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=sum(sizes), offset=ptr)
+    #     return np.split(np_array, offsets[:-1])
 
     def __getitem__(self, idx):
+        idx += self.min_offset
+
         if isinstance(idx, int):
             if idx >= self.total_length:
                 print(f"idx: {idx} total_length: {self.total_length}")

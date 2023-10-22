@@ -17,14 +17,14 @@ BASE_PATH=${1-"/home/MiniLLM"}
 CKPT_NAME="fairseq/125M"
 CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
 # data
-DATA_DIR="${BASE_PATH}/processed_data/dolly/gpt2/"
+DATA_DIR="${BASE_PATH}/processed_data/pretrain/owbt/chunked/fairseq-2049"
 # hp
 BATCH_SIZE=16
-LR=0.0005
-GRAD_ACC=1
-EVAL_BATCH_SIZE=32
+LR=0.00005
+GRAD_ACC=2
+EVAL_BATCH_SIZE=16
 # length
-MAX_LENGTH=512
+MAX_LENGTH=2048
 # runtime
 SAVE_PATH="${BASE_PATH}/results/gpt2/train/sft"
 # seed
@@ -37,11 +37,11 @@ OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --model-path ${CKPT}"
 OPTS+=" --ckpt-name ${CKPT_NAME}"
 OPTS+=" --n-gpu ${GPUS_PER_NODE}"
-# OPTS+=" --gradient-checkpointing"
+OPTS+=" --gradient-checkpointing"
 # data
 OPTS+=" --data-dir ${DATA_DIR}"
-OPTS+=" --num-workers 0"
-OPTS+=" --dev-num 1000"
+OPTS+=" --num-workers 4"
+OPTS+=" --dev-num 10000"
 OPTS+=" --bin-data"
 # hp
 OPTS+=" --lr ${LR}"
@@ -52,17 +52,15 @@ OPTS+=" --warmup-iters 0"
 OPTS+=" --lr-decay-style cosine"
 OPTS+=" --weight-decay 1e-2"
 OPTS+=" --clip-grad 1.0"
-OPTS+=" --epochs 20"
+OPTS+=" --epochs 1"
 # length
 OPTS+=" --max-length ${MAX_LENGTH}"
 OPTS+=" --max-prompt-length 256"
 # runtime
 OPTS+=" --do-train"
 OPTS+=" --do-valid"
-OPTS+=" --eval-ppl"
-OPTS+=" --eval-gen"
-OPTS+=" --save-interval -1"
-OPTS+=" --eval-interval -1"
+OPTS+=" --save-interval 5000"
+OPTS+=" --eval-interval 5000"
 OPTS+=" --log-interval 4"
 OPTS+=" --mid-log-num -1"
 OPTS+=" --save ${SAVE_PATH}"
@@ -72,19 +70,14 @@ OPTS+=" --seed ${SEED}"
 OPTS+=" --deepspeed"
 OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
 # type
-OPTS+=" --type sft"
-# gen
-OPTS+=" --do-sample"
-OPTS+=" --top-k 0"
-OPTS+=" --top-p 1.0"
-OPTS+=" --temperature 1.0"
+OPTS+=" --type pretrain"
 
 
 export NCCL_DEBUG=""
 export WANDB_DISABLED=True
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
-CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/train_sft.py ${OPTS} $@"
+CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/train.py ${OPTS} $@"
 
 echo ${CMD}
 echo "PYTHONPATH=${PYTHONPATH}"

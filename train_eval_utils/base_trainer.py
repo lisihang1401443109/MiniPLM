@@ -74,8 +74,6 @@ class BaseTrainer():
         else:
             raise ValueError(f"lr_scheduler of type {args.lr_decay_style} is not supported yet.")
 
-        print(args.lr_min)
-
         return lr_scheduler
     
     def setup_model_and_optimizer(self, args=None, ds_config=None, device=None, set_optim=True):
@@ -161,11 +159,13 @@ class BaseTrainer():
         return lm_loss
 
     def get_log(self, stats, phase, **kwargs):
-        log_prefix = "{} | epoch {} | steps {} | global_steps {}".format(
+        log_prefix = "{} | epoch {}/{} | steps {} | global_steps {}/{}".format(
             phase,
             self.epoch,
+            self.epochs,
             self.steps,
             self.global_steps,
+            self.total_steps
         )
         
         log_midfix = " | ".join([f"{k}: {v:.4f}" for k,v in stats.items()])
@@ -193,7 +193,10 @@ class BaseTrainer():
             for it, (model_batch, no_model_batch) in enumerate(train_dataloader):
                 # print_rank(f"Epoch {epochs}, Iter {it}")
                 self.train_dataset.move_to_device(model_batch, no_model_batch, self.device)
-
+                
+                # if get_rank() == 0:
+                #     print(model_batch["input_ids"].size(), no_model_batch["label"].size())
+                
                 stats = {}
                 
                 # forward
