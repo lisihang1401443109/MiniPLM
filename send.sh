@@ -11,5 +11,6 @@ rsync -avzP ./* node-${id}:~/sps/ \
     --exclude "*.egg-info" \
     --exclude "*.pyc" \
     --exclude "azcopy" \
+    --exclude "send.sh" \
     --omit-dir-times
 done

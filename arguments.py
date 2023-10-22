@@ -17,6 +17,7 @@ import argparse
 import os
 import deepspeed
 import numpy as np
+from numerize.numerize import numerize
 
 
 def add_model_args(parser: argparse.ArgumentParser):
@@ -255,13 +256,15 @@ def get_args():
             f"{args.seed}",
         )
         args.save = save_path
-    elif args.type == ["sft", "mos_sft"]:
+    elif args.type in ["sft", "mos_sft", "pretrain"]:
         save_path = os.path.join(
             args.save,
-            (f"{args.ckpt_name}"),
-            (f"e{args.epochs}-bs{args.batch_size}-lr{args.lr}-G{args.gradient_accumulation_steps}-N{args.n_gpu}") + \
+            (f"{args.ckpt_name.replace('/', '_')}"),
+            (f"e{args.epochs}" if args.epochs is not None else f"t{numerize(args.total_iters)}") + \
+            (f"-bs{args.batch_size}-lr{args.lr}{args.lr_decay_style}{args.lr_min}-G{args.gradient_accumulation_steps}-N{args.n_gpu}-NN{args.n_nodes}") + \
             (f"-mp{args.model_parallel_size}" if args.model_parallel > 0 else "") + \
             (f"-mos{args.mos_experts}" if args.mos_experts is not None else "") + \
+            (f"-scr" if args.from_scratch else "") + \
             args.save_additional_suffix
         )
         args.save = save_path

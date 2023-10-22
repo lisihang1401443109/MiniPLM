@@ -19,12 +19,13 @@ DATA_DIR="${BASE_PATH}/processed_data/pretrain/owbt/chunked/fairseq-1025"
 # hp
 BATCH_SIZE=8
 LR=0.0003
+LR_MIN=0.00003
 GRAD_ACC=2
 EVAL_BATCH_SIZE=16
 # length
 MAX_LENGTH=1024
 # runtime
-SAVE_PATH="${BASE_PATH}/results/gpt2/train/sft"
+SAVE_PATH="${BASE_PATH}/results/gpt2/train/pretrain"
 # seed
 SEED=10
 
@@ -35,6 +36,7 @@ OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --model-path ${CKPT}"
 OPTS+=" --ckpt-name ${CKPT_NAME}"
 OPTS+=" --n-gpu ${GPUS_PER_NODE}"
+OPTS+=" --n-nodes ${NNODES}"
 # OPTS+=" --gradient-checkpointing"
 OPTS+=" --from-scratch"
 # data
@@ -44,6 +46,7 @@ OPTS+=" --dev-num 10000"
 OPTS+=" --bin-data"
 # hp
 OPTS+=" --lr ${LR}"
+OPTS+=" --lr-min ${LR_MIN}"
 OPTS+=" --batch-size ${BATCH_SIZE}"
 OPTS+=" --eval-batch-size ${EVAL_BATCH_SIZE}"
 OPTS+=" --gradient-accumulation-steps ${GRAD_ACC}"
@@ -57,7 +60,6 @@ OPTS+=" --adam-eps 1e-6"
 OPTS+=" --total-iters 500000"
 # length
 OPTS+=" --max-length ${MAX_LENGTH}"
-OPTS+=" --max-prompt-length 256"
 # runtime
 OPTS+=" --do-train"
 OPTS+=" --do-valid"

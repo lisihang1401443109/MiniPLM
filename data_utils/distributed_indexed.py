@@ -145,7 +145,8 @@ class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
         max_state = np.iinfo(np.int32).max if max_state is None else max_state
         while state < max_state:
             if state % 10 == 0:
-                print(state)
+                if not dist.is_initialized() or dist.get_rank() == 0:
+                    print(f"Find State {state}")
             if do_probe:
                 source_file = os.path.join(path, name + f"_{state}")
             else:
