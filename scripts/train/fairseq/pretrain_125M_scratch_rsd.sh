@@ -25,7 +25,7 @@ EVAL_BATCH_SIZE=16
 # length
 MAX_LENGTH=1024
 # runtime
-SAVE_PATH="${BASE_PATH}/results/gpt2/train/pt_rsd"
+SAVE_PATH="${BASE_PATH}/results/fairseq/train/pt_rsd"
 # seed
 SEED=10
 

@@ -58,6 +58,12 @@ class ResidualPreTrainer(PreTrainer):
     
     def compute_loss(self, model_batch, no_model_batch):
         loss, base_lm_loss, total_lm_loss = self._compute_residual_pt_losses(model_batch, no_model_batch)
+        
+        dist.all_reduce(base_lm_loss, group=self.dp_group, op=dist.ReduceOp.SUM)
+        base_lm_loss = base_lm_loss / self.dp_world_size
+        dist.all_reduce(total_lm_loss, group=self.dp_group, op=dist.ReduceOp.SUM)
+        total_lm_loss = total_lm_loss / self.dp_world_size
+        
         return loss, {"base_lm_loss": base_lm_loss.item(), "total_lm_loss": total_lm_loss.item()}
     
     def evaluate(self):
