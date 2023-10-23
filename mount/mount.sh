@@ -1,0 +1,1 @@
+sudo blobfuse2 mount /mnt/yuxian/ --config-file=config.yml --tmp-path=/mnt/yuxian-tmp -o attr_timeout=240 -o entry_timeout=240 -o negative_timeout=120

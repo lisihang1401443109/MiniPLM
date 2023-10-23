@@ -156,7 +156,7 @@ class BaseTrainer():
         outputs = self.model(**model_batch, use_cache=False)
         logits = outputs.logits
         
-        lm_loss = self._get_lm_loss_from_logits(logits, model_batch["label"], model_batch["loss_mask"])
+        lm_loss = self._get_lm_loss_from_logits(logits, no_model_batch["label"], no_model_batch["loss_mask"])
         
         if mean:
             lm_loss = lm_loss.mean()            
