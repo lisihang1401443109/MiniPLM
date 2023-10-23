@@ -13,6 +13,7 @@ pip3 install datasets
 pip3 install sentencepiece
 pip3 install protobuf==3.20.3
 pip3 install peft
+pip3 install matplotlib
 
 ln -s /mnt/yuxian/sps/results_residual/ results
 ln -s /mnt/yuxian/sps/processed_data/ processed_data

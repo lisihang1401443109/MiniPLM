@@ -17,15 +17,15 @@ CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
 # data
 DATA_DIR="${BASE_PATH}/processed_data/pretrain/owbt/chunked/fairseq-1025"
 # hp
-BATCH_SIZE=8
+BATCH_SIZE=4
 LR=0.0003
 LR_MIN=0.00003
-GRAD_ACC=2
+GRAD_ACC=4
 EVAL_BATCH_SIZE=16
 # length
 MAX_LENGTH=1024
 # runtime
-SAVE_PATH="${BASE_PATH}/results/gpt2/train/pretrain"
+SAVE_PATH="${BASE_PATH}/results/gpt2/train/pt_rsd"
 # seed
 SEED=10
 
@@ -58,6 +58,7 @@ OPTS+=" --adam-beta 0.9"
 OPTS+=" --adam-beta2 0.98"
 OPTS+=" --adam-eps 1e-6"
 OPTS+=" --total-iters 500000"
+OPTS+=" --residual-base-weight 1.0"
 # length
 OPTS+=" --max-length ${MAX_LENGTH}"
 # runtime
@@ -74,7 +75,7 @@ OPTS+=" --seed ${SEED}"
 OPTS+=" --deepspeed"
 OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
 # type
-OPTS+=" --type pretrain"
+OPTS+=" --type pt_rsd"
 
 
 export NCCL_DEBUG=""

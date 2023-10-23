@@ -141,22 +141,22 @@ class BaseTrainer():
     def compute_loss(self, model_batch, no_model_batch):
         raise NotImplementedError
 
-    def compute_lm_loss(self, model_batch, no_model_batch, mean=True):
-        
+    def _get_lm_loss_from_logits(self, logits, label, loss_mask):        
         if self.args.model_parallel:
             loss_func = mpu.parallel_cross_entropy
+            lm_losses = loss_func(logits.contiguous().float(), label)
         else:
             loss_func = nn.CrossEntropyLoss(reduction="none")
-        
+            lm_losses = loss_func(logits.float().view(-1, logits.shape[-1]), label.view(-1))
+            lm_losses = lm_losses.view(-1, label.size(-1))
+        lm_loss = torch.sum((lm_losses * loss_mask), dim=-1) / torch.sum(loss_mask, dim=-1)
+        return lm_loss
+
+    def compute_lm_loss(self, model_batch, no_model_batch, mean=True):        
         outputs = self.model(**model_batch, use_cache=False)
         logits = outputs.logits
-        if self.args.model_parallel:
-            lm_losses = loss_func(logits.contiguous().float(), no_model_batch["label"])
-        else:
-            lm_losses = loss_func(logits.float().view(-1, logits.shape[-1]), no_model_batch["label"].view(-1))
-            lm_losses = lm_losses.view(-1, no_model_batch["label"].size(-1))
-        loss_mask = no_model_batch["loss_mask"]
-        lm_loss = torch.sum((lm_losses * loss_mask), dim=-1) / torch.sum(loss_mask, dim=-1)
+        
+        lm_loss = self._get_lm_loss_from_logits(logits, model_batch["label"], model_batch["loss_mask"])
         
         if mean:
             lm_loss = lm_loss.mean()            
@@ -273,7 +273,13 @@ class BaseTrainer():
 
     def evaluate(self):
         raise NotImplementedError
-    
+
+    def _avg_loss_cross_dp(self, all_losses):
+        all_losses = all_gather(all_losses, dim=1, group=self.dp_group, world_size=self.dp_world_size, op="stack")
+        all_losses = all_losses.view(-1)
+        avg_loss = all_losses.mean().item()
+        return avg_loss
+
     def evaluate_lm(self):
         eval_sampler = DistributedSampler(self.eval_dataset, shuffle=False, drop_last=False, rank=self.dp_rank, num_replicas=self.dp_world_size)
         eval_dataloader = DataLoader(
@@ -289,9 +295,7 @@ class BaseTrainer():
                 all_losses.append(loss)
         
         all_losses = torch.cat(all_losses, dim=0)
-        all_losses = all_gather(all_losses, dim=1, group=self.dp_group, world_size=self.dp_world_size, op="stack")
-        all_losses = all_losses.view(-1)
-        avg_loss = all_losses.mean().item()
+        avg_loss = self._avg_loss_cross_dp(all_losses)
 
         if get_rank() == 0:
             res = {"avg_loss": avg_loss}

@@ -152,6 +152,8 @@ def add_hp_args(parser: argparse.ArgumentParser):
                        help='learning rate decay function')
     group.add_argument("--scheduler-name", type=str, default="constant_trm")
 
+    group.add_argument("--residual-base-weight", type=float, default=1.0)
+
     return parser
 
 
@@ -194,6 +196,18 @@ def add_gen_args(parser: argparse.ArgumentParser):
     group.add_argument("--lookahead", type=int, default=1)
     
     return parser
+
+
+def base_save_path(args):
+    return os.path.join(
+        args.save,
+        (f"{args.ckpt_name.replace('/', '_')}"),
+        (f"e{args.epochs}" if args.epochs is not None else f"t{numerize(args.total_iters)}") + \
+        (f"-bs{args.batch_size}-lr{args.lr}{args.lr_decay_style}{args.lr_min}-G{args.gradient_accumulation_steps}-N{args.n_gpu}-NN{args.n_nodes}") + \
+        (f"-mp{args.model_parallel_size}" if args.model_parallel > 0 else "") + \
+        (f"-scr" if args.from_scratch else "") + \
+        args.save_additional_suffix
+    )
 
 
 def get_args():
@@ -256,28 +270,22 @@ def get_args():
             f"{args.seed}",
         )
         args.save = save_path
-    elif args.type in ["sft", "mos_sft", "pretrain"]:
-        save_path = os.path.join(
-            args.save,
-            (f"{args.ckpt_name.replace('/', '_')}"),
-            (f"e{args.epochs}" if args.epochs is not None else f"t{numerize(args.total_iters)}") + \
-            (f"-bs{args.batch_size}-lr{args.lr}{args.lr_decay_style}{args.lr_min}-G{args.gradient_accumulation_steps}-N{args.n_gpu}-NN{args.n_nodes}") + \
-            (f"-mp{args.model_parallel_size}" if args.model_parallel > 0 else "") + \
-            (f"-mos{args.mos_experts}" if args.mos_experts is not None else "") + \
-            (f"-scr" if args.from_scratch else "") + \
-            args.save_additional_suffix
+    elif args.type in ["sft", "pretrain"]:
+        args.save = os.path.join(
+            base_save_path(args),
+            (f"-mos{args.mos_experts}" if args.mos_experts is not None else ""),
         )
-        args.save = save_path
-    elif args.type in ["kd", "mos_kd"]:
-        save_path = os.path.join(
-            args.save,
-            (f"{args.ckpt_name}-{args.teacher_ckpt_name}"),
-            (f"e{args.epochs}-bs{args.batch_size}-lr{args.lr}-G{args.gradient_accumulation_steps}-N{args.n_gpu}-kd{args.kd_ratio}") + \
-            (f"-mp{args.model_parallel_size}" if args.model_parallel > 0 else "") + \
-            (f"-mos{args.mos_experts}" if args.mos_experts is not None else "") + \
-            args.save_additional_suffix
+    elif args.type in ["kd"]:
+        args.save = os.path.join(
+            base_save_path(args),
+            f"kd{args.kd_ratio}",
+            (f"-mos{args.mos_experts}" if args.mos_experts is not None else ""),
         )
-        args.save = save_path
+    elif args.type in ["pt_rsd"]:
+        args.save = os.path.join(
+            base_save_path(args),
+            f"rsd{args.residual_base_weight}",
+        )
     elif args.type == "gen":
         save_path = os.path.join(
             args.save,

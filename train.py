@@ -26,6 +26,8 @@ from sft.trainer import SFTTrainer
 from mos.trainer import MOSKDTrainer
 from mos.trainer import MOSSFTTrainer
 from pretrain.trainer import PreTrainer
+from pretrain.residual_trainer import ResidualPreTrainer
+
 
 torch.set_num_threads(4)
 
@@ -68,6 +70,8 @@ def main():
         trainer = MOSSFTTrainer(args, ds_config, device, args.do_train)
     elif args.type == "pretrain":
         trainer = PreTrainer(args, ds_config, device, args.do_train)
+    elif args.type == "pt_rsd":
+        trainer = ResidualPreTrainer(args, ds_config, device, args.do_train)
     else:
         raise NotImplementedError        
     
