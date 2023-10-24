@@ -155,6 +155,7 @@ def add_hp_args(parser: argparse.ArgumentParser):
     group.add_argument("--scheduler-name", type=str, default="constant_trm")
 
     group.add_argument("--residual-base-weight", type=float, default=1.0)
+    group.add_argument("--residual-num", type=int, default=1)
 
     return parser
 
@@ -286,7 +287,7 @@ def get_args():
     elif args.type in ["pt_rsd"]:
         args.save = os.path.join(
             base_save_path(args),
-            f"rsd{args.residual_base_weight}",
+            f"rsd{args.residual_base_weight}-num{args.residual_num}",
         )
     elif args.type in ["kd_rsd"]:
         args.save = os.path.join(

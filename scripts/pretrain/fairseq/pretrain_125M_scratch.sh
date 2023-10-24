@@ -11,6 +11,8 @@ DISTRIBUTED_ARGS="--num_gpus $GPUS_PER_NODE \
                   --master_port $MASTER_PORT \
                   --hostfile $BASE_PATH/configs/hostfiles/$HOSTFILE"
 
+# type
+TYPE="pretrain"
 # model
 CKPT_NAME="fairseq/125M"
 CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
@@ -25,12 +27,14 @@ EVAL_BATCH_SIZE=16
 # length
 MAX_LENGTH=1024
 # runtime
-SAVE_PATH="${BASE_PATH}/results/fairseq/pretrain"
+SAVE_PATH="${BASE_PATH}/results/fairseq/${TYPE}"
 # seed
 SEED=10
 
 
 OPTS=""
+# type
+OPTS+=" --type ${TYPE}"
 # model
 OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --model-path ${CKPT}"
@@ -73,8 +77,6 @@ OPTS+=" --seed ${SEED}"
 # deepspeed
 OPTS+=" --deepspeed"
 OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
-# type
-OPTS+=" --type pretrain"
 
 
 export NCCL_DEBUG=""

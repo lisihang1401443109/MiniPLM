@@ -10,6 +10,7 @@ DISTRIBUTED_ARGS="--num_gpus $GPUS_PER_NODE \
                   --num_nodes $NNODES \
                   --master_port $MASTER_PORT \
                   --hostfile $BASE_PATH/configs/hostfiles/$HOSTFILE"
+
 # type
 TYPE="kd_rsd"
 # model

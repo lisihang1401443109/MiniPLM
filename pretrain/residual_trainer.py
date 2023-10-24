@@ -15,22 +15,22 @@ class ResidualModel(nn.Module):
         super().__init__()
         self.args = args
         self.base_model = get_model(args, device)
-        self.residual_model = get_model(args, device)
+        self.residual_model_list = nn.ModuleList([get_model(args, device) for _ in range(args.residual_num)])
     
     def forward(self, model_batch, no_model_batch):
-        base_output = self.base_model(**model_batch)
-        residual_output = self.residual_model(**model_batch)
-        
-        return base_output.logits, residual_output.logits
+        base_logits = self.base_model(**model_batch).logits
+        all_residual_logits = [residual_model(**model_batch).logits for residual_model in self.residual_model_list]
+                
+        return base_logits, all_residual_logits
     
     def save_pretrained(self, save_path):
         base_model_path = os.path.join(save_path, "base")
         os.makedirs(base_model_path, exist_ok=True)
         self.base_model.save_pretrained(base_model_path)
-        residual_model_path = os.path.join(save_path, "residual")
-        os.makedirs(residual_model_path, exist_ok=True)
-        self.residual_model.save_pretrained(residual_model_path)
-
+        for i, residual_model in enumerate(self.residual_model_list):
+            residual_model_path = os.path.join(save_path, f"residual_{i}")
+            os.makedirs(residual_model_path, exist_ok=True)
+            residual_model.save_pretrained(residual_model_path)
 
 class ResidualPreTrainer(PreTrainer):
     def __init__(self, args, ds_config, device, do_train=True):
@@ -43,8 +43,8 @@ class ResidualPreTrainer(PreTrainer):
         return model
     
     def _compute_residual_pt_losses(self, model_batch, no_model_batch, mean=True):
-        base_logits, residual_logits = self.model(model_batch, no_model_batch)
-        total_logits = base_logits + residual_logits
+        base_logits, all_residual_logits = self.model(model_batch, no_model_batch)
+        total_logits = base_logits + sum(all_residual_logits)
         base_lm_loss = self._get_lm_loss_from_logits(base_logits, no_model_batch["label"], no_model_batch["loss_mask"])
         total_lm_loss = self._get_lm_loss_from_logits(total_logits, no_model_batch["label"], no_model_batch["loss_mask"])
         
