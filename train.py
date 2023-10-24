@@ -27,9 +27,10 @@ from mos.trainer import MOSKDTrainer
 from mos.trainer import MOSSFTTrainer
 from pretrain.trainer import PreTrainer
 from pretrain.residual_trainer import ResidualPreTrainer
+from pretrain.residual_kd_trainer import ResidualKDPreTrainer
 
 
-torch.set_num_threads(4)
+torch.set_num_threads(16)
 
 
 def main():
@@ -72,6 +73,8 @@ def main():
         trainer = PreTrainer(args, ds_config, device, args.do_train)
     elif args.type == "pt_rsd":
         trainer = ResidualPreTrainer(args, ds_config, device, args.do_train)
+    elif args.type == "kd_rsd":
+        trainer = ResidualKDPreTrainer(args, ds_config, device, args.do_train)
     else:
         raise NotImplementedError        
     

@@ -33,6 +33,8 @@ def add_model_args(parser: argparse.ArgumentParser):
     group.add_argument("--teacher-model-path", type=str)
     group.add_argument("--teacher-ckpt-name", type=str)
     group.add_argument("--teacher-model-fp16", action="store_true")
+    group.add_argument("--base-model-path", type=str)
+    group.add_argument("--base-ckpt-name", type=str)
     group.add_argument("--model-parallel", action="store_true")
     group.add_argument("--model-parallel-size", type=int, default=None)
     group.add_argument("--no-value", action="store_true")
@@ -278,13 +280,18 @@ def get_args():
     elif args.type in ["kd"]:
         args.save = os.path.join(
             base_save_path(args),
-            f"kd{args.kd_ratio}",
+            f"{args.teacher_ckpt_name.replace('/', '_')}" + f"-kd{args.kd_ratio}",
             (f"-mos{args.mos_experts}" if args.mos_experts is not None else ""),
         )
     elif args.type in ["pt_rsd"]:
         args.save = os.path.join(
             base_save_path(args),
             f"rsd{args.residual_base_weight}",
+        )
+    elif args.type in ["kd_rsd"]:
+        args.save = os.path.join(
+            base_save_path(args),
+            f"{args.teacher_ckpt_name.replace('/', '_')}" + f"-{args.base_ckpt_name.replace('/', '_')}" + f"-kd{args.kd_ratio}",
         )
     elif args.type == "gen":
         save_path = os.path.join(

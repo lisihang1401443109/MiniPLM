@@ -20,9 +20,11 @@ def get_distribution(logits, temperature):
     probs = torch.softmax(logits.to(torch.float32) / (temperature + 1e-10), dim=-1, dtype=torch.float32)
     return probs
 
+
 def sample(logits, temperature):
     probs = get_distribution(logits, temperature)
     return torch.multinomial(probs, num_samples=1)
+
 
 def sample_from_draft_model(model, initial_prompt_seq, new_tokens, eos_token_id, temperature=1.0):
     fin_prompt_seq = initial_prompt_seq.detach().clone()
@@ -38,6 +40,7 @@ def sample_from_draft_model(model, initial_prompt_seq, new_tokens, eos_token_id,
 
     out_logits = torch.stack(out_logits, dim=1)
     return fin_prompt_seq, out_logits
+
 
 # Logging
 def print_args(args):
@@ -137,7 +140,7 @@ def initialize(args):
         
         
 # Load and save model
-def get_model(args, device, model_path=None, config=None):
+def get_model(args, device, model_path=None, config=None, from_scratch=None):
     if model_path is None:
         model_path = args.model_path
     print_rank("Initializing model from {}".format(model_path), rank=0)
@@ -159,8 +162,9 @@ def get_model(args, device, model_path=None, config=None):
                 sum([p.nelement() for p in model.parameters()])), flush=True)
     else:
         config.is_model_parallel = False
-        if args.from_scratch:
-            model = AutoModelForCausalLM.from_config(config)
+        from_scratch = from_scratch if from_scratch is not None else args.from_scratch
+        if from_scratch:
+            model = AutoModelForCausalLM.from_config(config).to(device)
         else:
             model = AutoModelForCausalLM.from_pretrained(model_path, config=config, device_map={"": device}, torch_dtype=torch.float16)
 

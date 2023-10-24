@@ -395,3 +395,5 @@ class BaseTrainer():
                 # torch.save(self.model.module.value_model.state_dict(), os.path.join(ckpt_dir, "value_model.ckpt"))
                 print(f"Model save to {ckpt_dir}")
                 self.tokenizer.save_pretrained(ckpt_dir)
+        
+        dist.barrier()
