@@ -3,8 +3,8 @@
 BASE_PATH=${1-"/home/MiniLLM"}
 MASTER_PORT=${2-2030}
 GPUS_PER_NODE=${3-8}
-NNODES=${4-2}
-HOSTFILE=${5-hostfile_8V100_0_1}
+NNODES=${4-4}
+HOSTFILE=${5-hostfile_8V100_0_1_2_3}
 
 DISTRIBUTED_ARGS="--num_gpus $GPUS_PER_NODE \
                   --num_nodes $NNODES \
@@ -12,7 +12,7 @@ DISTRIBUTED_ARGS="--num_gpus $GPUS_PER_NODE \
                   --hostfile $BASE_PATH/configs/hostfiles/$HOSTFILE"
 
 # model
-CKPT_NAME="fairseq/125M"
+CKPT_NAME="fairseq/218M"
 CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
 # data
 DATA_DIR="${BASE_PATH}/processed_data/pretrain/owbt/chunked/fairseq-1025"
@@ -20,12 +20,12 @@ DATA_DIR="${BASE_PATH}/processed_data/pretrain/owbt/chunked/fairseq-1025"
 BATCH_SIZE=4
 LR=0.0003
 LR_MIN=0.00003
-GRAD_ACC=4
+GRAD_ACC=2
 EVAL_BATCH_SIZE=16
 # length
 MAX_LENGTH=1024
 # runtime
-SAVE_PATH="${BASE_PATH}/results/fairseq/pt_rsd"
+SAVE_PATH="${BASE_PATH}/results/fairseq/pretrain"
 # seed
 SEED=10
 
@@ -58,7 +58,6 @@ OPTS+=" --adam-beta 0.9"
 OPTS+=" --adam-beta2 0.98"
 OPTS+=" --adam-eps 1e-6"
 OPTS+=" --total-iters 500000"
-OPTS+=" --residual-base-weight 1.0"
 # length
 OPTS+=" --max-length ${MAX_LENGTH}"
 # runtime
@@ -75,7 +74,7 @@ OPTS+=" --seed ${SEED}"
 OPTS+=" --deepspeed"
 OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
 # type
-OPTS+=" --type pt_rsd"
+OPTS+=" --type pretrain"
 
 
 export NCCL_DEBUG=""

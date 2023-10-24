@@ -26,7 +26,7 @@ EVAL_BATCH_SIZE=16
 # length
 MAX_LENGTH=2048
 # runtime
-SAVE_PATH="${BASE_PATH}/results/fairseq/train/sft"
+SAVE_PATH="${BASE_PATH}/results/fairseq/sft"
 # seed
 SEED=10
 

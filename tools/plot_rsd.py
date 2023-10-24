@@ -3,9 +3,9 @@ import re
 import os
 import pickle
 
-# path = "/home/aiscuser/sps/results/gpt2/train/pt_rsd/fairseq_125M/t500K-bs4-lr0.0003cosine3e-05-G4-N16-NN2-scr/rsd1.0/"
-path = "/home/aiscuser/sps/results/gpt2/train/pt_rsd/fairseq_125M/t500K-bs4-lr0.0003cosine3e-05-G4-N16-NN2-scr/rsd0.0/"
-# path = "/home/aiscuser/sps/results/gpt2/train/pt_rsd/fairseq_125M/t500K-bs4-lr0.0003cosine3e-05-G4-N16-NN2-scr/rsd2.0/"
+# path = "/home/aiscuser/sps/results/fairseq/train/pt_rsd/fairseq_125M/t500K-bs4-lr0.0003cosine3e-05-G4-N16-NN2-scr/rsd1.0/"
+path = "/home/aiscuser/sps/results/fairseq/train/pt_rsd/fairseq_125M/t500K-bs4-lr0.0003cosine3e-05-G4-N16-NN2-scr/rsd0.0/"
+# path = "/home/aiscuser/sps/results/fairseq/train/pt_rsd/fairseq_125M/t500K-bs4-lr0.0003cosine3e-05-G4-N16-NN2-scr/rsd2.0/"
 
 
 with open(os.path.join(path, "log.txt")) as f:
