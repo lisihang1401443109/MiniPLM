@@ -206,6 +206,7 @@ def base_save_path(args):
         args.save,
         (f"{args.ckpt_name.replace('/', '_')}"),
         (f"e{args.epochs}" if args.epochs is not None else f"t{numerize(args.total_iters)}") + \
+        (f"-w{numerize(args.warmup_iters)}" if args.warmup_iters > 0 else "") + \
         (f"-bs{args.batch_size}-lr{args.lr}{args.lr_decay_style}{args.lr_min}-G{args.gradient_accumulation_steps}-N{args.n_gpu}-NN{args.n_nodes}") + \
         (f"-mp{args.model_parallel_size}" if args.model_parallel > 0 else "") + \
         (f"-scr" if args.from_scratch else "") + \
