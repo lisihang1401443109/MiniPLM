@@ -4,17 +4,19 @@ import os
 import pickle
 
 paths = [
-    ("/home/aiscuser/sps/results/fairseq/train/pretrain/fairseq_125M/t500K-bs8-lr0.0003cosine3e-05-G2-N16-NN2-scr/plot", "pt-125M", "losses"),
-    ("/home/aiscuser/sps/results/fairseq/train/pretrain/fairseq_250M/t500K-bs4-lr0.0003cosine3e-05-G2-N32-NN4-scr/plot", "pt-250M", "losses"),
-    ("/home/aiscuser/sps/results/fairseq/train/pt_rsd/fairseq_125M/t500K-bs4-lr0.0003cosine3e-05-G4-N16-NN2-scr/rsd1.0/plot", "rsd1.0-2x125M", "total_lm_losses"),
+    ("/home/aiscuser/sps/results/fairseq/pretrain/fairseq_125M/t500K-bs8-lr0.0003cosine3e-05-G2-N16-NN2-scr/plot", "pt-125M", "losses"),
+    ("/home/aiscuser/sps/results/fairseq/pretrain/fairseq_250M/t500K-bs4-lr0.0003cosine3e-05-G2-N32-NN4-scr/plot", "pt-250M", "losses"),
+    ("/home/aiscuser/sps/results/fairseq/pretrain/fairseq_218M/t500K-bs4-lr0.0003cosine3e-05-G2-N32-NN4-scr/plot", "pt-218M", "losses"),
+    # ("/home/aiscuser/sps/results/fairseq/pt_rsd/fairseq_125M/t500K-bs4-lr0.0003cosine3e-05-G4-N16-NN2-scr/rsd1.0/plot", "rsd1.0-2x125M", "total_lm_losses"),
     # ("/home/aiscuser/sps/results/fairseq/train/pt_rsd/fairseq_125M/t500K-bs4-lr0.0003cosine3e-05-G4-N16-NN2-scr/rsd2.0/plot", "rsd2.0-2x125M", "total_lm_losses"),
-    ("/home/aiscuser/sps/results/fairseq/train/pt_rsd/fairseq_125M/t500K-bs4-lr0.0003cosine3e-05-G4-N16-NN2-scr/rsd0.0/plot", "rsd0.0-2x125M", "total_lm_losses")
-    
-
+    ("/home/aiscuser/sps/results/fairseq/pt_rsd/fairseq_125M/t500K-bs4-lr0.0003cosine3e-05-G4-N16-NN2-scr/rsd0.0/plot", "rsd0.0-2x125M", "total_lm_losses"),
+    ("/home/aiscuser/sps/results/fairseq/pt_rsd/fairseq_125M/t500K-w12K-bs4-lr0.0003cosine3e-05-G4-N16-NN2-scr/rsd0.0/plot", "rsd0.0-2x125M-w12K", "total_lm_losses"),
+    ("/home/aiscuser/sps/results/fairseq/pt_rsd/fairseq_125M/t500K-w15K-bs4-lr0.0003cosine3e-05-G4-N16-NN2-scr/rsd0.0/plot", "rsd0.0-2x125M-w15K", "total_lm_losses"),
+    ("/home/aiscuser/sps/results/fairseq/pt_rsd/fairseq_76M/t500K-bs4-lr0.0003cosine3e-05-G4-N16-NN2-scr/rsd0.0-num4/plot", "rsd0.0-4x76M", "total_lm_losses"),
 ]
 
-max_step = 20000
-min_step = 2000
+max_step = 30000
+min_step = 1000
 smooth = 32
 
 for path, name, key in paths:
@@ -41,7 +43,7 @@ for path, name, key in paths:
         smoothed_values.append(sum(values[i:i+smooth]) / len(values[i:i+smooth]))
         smoothed_steps.append(steps[i])
 
-    plt.plot(smoothed_steps, smoothed_values, label=name)
+    plt.plot(smoothed_steps, smoothed_values, label=name, linewidth=0.5)
     
 os.makedirs("results/plots/compare", exist_ok=True)
 

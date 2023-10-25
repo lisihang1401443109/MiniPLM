@@ -212,6 +212,7 @@ def base_save_path(args):
         args.save,
         (f"{args.ckpt_name.replace('/', '_')}"),
         (f"e{args.epochs}" if args.epochs is not None else f"t{numerize(args.total_iters)}") + \
+        (f"-w{numerize(args.warmup_iters)}" if args.warmup_iters > 0 else "") + \
         (f"-bs{args.batch_size}-lr{args.lr}{args.lr_decay_style}{args.lr_min}-G{args.gradient_accumulation_steps}-N{args.n_gpu}-NN{args.n_nodes}") + \
         (f"-mp{args.model_parallel_size}" if args.model_parallel > 0 else "") + \
         (f"-scr" if args.from_scratch else "") + \
@@ -235,7 +236,9 @@ def get_args():
     assert all(["--" not in x for x in unknown]), unknown
     
     args.local_rank = int(os.getenv("LOCAL_RANK", "0"))
-        
+
+    assert args.model_type is not None
+
     args.n_gpu = args.n_gpu * args.n_nodes
     
     assert args.model_type is not None

@@ -37,6 +37,7 @@ OPTS=""
 # type
 OPTS+=" --type ${TYPE}"
 # model
+OPTS+=" --model-type fairseq"
 OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --model-path ${CKPT}"
 OPTS+=" --ckpt-name ${CKPT_NAME}"

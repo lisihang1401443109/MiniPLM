@@ -11,10 +11,10 @@ DISTRIBUTED_ARGS="--num_gpus $GPUS_PER_NODE \
                   --master_port $MASTER_PORT \
                   --hostfile $BASE_PATH/configs/hostfiles/$HOSTFILE"
 
-# TYPE
-TYPE="pt_rsd"
+# type
+TYPE="pretrain"
 # model
-CKPT_NAME="fairseq/76M"
+CKPT_NAME="fairseq/250M-2"
 CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
 # data
 DATA_DIR="${BASE_PATH}/processed_data/pretrain/owbt/chunked/fairseq-1025"
@@ -63,14 +63,12 @@ OPTS+=" --adam-beta 0.9"
 OPTS+=" --adam-beta2 0.98"
 OPTS+=" --adam-eps 1e-6"
 OPTS+=" --total-iters 500000"
-OPTS+=" --residual-base-weight 0.0"
-OPTS+=" --residual-num 4"
 # length
 OPTS+=" --max-length ${MAX_LENGTH}"
 # runtime
 OPTS+=" --do-train"
 OPTS+=" --do-valid"
-OPTS+=" --save-interval 1000"
+OPTS+=" --save-interval 5000"
 OPTS+=" --eval-interval 1000"
 OPTS+=" --log-interval 4"
 OPTS+=" --mid-log-num -1"
