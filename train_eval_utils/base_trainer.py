@@ -1,4 +1,5 @@
 import torch
+import random
 import os
 
 from utils import print_rank, get_model, save_rank, save_parallel, get_tokenizer, all_gather
@@ -9,6 +10,7 @@ from torch.optim import AdamW
 import torch.nn as nn
 import deepspeed
 import math
+import numpy as np
 from time import time
 from collections import defaultdict
 from data_utils.prompt_datasets import PromptDataset
@@ -109,10 +111,31 @@ class BaseTrainer():
         self.model = model
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
-            
+
+    def resume_training(self):
+        load_dir = self.args.resume_dir or self.args.save
+        if self.args.resume_tag is None:
+            with open(os.path.join(load_dir, "latest")) as f:
+                tag = f.read().strip()
+        else:
+            tag = self.args.resume_tag
+        self.model.load_checkpoint(load_dir, tag=tag)
+        self.last_rng_states = torch.load(os.path.join(load_dir, tag, f"rng_states_{get_rank()}.pt"))
+        
+        with open(os.path.join(load_dir, tag, "dynamics.json"), "r") as f:
+            dynamics = json.load(f)
+        self.last_steps = dynamics["step"]
+        self.last_epochs = dynamics["epoch"]
+        self.last_global_steps = dynamics["global_steps"]
+        self.train_dataset.set_skip_offset(dynamics["skip_offset"])
+        
+        print_rank(f"Resume from {load_dir} {tag}")
+        print_rank(f"Resume from step {self.last_steps}, epoch {self.last_epochs}, global step {self.last_global_steps}")
+ 
     def prepare_learning(self, args=None):
         args = args or self.args
-        self.train_iters_per_epoch = int(len(self.train_dataset) / (args.batch_size * self.dp_world_size * args.gradient_accumulation_steps))
+        self.total_batch_size = args.batch_size * self.dp_world_size * args.gradient_accumulation_steps
+        self.train_iters_per_epoch = int(len(self.train_dataset) / self.total_batch_size)
         assert (args.epochs is not None) ^ (args.total_iters is not None), (args.epochs, args.total_iters)
         self.total_steps = args.total_iters or self.train_iters_per_epoch * args.epochs
         self.epochs = args.epochs or math.ceil(args.total_iters / self.train_iters_per_epoch)
@@ -122,7 +145,23 @@ class BaseTrainer():
         
         if args.eval_interval == -1:
             args.eval_interval = self.train_iters_per_epoch
-            
+
+        if self.args.precompute_data_order:
+            if get_rank() == 0:
+                normal_order = np.arange(0, len(self.train_dataset), dtype=np.int32)
+                order = np.stack([np.random.permutation(normal_order) for _ in range(self.epochs)], axis=0)
+                order = order[:, :self.train_iters_per_epoch * self.total_batch_size] # droplast
+                np.save(os.path.join(self.args.save, "data_order.npy"), order)
+                print("Data order size: ", order.shape)
+            dist.barrier()
+            self.train_dataset.set_order(path=os.path.join(self.args.save, "data_order.npy"))
+                        
+        if self.args.resume_training:
+            assert self.args.precompute_data_order
+            assert os.path.exists(os.path.join(self.args.save, "data_order.npy"))
+            order = np.load(os.path.join(self.args.save, "data_order.npy"))
+
+        print_rank(f"Total batch size: {self.total_batch_size}")
         print_rank(f"Total iters: {self.total_steps}")
         print_rank(f"Total epochs: {self.epochs}")
         print_rank(f"Train iters per epoch: {self.train_iters_per_epoch}")
@@ -180,22 +219,39 @@ class BaseTrainer():
 
     def train(self):
 
-        train_sampler = DistributedSampler(self.train_dataset, shuffle=True, drop_last=True, rank=self.dp_rank, num_replicas=self.dp_world_size)
+        train_sampler = DistributedSampler(self.train_dataset, shuffle=(not self.args.precompute_data_order), drop_last=True, rank=self.dp_rank, num_replicas=self.dp_world_size)
         train_dataloader = DataLoader(
-            self.train_dataset, sampler=train_sampler, batch_size=self.args.batch_size, num_workers=self.args.num_workers, collate_fn=self.train_dataset.collate_lm)
+            self.train_dataset, sampler=train_sampler, batch_size=self.args.batch_size, num_workers=self.args.num_workers, collate_fn=self.train_dataset.collate_lm, shuffle=(not self.args.precompute_data_order))
 
-        self.steps = 1
-        self.global_steps = 0
-        self.epoch = 1
+        self.steps = 0
+        self.global_steps = 1
+        self.epoch = 0
         
         logging_stats = defaultdict(float)
         
-        self.evaluate()
+        if not self.args.resume_training:
+            self.evaluate()
         self.model.train()
-        for epoch in range(1, self.epochs + 1):
+
+        for epoch in range(0, self.epochs):
             self.epoch = epoch
             train_sampler.set_epoch(epoch)
+            self.train_dataset.set_epoch(epoch)
             for it, (model_batch, no_model_batch) in enumerate(train_dataloader):
+                if self.args.resume_training:
+                    if self.global_steps <= self.last_global_steps:
+                        print_rank(f"Skipping global step {self.global_steps}")                        
+                        self.steps += 1
+                        if self.steps % self.args.gradient_accumulation_steps == 0:
+                            self.global_steps += 1
+                        continue
+                    if self.global_steps == self.last_global_steps + 1:
+                        print_rank(f"Starting from global step {self.global_steps}")
+                        torch.set_rng_state(self.last_rng_states["torch"])
+                        torch.cuda.set_rng_state(self.last_rng_states["cuda"])
+                        np.random.set_state(self.last_rng_states["numpy"])
+                        random.setstate(self.last_rng_states["python"])
+                
                 # print_rank(f"Epoch {epochs}, Iter {it}")
                 self.train_dataset.move_to_device(model_batch, no_model_batch, self.device)
                 
@@ -232,12 +288,22 @@ class BaseTrainer():
                 
                 mid_log_step = self.args.gradient_accumulation_steps // self.args.mid_log_num
                 mid_log_step = 1 if mid_log_step == 0 else mid_log_step
-                if (self.steps % mid_log_step == 0):
+                
+                # print first step
+                if self.steps == 0:
+                    print_rank(self.get_log(stats, "train",
+                        lr="{:.4e}".format(self.lr_scheduler.get_last_lr()[0]),
+                        scale=self.optimizer.cur_scale if hasattr(self.optimizer, "cur_scale") else 0),)
+                    print_rank("-" * 100)
+                    print_rank("-" * 100)
+                
+                if (self.args.mid_log_num > 0) and ((self.steps+1) % mid_log_step == 0):
                     print_rank(self.get_log(stats, "train",
                                             lr="{:.4e}".format(self.lr_scheduler.get_last_lr()[0]),
                                             scale=self.optimizer.cur_scale if hasattr(self.optimizer, "cur_scale") else 0),)
+
                 
-                if (self.steps > 0) and (self.global_steps % self.args.log_interval == 0) and (self.steps % self.args.gradient_accumulation_steps == 0):
+                if (self.steps > 0) and (self.global_steps > 0) and (self.global_steps % self.args.log_interval == 0) and ((self.steps+1) % self.args.gradient_accumulation_steps == 0):
                     logging_stats = {k:v/(self.args.log_interval*self.args.gradient_accumulation_steps) for k,v in logging_stats.items()}
                     log_str = self.get_log(logging_stats, "train", 
                                            lr="{:.4e}".format(self.lr_scheduler.get_last_lr()[0]),
@@ -251,12 +317,12 @@ class BaseTrainer():
                     logging_stats = {k:0 for k in logging_stats}
 
                 # save
-                if (self.steps > 0) and (self.steps % self.args.gradient_accumulation_steps == 0) and \
+                if (self.steps > 0) and (self.global_steps > 0) and ((self.steps+1) % self.args.gradient_accumulation_steps == 0) and \
                     (self.global_steps % self.args.save_interval == 0):
                     self.save(self.args.save)
 
                 # eval
-                if (self.steps > 0) and (self.steps % self.args.gradient_accumulation_steps == 0) and \
+                if (self.steps > 0) and (self.global_steps > 0) and ((self.steps+1) % self.args.gradient_accumulation_steps == 0) and \
                     (self.global_steps % self.args.eval_interval == 0):
                     self.evaluate()
                     self.model.train()
@@ -391,9 +457,29 @@ class BaseTrainer():
                 save_parallel(self.model.module.base_model, ckpt_dir)
         else:
             if get_rank() == 0:
-                self.model.module.save_pretrained(ckpt_dir)
-                # torch.save(self.model.module.value_model.state_dict(), os.path.join(ckpt_dir, "value_model.ckpt"))
                 print(f"Model save to {ckpt_dir}")
                 self.tokenizer.save_pretrained(ckpt_dir)
+
+            if self.args.save_all:
+                self.model.save_checkpoint(base_ckpt_path, tag=f"{self.global_steps}")
+                rng_states = {
+                    "torch": torch.get_rng_state(),
+                    "cuda": torch.cuda.get_rng_state(),
+                    "numpy": np.random.get_state(),
+                    "python": random.getstate(),
+                }
+                torch.save(rng_states, os.path.join(ckpt_dir, f"rng_states_{get_rank()}.pt"))
+                if get_rank() == 0:
+                    with open(os.path.join(ckpt_dir, "dynamics.json"), "w") as f:
+                        json.dump({
+                            "step": self.steps,
+                            "epoch": self.epoch,
+                            "global_steps": self.global_steps,
+                            "skip_offset": (self.epoch, self.global_steps * self.total_batch_size)
+                        }, f)
+            else:
+                if get_rank() == 0:
+                    self.model.module.save_pretrained(ckpt_dir)
+                # torch.save(self.model.module.value_model.state_dict(), os.path.join(ckpt_dir, "value_model.ckpt"))
         
         dist.barrier()

@@ -3,7 +3,7 @@ python3 tools/process_data_owbt.py \
     --model-path checkpoints/fairseq/125M \
     --data-dir pretrain_data/openwebtext/raw.txt \
     --save processed_data_1/pretrain/owbt/ \
-    --max-length 2048 \
+    --max-length 1025 \
     --log-interval 10000 \
     --data-process-workers 96 \
     --model-type fairseq \

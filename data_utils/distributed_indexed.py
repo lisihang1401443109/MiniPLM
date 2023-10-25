@@ -243,7 +243,7 @@ class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
         elif isinstance(idx, slice):
             raise NotImplementedError()
         else:
-            raise TypeError()
+            raise TypeError("Error type: {}".format(str(type(idx))))
 
     @property
     def sizes(self):

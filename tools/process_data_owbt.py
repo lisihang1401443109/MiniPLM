@@ -147,7 +147,7 @@ def main():
                     break
             
             assert new_chunk[0] == tokenizer.bos_token_id
-            assert len(new_chunk) == 2048
+            assert len(new_chunk) == args.max_length
                                 
             sid += 1
             builder.add_item(torch.IntTensor(new_chunk))

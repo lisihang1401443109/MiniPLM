@@ -26,7 +26,7 @@ def add_model_args(parser: argparse.ArgumentParser):
     group = parser.add_argument_group('model', 'model configuration')
     group.add_argument('--model-path', type=str, help='model path')
     group.add_argument("--ckpt-name", type=str)
-    group.add_argument("--model-type", type=str, default="gpt2")
+    group.add_argument("--model-type", type=str, default=None)
     group.add_argument("--teacher-model-type", type=str, default=None)
     group.add_argument("--n-gpu", type=int, default=1)
     group.add_argument("--n-nodes", type=int, default=1)
@@ -59,6 +59,7 @@ def add_runtime_args(parser: argparse.ArgumentParser):
                        help='Path to a directory containing a model checkpoint.')
     group.add_argument('--save', type=str, default=None,
                        help='Output directory to save checkpoints to.')
+    group.add_argument('--save-all', action="store_true")
     group.add_argument("--log-interval", type=int, default=10)
     group.add_argument("--mid-log-num", type=int, default=4)
     group.add_argument('--save-interval', type=int, default=1000,
@@ -70,6 +71,10 @@ def add_runtime_args(parser: argparse.ArgumentParser):
     group.add_argument("--save-rollout", action="store_true")
     group.add_argument("--eb-sample-times", type=int, default=3)
     group.add_argument("--from-scratch", action="store_true")
+    
+    group.add_argument("--resume-training", action="store_true")
+    group.add_argument("--resume-dir", type=str, default=None)
+    group.add_argument("--resume-tag", type=str, default=None)
     return parser
 
 
@@ -80,6 +85,7 @@ def add_data_args(parser: argparse.ArgumentParser):
     group.add_argument("--force-process", action="store_true")
     group.add_argument("--force-process-demo", action="store_true")
     group.add_argument("--data-process-workers", type=int, default=-1)
+    group.add_argument("--precompute-data-order", action="store_true")
     group.add_argument("--train-num", type=int, default=-1)
     group.add_argument("--train-ratio", type=float, default=1)
     group.add_argument("--dev-num", type=int, default=-1)
@@ -231,6 +237,8 @@ def get_args():
     args.local_rank = int(os.getenv("LOCAL_RANK", "0"))
         
     args.n_gpu = args.n_gpu * args.n_nodes
+    
+    assert args.model_type is not None
         
     if args.type == "eval_main":
         if args.ckpt_name is not None:

@@ -12,6 +12,8 @@ class PreTrainer(BaseTrainer):
         if do_train:
             self.prepare_learning()
         self.setup_model_and_optimizer(set_optim=do_train)
+        if do_train and self.args.resume_training:
+            self.resume_training()
     
     def set_datasets(self, args=None, do_train=True):
         args = args or self.args
