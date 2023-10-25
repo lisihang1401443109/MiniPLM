@@ -19,7 +19,10 @@ class PromptDataset(Dataset):
         self.args = args
         self.tokenizer = tokenizer
         self.split = split
-        self.pad_id = self.tokenizer.eos_token_id
+        self.pad_id = self.tokenizer.pad_token_id
+        self.eod_id = self.tokenizer.eos_token_id
+        self.pad_id_in_data = self.tokenizer.pad_token_id
+        assert self.eod_id != self.pad_id_in_data
         self.max_length = args.max_length
         self.min_prompt_length = args.min_prompt_length
         self.max_prompt_length = args.max_prompt_length
@@ -129,7 +132,7 @@ class PromptDataset(Dataset):
         
         bs = len(samples)
         max_length = max([len(samp[1]) + len(samp[2]) for samp in samples])
-        max_length = min(max_length, self.max_length)
+        max_length = min(max_length-1, self.max_length)
         
         model_batch = {
             "input_ids": torch.ones(bs, max_length, dtype=torch.long) * self.pad_id,
@@ -143,13 +146,14 @@ class PromptDataset(Dataset):
         }
         
         for i, (idx, prompt, rest) in enumerate(samples):
-            full_ids = np.concatenate([prompt, rest], axis=0)[:max_length]
+            full_ids = np.concatenate([prompt, rest], axis=0)[:max_length-1]
             model_batch["input_ids"][i][:len(full_ids)-1] = torch.tensor(full_ids[:-1], dtype=torch.long)
             model_batch["attention_mask"][i][:len(full_ids)-1] = 1
             # model_batch["position_ids"][i][-len(prompt):] = torch.arange(len(prompt))
             no_model_batch["label"][i][:len(full_ids)-1] = torch.tensor(full_ids[1:], dtype=torch.long)
             st = max(len(prompt)-1, 0)
-            no_model_batch["loss_mask"][i][st:len(full_ids)-1] = 1.0
+            no_model_batch["loss_mask"][i][:len(full_ids)-1] = (torch.tensor(full_ids[1:], dtype=torch.long) != self.pad_id_in_data)
+            no_model_batch["loss_mask"][i][:st] = 0.0
         
         return model_batch, no_model_batch
 

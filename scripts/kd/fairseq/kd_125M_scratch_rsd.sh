@@ -27,7 +27,7 @@ BATCH_SIZE=4
 LR=0.0003
 LR_MIN=0.00003
 GRAD_ACC=4
-EVAL_BATCH_SIZE=16
+EVAL_BATCH_SIZE=8
 # length
 MAX_LENGTH=1024
 # runtime
@@ -40,6 +40,7 @@ OPTS=""
 # type
 OPTS+=" --type ${TYPE}"
 # model
+OPTS+=" --model-type fairseq"
 OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --model-path ${CKPT}"
 OPTS+=" --ckpt-name ${CKPT_NAME}"
