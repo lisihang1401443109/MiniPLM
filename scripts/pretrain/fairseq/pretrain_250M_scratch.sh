@@ -3,7 +3,7 @@
 BASE_PATH=${1-"/home/MiniLLM"}
 MASTER_PORT=${2-2030}
 GPUS_PER_NODE=${3-8}
-NNODES=${4-4}
+NNODES=${4-2}
 HOSTFILE=${5-hostfile_8V100_0_1_2_3}
 
 DISTRIBUTED_ARGS="--num_gpus $GPUS_PER_NODE \
@@ -22,7 +22,7 @@ DATA_DIR="${BASE_PATH}/processed_data/pretrain/owbt/chunked/fairseq-1025"
 BATCH_SIZE=4
 LR=0.0003
 LR_MIN=0.00003
-GRAD_ACC=2
+GRAD_ACC=4
 EVAL_BATCH_SIZE=16
 # length
 MAX_LENGTH=1024
@@ -68,10 +68,10 @@ OPTS+=" --max-length ${MAX_LENGTH}"
 # runtime
 OPTS+=" --do-train"
 OPTS+=" --do-valid"
-OPTS+=" --save-interval 1000"
+OPTS+=" --save-interval 5000"
 OPTS+=" --eval-interval 1000"
 OPTS+=" --log-interval 4"
-OPTS+=" --mid-log-num -1"
+OPTS+=" --mid-log-num 1"
 OPTS+=" --save ${SAVE_PATH}"
 # seed
 OPTS+=" --seed ${SEED}"

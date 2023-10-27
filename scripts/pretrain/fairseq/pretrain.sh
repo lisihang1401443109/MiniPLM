@@ -67,7 +67,7 @@ OPTS+=" --do-valid"
 OPTS+=" --save-interval 5000"
 OPTS+=" --eval-interval 5000"
 OPTS+=" --log-interval 4"
-OPTS+=" --mid-log-num -1"
+OPTS+=" --mid-log-num 1"
 OPTS+=" --save ${SAVE_PATH}"
 # seed
 OPTS+=" --seed ${SEED}"

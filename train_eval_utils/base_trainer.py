@@ -221,7 +221,7 @@ class BaseTrainer():
 
         train_sampler = DistributedSampler(self.train_dataset, shuffle=(not self.args.precompute_data_order), drop_last=True, rank=self.dp_rank, num_replicas=self.dp_world_size)
         train_dataloader = DataLoader(
-            self.train_dataset, sampler=train_sampler, batch_size=self.args.batch_size, num_workers=self.args.num_workers, collate_fn=self.train_dataset.collate_lm, shuffle=(not self.args.precompute_data_order))
+            self.train_dataset, sampler=train_sampler, batch_size=self.args.batch_size, num_workers=self.args.num_workers, collate_fn=self.train_dataset.collate_lm)
 
         self.steps = 0
         self.global_steps = 1

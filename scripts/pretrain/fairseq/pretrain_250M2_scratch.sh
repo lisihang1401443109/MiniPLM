@@ -3,8 +3,8 @@
 BASE_PATH=${1-"/home/MiniLLM"}
 MASTER_PORT=${2-2030}
 GPUS_PER_NODE=${3-8}
-NNODES=${4-2}
-HOSTFILE=${5-hostfile_8V100_0_1}
+NNODES=${4-1}
+HOSTFILE=${5-hostfile_8V100_2}
 
 DISTRIBUTED_ARGS="--num_gpus $GPUS_PER_NODE \
                   --num_nodes $NNODES \
@@ -19,7 +19,7 @@ CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
 # data
 DATA_DIR="${BASE_PATH}/processed_data/pretrain/owbt/chunked/fairseq-1025"
 # hp
-BATCH_SIZE=4
+BATCH_SIZE=8
 LR=0.0003
 LR_MIN=0.00003
 GRAD_ACC=4
@@ -71,7 +71,7 @@ OPTS+=" --do-valid"
 OPTS+=" --save-interval 5000"
 OPTS+=" --eval-interval 1000"
 OPTS+=" --log-interval 4"
-OPTS+=" --mid-log-num -1"
+OPTS+=" --mid-log-num 1"
 OPTS+=" --save ${SAVE_PATH}"
 # seed
 OPTS+=" --seed ${SEED}"

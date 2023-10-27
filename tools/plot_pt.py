@@ -3,9 +3,12 @@ import re
 import os
 import pickle
 
-# path = "/home/aiscuser/sps/results/gpt2/train/pretrain/fairseq_125M/t500K-bs8-lr0.0003cosine3e-05-G2-N16-NN2-scr/"
-# path = "/home/aiscuser/sps/results/fairseq/train/pretrain/fairseq_250M/t500K-bs4-lr0.0003cosine3e-05-G2-N32-NN4-scr/"
-path = "/home/aiscuser/sps/results/fairseq/pretrain/fairseq_218M/t500K-bs4-lr0.0003cosine3e-05-G2-N32-NN4-scr/"
+# path = "/home/lidong1/yuxian/sps/results/fairseq/pretrain/fairseq_125M/t500K-w10K-bs8-lr0.0003cosine3e-05-G2-N16-NN2-scr"
+# path = "/home/lidong1/yuxian/sps/results/fairseq/pretrain/fairseq_218M/t500K-w10K-bs4-lr0.0003cosine3e-05-G4-N16-NN2-scr"
+# path = "/home/lidong1/yuxian/sps/results/fairseq/pretrain/fairseq_250M/t500K-w10K-bs4-lr0.0003cosine3e-05-G4-N16-NN2-scr"
+# path = "/home/lidong1/yuxian/sps/results/fairseq/pretrain/fairseq_250M-2/t500K-w10K-bs8-lr0.0003cosine3e-05-G4-N8-NN1-scr"
+path = "/home/lidong1/yuxian/sps/results/fairseq/pretrain/fairseq_448M/t500K-w10K-bs4-lr0.0003cosine3e-05-G4-N16-NN2-scr"
+
 
 with open(os.path.join(path, "log.txt")) as f:
     lines = f.readlines()

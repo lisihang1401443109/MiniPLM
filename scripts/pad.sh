@@ -14,15 +14,15 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
                   --master_port $MASTER_PORT"
 
 # model
-CKPT_NAME="fairseq/355M"
+CKPT_NAME="fairseq/125M"
 CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
 # data
-DATA_DIR="${BASE_PATH}/processed_data/pretrain/owbt/chunked/fairseq-1025"
+DATA_DIR="${BASE_PATH}/processed_data_1/pretrain/owbt/chunked/fairseq-1025"
 # hp
-BATCH_SIZE=4
+BATCH_SIZE=8
 LR=0.0003
 LR_MIN=0.00003
-GRAD_ACC=8
+GRAD_ACC=4
 EVAL_BATCH_SIZE=16
 # length
 MAX_LENGTH=1024
@@ -34,6 +34,7 @@ SEED=10
 
 OPTS=""
 # model
+OPTS+=" --model-type fairseq"
 OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --model-path ${CKPT}"
 OPTS+=" --ckpt-name ${CKPT_NAME}"
@@ -46,6 +47,7 @@ OPTS+=" --data-dir ${DATA_DIR}"
 OPTS+=" --num-workers 4"
 OPTS+=" --dev-num 10000"
 OPTS+=" --bin-data"
+OPTS+=" --precompute-data-order"
 # hp
 OPTS+=" --lr ${LR}"
 OPTS+=" --lr-min ${LR_MIN}"
@@ -66,10 +68,11 @@ OPTS+=" --max-length ${MAX_LENGTH}"
 OPTS+=" --do-train"
 OPTS+=" --do-valid"
 OPTS+=" --save-interval 5000"
-OPTS+=" --eval-interval 5000"
+OPTS+=" --eval-interval 1000"
 OPTS+=" --log-interval 4"
-OPTS+=" --mid-log-num -1"
+OPTS+=" --mid-log-num 1"
 OPTS+=" --save ${SAVE_PATH}"
+OPTS+=" --save-all"
 # seed
 OPTS+=" --seed ${SEED}"
 # deepspeed
