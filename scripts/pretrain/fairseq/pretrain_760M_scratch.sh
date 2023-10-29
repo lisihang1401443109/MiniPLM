@@ -1,38 +1,40 @@
 #! /bin/bash
 
 BASE_PATH=${1-"/home/MiniLLM"}
-MASTER_ADDR=localhost
 MASTER_PORT=${2-2030}
-NNODES=1
-NODE_RANK=0
 GPUS_PER_NODE=${3-8}
+NNODES=${4-2}
+HOSTFILE=${5-hostfile_8V100_0_1_2_3}
 
-DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
-                  --nnodes $NNODES \
-                  --node_rank $NODE_RANK \
-                  --master_addr $MASTER_ADDR \
-                  --master_port $MASTER_PORT"
+DISTRIBUTED_ARGS="--num_gpus $GPUS_PER_NODE \
+                  --num_nodes $NNODES \
+                  --master_port $MASTER_PORT \
+                  --hostfile $BASE_PATH/configs/hostfiles/$HOSTFILE"
 
+# type
+TYPE="pretrain"
 # model
-CKPT_NAME="fairseq/125M"
+CKPT_NAME="fairseq/760M"
 CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
 # data
-DATA_DIR="${BASE_PATH}/processed_data_1/pretrain/owbt/chunked/fairseq-1025"
+DATA_DIR="${BASE_PATH}/processed_data/pretrain/owbt/chunked/fairseq-1025"
 # hp
-BATCH_SIZE=8
-LR=0.0003
-LR_MIN=0.00003
-GRAD_ACC=4
-EVAL_BATCH_SIZE=16
+BATCH_SIZE=2
+LR=0.00025
+LR_MIN=0.000025
+GRAD_ACC=8
+EVAL_BATCH_SIZE=8
 # length
 MAX_LENGTH=1024
 # runtime
-SAVE_PATH="${BASE_PATH}/results/fairseq/pad/${4}"
+SAVE_PATH="${BASE_PATH}/results/fairseq/${TYPE}"
 # seed
 SEED=10
 
 
 OPTS=""
+# type
+OPTS+=" --type ${TYPE}"
 # model
 OPTS+=" --model-type fairseq"
 OPTS+=" --base-path ${BASE_PATH}"
@@ -47,7 +49,6 @@ OPTS+=" --data-dir ${DATA_DIR}"
 OPTS+=" --num-workers 4"
 OPTS+=" --dev-num 10000"
 OPTS+=" --bin-data"
-OPTS+=" --precompute-data-order"
 # hp
 OPTS+=" --lr ${LR}"
 OPTS+=" --lr-min ${LR_MIN}"
@@ -72,15 +73,11 @@ OPTS+=" --eval-interval 1000"
 OPTS+=" --log-interval 4"
 OPTS+=" --mid-log-num 1"
 OPTS+=" --save ${SAVE_PATH}"
-OPTS+=" --save-all"
-OPTS+=" --resume-training"
 # seed
 OPTS+=" --seed ${SEED}"
 # deepspeed
 OPTS+=" --deepspeed"
 OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
-# type
-OPTS+=" --type pretrain"
 
 
 export NCCL_DEBUG=""
@@ -88,7 +85,7 @@ export WANDB_DISABLED=True
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
 export OMP_NUM_THREADS=16
-CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/train.py ${OPTS} $@"
+CMD="deepspeed ${DISTRIBUTED_ARGS} ${BASE_PATH}/train.py ${OPTS} $@"
 
 echo ${CMD}
 echo "PYTHONPATH=${PYTHONPATH}"

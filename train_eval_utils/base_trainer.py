@@ -240,7 +240,8 @@ class BaseTrainer():
             for it, (model_batch, no_model_batch) in enumerate(train_dataloader):
                 if self.args.resume_training:
                     if self.global_steps <= self.last_global_steps:
-                        print_rank(f"Skipping global step {self.global_steps}")                        
+                        if self.global_steps % 1000 == 0:
+                            print_rank(f"Skipping global step {self.global_steps}")                        
                         self.steps += 1
                         if self.steps % self.args.gradient_accumulation_steps == 0:
                             self.global_steps += 1

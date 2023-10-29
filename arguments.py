@@ -148,6 +148,7 @@ def add_hp_args(parser: argparse.ArgumentParser):
     group.add_argument('--adam-beta2', type=float, default=0.999),
     group.add_argument('--adam-eps', type=float, default=1e-8),
     group.add_argument("--kd-ratio", type=float, default=None)
+    group.add_argument("--kd-rsd-loss", type=float, default=None)
 
     group.add_argument('--warmup-iters', type=int, default=0,
                        help='percentage of data to warmup on (.01 = 1% of all '

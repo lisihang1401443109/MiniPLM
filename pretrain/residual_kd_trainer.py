@@ -34,6 +34,15 @@ class ResidualKDPreTrainer(PreTrainer):
         base_model.eval()
         self.base_model = base_model
 
+    def _get_kd_loss(self, logits, teacher_logits, loss_mask):
+        teacher_probs = F.softmax(teacher_logits, dim=-1, dtype=torch.float32)
+        inf_mask = torch.isinf(logits)
+        logprobs = F.log_softmax(logits, dim=-1, dtype=torch.float32)
+        prod_probs = torch.masked_fill(teacher_probs * logprobs, inf_mask, 0)
+        x = torch.sum(prod_probs, dim=-1)
+        kd_loss = -torch.sum(x * loss_mask, dim=-1) / torch.sum(loss_mask, dim=-1)
+        return kd_loss
+
     def _compute_kd_lm_loss(self, model_batch, no_model_batch, mean=True, output_all_losses=False):
         logits = self.model(**model_batch, use_cache=False).logits
         with torch.no_grad():
@@ -46,23 +55,32 @@ class ResidualKDPreTrainer(PreTrainer):
         lm_loss = self._get_lm_loss_from_logits(total_logits, no_model_batch["label"], no_model_batch["loss_mask"])
         
         # kd loss
-        teacher_probs = F.softmax(teacher_logits, dim=-1, dtype=torch.float32)
-        inf_mask = torch.isinf(total_logits)
-        logprobs = F.log_softmax(total_logits, dim=-1, dtype=torch.float32)
-        prod_probs = torch.masked_fill(teacher_probs * logprobs, inf_mask, 0)
-        x = torch.sum(prod_probs, dim=-1)
-        loss_mask = no_model_batch["loss_mask"]
-        kd_loss = -torch.sum(x * loss_mask, dim=-1) / torch.sum(loss_mask, dim=-1)
+        kd_loss = self._get_kd_loss(total_logits, teacher_logits, no_model_batch["loss_mask"])
+        
+        # residual_real_loss
+        residual_real_loss = None
+        if self.args.kd_rsd_loss is not None:
+            residual_truth = teacher_logits - base_logits
+            residual_real_loss = self._get_kd_loss(logits, residual_truth, no_model_batch["loss_mask"])
         
         # loss
         loss = (1-self.args.kd_ratio) * lm_loss + self.args.kd_ratio * kd_loss
+        if self.args.kd_rsd_loss is not None:
+            loss += self.args.kd_rsd_loss * residual_real_loss
         
         if mean:
             loss = loss.mean()
             lm_loss = lm_loss.mean()
             kd_loss = kd_loss.mean()
+            if residual_real_loss is not None:
+                residual_real_loss = residual_real_loss.mean()
         
-        outputs = (loss, lm_loss, kd_loss)
+        outputs = {
+            "loss": loss,
+            "lm_loss": lm_loss,
+            "kd_loss": kd_loss,
+            "residual_real_loss": residual_real_loss
+        }
         
         if output_all_losses:
             teacher_loss = self._get_lm_loss_from_logits(teacher_logits, no_model_batch["label"], no_model_batch["loss_mask"])
@@ -73,20 +91,40 @@ class ResidualKDPreTrainer(PreTrainer):
                 teacher_loss = teacher_loss.mean()
                 base_loss = base_loss.mean()
                 residual_loss = residual_loss.mean()
-            
-            outputs = outputs + (teacher_loss, base_loss, residual_loss)
+
+            outputs.update({
+                "teacher_loss": teacher_loss,
+                "base_loss": base_loss,
+                "residual_loss": residual_loss
+            })
+
+            if residual_real_loss is None:
+                residual_truth = teacher_logits - base_logits
+                residual_real_loss = self._get_kd_loss(logits, residual_truth, no_model_batch["loss_mask"])
+                if mean:
+                    residual_real_loss = residual_real_loss.mean()
+                
+                outputs.update({
+                    "residual_real_loss": residual_real_loss
+                })
             
         return outputs
     
     def compute_loss(self, model_batch, no_model_batch):
-        loss, lm_loss, kd_loss = self._compute_kd_lm_loss(model_batch, no_model_batch)
+        out = self._compute_kd_lm_loss(model_batch, no_model_batch)
+        loss, lm_loss, kd_loss, residual_real_loss = out["loss"], out["lm_loss"], out["kd_loss"], out["residual_real_loss"]
         
         dist.all_reduce(lm_loss, group=self.dp_group, op=dist.ReduceOp.SUM)
         lm_loss = lm_loss / self.dp_world_size
         dist.all_reduce(kd_loss, group=self.dp_group, op=dist.ReduceOp.SUM)
         kd_loss = kd_loss / self.dp_world_size
+        other_outputs = {"lm_loss": lm_loss.item(), "kd_loss": kd_loss.item()}
+        if residual_real_loss is not None:
+            dist.all_reduce(residual_real_loss, group=self.dp_group, op=dist.ReduceOp.SUM)
+            residual_real_loss = residual_real_loss / self.dp_world_size
+            other_outputs["residual_real_loss"] = residual_real_loss.item()
         
-        return loss, {"lm_loss": lm_loss.item(), "kd_loss": kd_loss.item()}
+        return loss, other_outputs
     
     def evaluate(self):
         eval_sampler = DistributedSampler(self.eval_dataset, shuffle=False, drop_last=False, rank=self.dp_rank, num_replicas=self.dp_world_size)
@@ -95,20 +133,24 @@ class ResidualKDPreTrainer(PreTrainer):
         
         self.model.eval()
         all_losses, all_lm_losses, all_kd_losses = [], [], []
-        all_teacher_losses, all_base_losses, all_residual_losses = [], [], []
+        all_teacher_losses, all_base_losses, all_residual_losses, all_residual_real_losses = [], [], [], []
                     
         with torch.no_grad():
             for i, (model_batch, no_model_batch) in tqdm(enumerate(eval_dataloader), f"LM Evaluation", disable=(not get_rank() == 0)):
                 if i % 10 == 0:
                     print_rank(f"evaluating batch {i}/{len(eval_dataloader)}")
                 self.eval_dataset.move_to_device(model_batch, no_model_batch, self.device)
-                loss, lm_loss, kd_loss, teacher_loss, base_loss, residual_loss = self._compute_kd_lm_loss(model_batch, no_model_batch, mean=False, output_all_losses=True)
+                out = self._compute_kd_lm_loss(
+                    model_batch, no_model_batch, mean=False, output_all_losses=True)
+                loss, lm_loss, kd_loss, teacher_loss, base_loss, residual_loss, residual_real_loss = \
+                    out["loss"], out["lm_loss"], out["kd_loss"], out["teacher_loss"], out["base_loss"], out["residual_loss"], out["residual_real_loss"]
                 all_losses.append(loss)
                 all_lm_losses.append(lm_loss)
                 all_kd_losses.append(kd_loss)
                 all_teacher_losses.append(teacher_loss)
                 all_base_losses.append(base_loss)
                 all_residual_losses.append(residual_loss)
+                all_residual_real_losses.append(residual_real_loss)
         
         all_losses = torch.cat(all_losses, dim=0)
         avg_loss = self._avg_loss_cross_dp(all_losses)
@@ -127,6 +169,9 @@ class ResidualKDPreTrainer(PreTrainer):
         
         all_residual_losses = torch.cat(all_residual_losses, dim=0)
         avg_residual_loss = self._avg_loss_cross_dp(all_residual_losses)
+        
+        all_residual_real_losses = torch.cat(all_residual_real_losses, dim=0)
+        avg_residual_real_loss = self._avg_loss_cross_dp(all_residual_real_losses)
 
         if get_rank() == 0:
             res = {"avg_loss": avg_loss,
@@ -134,7 +179,8 @@ class ResidualKDPreTrainer(PreTrainer):
                    "avg_kd_loss": avg_kd_loss,
                    "avg_teacher_loss": avg_teacher_loss,
                    "avg_base_loss": avg_base_loss,
-                   "avg_residual_loss": avg_residual_loss}
+                   "avg_residual_loss": avg_residual_loss,
+                   "avg_residual_real_loss": avg_residual_real_loss,}
             eval_log_str = self.get_log(res, "eval")
             print_rank(eval_log_str)
             save_rank(eval_log_str, os.path.join(self.args.save, "log.txt"))

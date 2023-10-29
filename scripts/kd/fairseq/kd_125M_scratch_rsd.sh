@@ -14,7 +14,7 @@ DISTRIBUTED_ARGS="--num_gpus $GPUS_PER_NODE \
 # type
 TYPE="kd_rsd"
 # model
-CKPT_NAME="fairseq/355M"
+CKPT_NAME="fairseq/355M-d"
 CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
 TEACHER_CKPT_NAME="fairseq/1.3B"
 TEACHER_CKPT="${BASE_PATH}/checkpoints/${TEACHER_CKPT_NAME}/"
@@ -71,7 +71,7 @@ OPTS+=" --adam-beta 0.9"
 OPTS+=" --adam-beta2 0.98"
 OPTS+=" --adam-eps 1e-6"
 OPTS+=" --total-iters 500000"
-OPTS+=" --kd-ratio 0.5"
+OPTS+=" --kd-ratio 0.1"
 # length
 OPTS+=" --max-length ${MAX_LENGTH}"
 # runtime
@@ -80,7 +80,7 @@ OPTS+=" --do-valid"
 OPTS+=" --save-interval 5000"
 OPTS+=" --eval-interval 1000"
 OPTS+=" --log-interval 4"
-OPTS+=" --mid-log-num -1"
+OPTS+=" --mid-log-num 1"
 OPTS+=" --save ${SAVE_PATH}"
 # seed
 OPTS+=" --seed ${SEED}"

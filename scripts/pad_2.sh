@@ -14,15 +14,15 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
                   --master_port $MASTER_PORT"
 
 # model
-CKPT_NAME="fairseq/125M"
+CKPT_NAME="fairseq/760M"
 CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
 # data
-DATA_DIR="${BASE_PATH}/processed_data_1/pretrain/owbt/chunked/fairseq-1025"
+DATA_DIR="${BASE_PATH}/processed_data/pretrain/owbt/chunked/fairseq-1025"
 # hp
-BATCH_SIZE=8
-LR=0.0003
-LR_MIN=0.00003
-GRAD_ACC=4
+BATCH_SIZE=2
+LR=0.00025
+LR_MIN=0.000025
+GRAD_ACC=16
 EVAL_BATCH_SIZE=16
 # length
 MAX_LENGTH=1024
@@ -73,7 +73,6 @@ OPTS+=" --log-interval 4"
 OPTS+=" --mid-log-num 1"
 OPTS+=" --save ${SAVE_PATH}"
 OPTS+=" --save-all"
-OPTS+=" --resume-training"
 # seed
 OPTS+=" --seed ${SEED}"
 # deepspeed

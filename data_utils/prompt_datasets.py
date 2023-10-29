@@ -120,6 +120,8 @@ class PromptDataset(Dataset):
             return None
 
         if self.order is not None:
+            if index >= self.order.shape[1]:
+                return None
             index = int(self.order[self.epoch, index])
 
         output_ids = None
