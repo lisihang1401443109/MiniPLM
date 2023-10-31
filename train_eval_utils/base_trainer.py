@@ -139,6 +139,7 @@ class BaseTrainer():
         assert (args.epochs is not None) ^ (args.total_iters is not None), (args.epochs, args.total_iters)
         self.total_steps = args.total_iters or self.train_iters_per_epoch * args.epochs
         self.epochs = args.epochs or math.ceil(args.total_iters / self.train_iters_per_epoch)
+        self.train_dataset.set_num(self.train_iters_per_epoch * self.total_batch_size) # droplast
         
         if args.save_interval == -1:
             args.save_interval = self.train_iters_per_epoch
@@ -146,7 +147,7 @@ class BaseTrainer():
         if args.eval_interval == -1:
             args.eval_interval = self.train_iters_per_epoch
 
-        if self.args.precompute_data_order:
+        if self.args.precompute_data_order and (not self.args.resume_training):
             if get_rank() == 0:
                 normal_order = np.arange(0, len(self.train_dataset), dtype=np.int32)
                 order = np.stack([np.random.permutation(normal_order) for _ in range(self.epochs)], axis=0)
@@ -159,7 +160,7 @@ class BaseTrainer():
         if self.args.resume_training:
             assert self.args.precompute_data_order
             assert os.path.exists(os.path.join(self.args.save, "data_order.npy"))
-            order = np.load(os.path.join(self.args.save, "data_order.npy"))
+            self.train_dataset.set_order(path=os.path.join(self.args.save, "data_order.npy"))
 
         print_rank(f"Total batch size: {self.total_batch_size}")
         print_rank(f"Total iters: {self.total_steps}")
@@ -221,7 +222,7 @@ class BaseTrainer():
 
         train_sampler = DistributedSampler(self.train_dataset, shuffle=(not self.args.precompute_data_order), drop_last=True, rank=self.dp_rank, num_replicas=self.dp_world_size)
         train_dataloader = DataLoader(
-            self.train_dataset, sampler=train_sampler, batch_size=self.args.batch_size, num_workers=self.args.num_workers, collate_fn=self.train_dataset.collate_lm)
+            self.train_dataset, sampler=train_sampler, batch_size=self.args.batch_size, num_workers=self.args.num_workers, collate_fn=self.train_dataset.collate_lm, drop_last=True)
 
         self.steps = 0
         self.global_steps = 1
@@ -237,16 +238,17 @@ class BaseTrainer():
             self.epoch = epoch
             train_sampler.set_epoch(epoch)
             self.train_dataset.set_epoch(epoch)
+            print("new epoch")
             for it, (model_batch, no_model_batch) in enumerate(train_dataloader):
                 if self.args.resume_training:
                     if self.global_steps <= self.last_global_steps:
-                        if self.global_steps % 1000 == 0:
+                        if (self.steps % self.args.gradient_accumulation_steps == 0) and (self.global_steps % 1000 == 0):
                             print_rank(f"Skipping global step {self.global_steps}")                        
                         self.steps += 1
                         if self.steps % self.args.gradient_accumulation_steps == 0:
                             self.global_steps += 1
                         continue
-                    if self.global_steps == self.last_global_steps + 1:
+                    if (self.steps % self.args.gradient_accumulation_steps == 0) and (self.global_steps == 34484 + 1):
                         print_rank(f"Starting from global step {self.global_steps}")
                         torch.set_rng_state(self.last_rng_states["torch"])
                         torch.cuda.set_rng_state(self.last_rng_states["cuda"])

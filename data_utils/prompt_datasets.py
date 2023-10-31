@@ -112,6 +112,9 @@ class PromptDataset(Dataset):
     def set_epoch(self, epoch):
         self.epoch = epoch
 
+    def set_num(self, num):
+        self.num = num
+
     def set_skip_offset(self, skip_offset):
         self.skip_offset = tuple(skip_offset)
 
@@ -120,8 +123,6 @@ class PromptDataset(Dataset):
             return None
 
         if self.order is not None:
-            if index >= self.order.shape[1]:
-                return None
             index = int(self.order[self.epoch, index])
 
         output_ids = None
