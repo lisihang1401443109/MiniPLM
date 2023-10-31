@@ -22,6 +22,7 @@ from transformers import (
     get_polynomial_decay_schedule_with_warmup,
 )
 from rouge_metric import compute_metrics
+from torch.func import functional_call, vmap, grad
 
 from .schedulers import WarmupCosineAnnealingLR
 
@@ -38,6 +39,10 @@ class BaseTrainer():
         self.device = device
         self.do_train = do_train
         self.tokenizer = get_tokenizer(args)
+        self.G_2 = 0
+        self.S = 0
+        self.grad_norm_small_batch = 0
+        self.norm_exp_avg_gamma = 0.9
 
         if args.model_parallel:
             self.dp_world_size = mpu.get_data_parallel_world_size()
@@ -218,6 +223,43 @@ class BaseTrainer():
         
         return log_prefix + " | " + log_midfix + " | " + log_suffix
 
+    def compute_instance_grad_norm_2(self, model, model_batch, no_model_batch):
+        params = {k: v.detach() for k, v in model.named_parameters()}
+        buffers = {k: v.detach() for k, v in model.named_buffers()}
+        input_ids = model_batch["input_ids"]
+        attention_mask = model_batch["attention_mask"]
+        label = no_model_batch["label"]
+        loss_mask = no_model_batch["loss_mask"]
+        
+        def _compute_loss(params, buffers, input_ids, attention_mask, label, loss_mask):
+            input_ids = input_ids.unsqueeze(0)
+            attention_mask = attention_mask.unsqueeze(0)
+            label = label.unsqueeze(0)
+
+            outputs = functional_call(model, (params, buffers), (input_ids, attention_mask))
+            loss = self._get_lm_loss_from_logits(outputs.logits, label, loss_mask)
+            loss = loss.mean()
+            return loss
+
+        ft_compute_grad = grad(_compute_loss)
+        ft_compute_sample_grad = vmap(ft_compute_grad, in_dims=(None, None, 0, 0, 0, 0), randomness="same")
+        ft_per_sample_grads = ft_compute_sample_grad(params, buffers, input_ids, attention_mask, label, loss_mask)
+        total_norm_2 = torch.zeros(1, device=self.device)
+        for k, v in ft_per_sample_grads.items():
+            param_norm = v.norm(2, dim=-1)
+            total_norm_2 += (param_norm * param_norm).sum()
+        
+        dist.all_reduce(total_norm_2, group=self.dp_group, op=dist.ReduceOp.SUM)
+        return total_norm_2
+
+    def compute_scaled_grad_norm(self, model):
+        grad_norm = 0.0
+        for p in model.parameters():
+            if p.grad is not None:
+                grad_norm += p.grad.data.norm(2).item() ** 2
+        grad_norm = grad_norm ** 0.5
+        return grad_norm
+
     def train(self):
 
         train_sampler = DistributedSampler(self.train_dataset, shuffle=(not self.args.precompute_data_order), drop_last=True, rank=self.dp_rank, num_replicas=self.dp_world_size)
@@ -230,8 +272,8 @@ class BaseTrainer():
         
         logging_stats = defaultdict(float)
         
-        if not self.args.resume_training:
-            self.evaluate()
+        # if not self.args.resume_training:
+        #     self.evaluate()
         self.model.train()
 
         for epoch in range(0, self.epochs):
@@ -269,10 +311,39 @@ class BaseTrainer():
                 stats.update(loss_stats)
                 forward_time = time() - forward_time
 
+                # gn_2 = self.compute_instance_grad_norm_2(self.model.module, model_batch, no_model_batch)
+                # self.instance_grad_norm_2 += gn_2
+
                 # backward
                 backward_time = time()
                 self.model.backward(loss)
                 backward_time = time() - backward_time
+
+                if self.steps % self.args.gradient_accumulation_steps == 0:
+                    if get_rank() == 0:
+                        grad_norm_small_batch = self.compute_scaled_grad_norm(self.model.module)
+                        grad_norm_small_batch = grad_norm_small_batch / self.optimizer.cur_scale * self.args.gradient_accumulation_steps
+                        self.grad_norm_small_batch = torch.tensor([grad_norm_small_batch], device=self.device)
+                    else:
+                        self.grad_norm_small_batch = torch.zeros(1, device=self.device)
+
+                    dist.broadcast(self.grad_norm_small_batch, src=0, group=self.dp_group)
+                
+                if self.model.is_gradient_accumulation_boundary():
+                    assert (self.steps + 1) % self.args.gradient_accumulation_steps == 0
+                    grad_norm = self.optimizer.scaled_global_norm() / self.optimizer.cur_scale
+                    B_big = self.total_batch_size
+                    B_small = self.args.batch_size
+                    G_2 = 1/(B_big - B_small) * (B_big * grad_norm * grad_norm - B_small * self.grad_norm_small_batch * self.grad_norm_small_batch)
+                    S = 1/(1/B_small - 1/B_big) * (self.grad_norm_small_batch * self.grad_norm_small_batch - grad_norm * grad_norm)
+                    self.G_2 = self.norm_exp_avg_gamma * self.G_2 + (1 - self.norm_exp_avg_gamma) * G_2.item()
+                    self.S = self.norm_exp_avg_gamma * self.S + (1 - self.norm_exp_avg_gamma) * S.item()
+                    # instance_grad_norm_2 = self.instance_grad_norm_2 / self.total_batch_size
+                    # variance = instance_grad_norm_2 - grad_norm * grad_norm
+                    # self.instance_grad_norm_2 = 0.0
+                else:
+                    grad_norm = 0.0
+                    # variance = 0.0
 
                 # step
                 step_time = time()
@@ -309,6 +380,11 @@ class BaseTrainer():
                 if (self.steps > 0) and (self.global_steps > 0) and (self.global_steps % self.args.log_interval == 0) and ((self.steps+1) % self.args.gradient_accumulation_steps == 0):
                     logging_stats = {k:v/(self.args.log_interval*self.args.gradient_accumulation_steps) for k,v in logging_stats.items()}
                     log_str = self.get_log(logging_stats, "train", 
+                                           grad_norm="{:.4f}".format(grad_norm),
+                                           grad_norm_small_batch="{:.4f}".format(self.grad_norm_small_batch.item()),
+                                           G_2="{:.4f}".format(self.G_2),
+                                           S="{:.4f}".format(self.S),
+                                           B_noise="{:.4f}".format(self.S/(self.G_2 + 1e-8)),
                                            lr="{:.4e}".format(self.lr_scheduler.get_last_lr()[0]),
                                            scale=self.optimizer.cur_scale if hasattr(self.optimizer, "cur_scale") else 0,
                                            step_time=logging_stats.get("elasped_time", 0) * self.args.gradient_accumulation_steps,)
