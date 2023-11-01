@@ -256,7 +256,7 @@ class BaseTrainer():
         grad_norm = 0.0
         for p in model.parameters():
             if p.grad is not None:
-                grad_norm += p.grad.data.norm(2).item() ** 2
+                grad_norm += p.grad.data.float().norm(2).item() ** 2
         grad_norm = grad_norm ** 0.5
         return grad_norm
 
@@ -272,8 +272,8 @@ class BaseTrainer():
         
         logging_stats = defaultdict(float)
         
-        # if not self.args.resume_training:
-        #     self.evaluate()
+        if not self.args.resume_training:
+            self.evaluate()
         self.model.train()
 
         for epoch in range(0, self.epochs):
