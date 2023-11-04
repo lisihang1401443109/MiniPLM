@@ -14,16 +14,20 @@ DISTRIBUTED_ARGS="--num_gpus $GPUS_PER_NODE \
 # type
 TYPE="kd_rsd"
 # model
-CKPT_NAME="fairseq/355M-d"
+CKPT_NAME="fairseq/355M-d-nt"
 CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
+# CKPT_NAME="355M-35k"
+# CKPT="${BASE_PATH}/results/fairseq/kd_rsd/fairseq_355M-d/t500K-w10K-bs4-lr0.0003cosine3e-05-G4-N16-NN2-scr/fairseq_1.3B-fairseq_125M-kd0.5/35000"
+# CKPT_NAME="355M-nt-30k"
+# CKPT="${BASE_PATH}/results/fairseq/kd_rsd/fairseq_355M-d-nt/t500K-w10K-bs4-lr0.0003cosine3e-05-G2-N32-NN4-scr/fairseq_1.3B-fairseq_125M-kd0.5/30000"
 TEACHER_CKPT_NAME="fairseq/1.3B"
 TEACHER_CKPT="${BASE_PATH}/checkpoints/${TEACHER_CKPT_NAME}/"
 BASE_CKPT_NAME="fairseq/125M"
 BASE_CKPT="${BASE_PATH}/checkpoints/${BASE_CKPT_NAME}/"
 # data
-DATA_DIR="${BASE_PATH}/processed_data/pretrain/owbt/chunked/fairseq-1025"
+DATA_DIR="${BASE_PATH}/processed_data_1/pretrain/owbt/chunked/fairseq-1025"
 # hp
-BATCH_SIZE=4
+BATCH_SIZE=2
 LR=0.0003
 LR_MIN=0.00003
 GRAD_ACC=4
@@ -71,7 +75,7 @@ OPTS+=" --adam-beta 0.9"
 OPTS+=" --adam-beta2 0.98"
 OPTS+=" --adam-eps 1e-6"
 OPTS+=" --total-iters 500000"
-OPTS+=" --kd-ratio 0.1"
+OPTS+=" --kd-ratio 0.5"
 # length
 OPTS+=" --max-length ${MAX_LENGTH}"
 # runtime
@@ -82,6 +86,7 @@ OPTS+=" --eval-interval 1000"
 OPTS+=" --log-interval 4"
 OPTS+=" --mid-log-num 1"
 OPTS+=" --save ${SAVE_PATH}"
+# OPTS+=" --no-eval-when-start"
 # seed
 OPTS+=" --seed ${SEED}"
 # deepspeed

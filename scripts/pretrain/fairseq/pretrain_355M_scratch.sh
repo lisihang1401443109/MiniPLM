@@ -14,12 +14,14 @@ DISTRIBUTED_ARGS="--num_gpus $GPUS_PER_NODE \
 # type
 TYPE="pretrain"
 # model
-CKPT_NAME="fairseq/355M-d"
-CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
+# CKPT_NAME="fairseq/355M-d"
+# CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
+CKPT_NAME="355M-35k"
+CKPT="${BASE_PATH}//results/fairseq/pretrain/fairseq_355M-d/t500K-w10K-bs4-lr0.0003cosine3e-05-G4-N16-NN2-scr/35000"
 # data
 DATA_DIR="${BASE_PATH}/processed_data/pretrain/owbt/chunked/fairseq-1025"
 # hp
-BATCH_SIZE=4
+BATCH_SIZE=2
 LR=0.0003
 LR_MIN=0.00003
 GRAD_ACC=4
@@ -27,7 +29,7 @@ EVAL_BATCH_SIZE=16
 # length
 MAX_LENGTH=1024
 # runtime
-SAVE_PATH="${BASE_PATH}/results/fairseq/${TYPE}"
+SAVE_PATH="${BASE_PATH}/results/fairseq-test-gn/${TYPE}"
 # seed
 SEED=10
 
@@ -43,7 +45,7 @@ OPTS+=" --ckpt-name ${CKPT_NAME}"
 OPTS+=" --n-gpu ${GPUS_PER_NODE}"
 OPTS+=" --n-nodes ${NNODES}"
 # OPTS+=" --gradient-checkpointing"
-OPTS+=" --from-scratch"
+# OPTS+=" --from-scratch"
 # data
 OPTS+=" --data-dir ${DATA_DIR}"
 OPTS+=" --num-workers 4"
@@ -70,9 +72,10 @@ OPTS+=" --do-train"
 OPTS+=" --do-valid"
 OPTS+=" --save-interval 5000"
 OPTS+=" --eval-interval 1000"
-OPTS+=" --log-interval 4"
+OPTS+=" --log-interval 1"
 OPTS+=" --mid-log-num 1"
 OPTS+=" --save ${SAVE_PATH}"
+OPTS+=" --no-eval-when-start"
 # seed
 OPTS+=" --seed ${SEED}"
 # deepspeed

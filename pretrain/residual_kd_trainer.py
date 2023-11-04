@@ -49,10 +49,21 @@ class ResidualKDPreTrainer(PreTrainer):
             teacher_logits = self.teacher_model(**model_batch, use_cache=False).logits
             base_logits = self.base_model(**model_batch, use_cache=False).logits
         
-        total_logits = logits + base_logits
+        total_logits = logits + self.args.rsd_mix_ratio * base_logits
         
         # lm loss
         lm_loss = self._get_lm_loss_from_logits(total_logits, no_model_batch["label"], no_model_batch["loss_mask"])
+        
+        # probs = torch.softmax(total_logits, dim=-1)
+        # one_hot_labels = F.one_hot(no_model_batch["label"], num_classes=probs.shape[-1])
+        
+        # grad_on_logits = one_hot_labels - probs
+        
+        # tmp = grad_on_logits.norm(dim=-1) ** 0.5
+        # tmp = tmp * no_model_batch["loss_mask"] / torch.sum(no_model_batch["loss_mask"], dim=-1, keepdim=True)
+        # tmp = tmp * 2048 / 4
+        # print_rank(tmp)
+        
         
         # kd loss
         kd_loss = self._get_kd_loss(total_logits, teacher_logits, no_model_batch["loss_mask"])

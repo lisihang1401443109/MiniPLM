@@ -1,4 +1,6 @@
 import os
+import re
+from collections import defaultdict
 from train_eval_utils.base_trainer import BaseTrainer
 from utils import print_rank, save_rank
 from torch.distributed import get_rank
@@ -20,6 +22,8 @@ class PreTrainer(BaseTrainer):
         if do_train:
             self.train_dataset = PromptDataset(args, self.tokenizer, "data", args.data_dir, args.train_num, min_offset=10000)
             print_rank("train num", len(self.train_dataset))
+            # self.train_dataset = PromptDataset(args, self.tokenizer, "data", args.data_dir, args.dev_num, max_offset=10000)
+            # print_rank("train num", len(self.train_dataset))
             self.eval_dataset = PromptDataset(args, self.tokenizer, "data", args.data_dir, args.dev_num, max_offset=10000)
             print_rank("valid num", len(self.train_dataset))
         else:

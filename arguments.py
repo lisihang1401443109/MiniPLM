@@ -75,6 +75,7 @@ def add_runtime_args(parser: argparse.ArgumentParser):
     group.add_argument("--resume-training", action="store_true")
     group.add_argument("--resume-dir", type=str, default=None)
     group.add_argument("--resume-tag", type=str, default=None)
+    group.add_argument("--no-eval-when-start", action="store_true")
     return parser
 
 
@@ -163,6 +164,9 @@ def add_hp_args(parser: argparse.ArgumentParser):
 
     group.add_argument("--residual-base-weight", type=float, default=1.0)
     group.add_argument("--residual-num", type=int, default=1)
+    group.add_argument("--teacher-temperature", type=float, default=1.0)
+    group.add_argument("--base-temperature", type=float, default=1.0)
+    group.add_argument("--rsd-mix-ratio", type=float, default=1.0)
 
     return parser
 

@@ -1,6 +1,7 @@
 import torch
 import random
 import os
+import re
 
 from utils import print_rank, get_model, save_rank, save_parallel, get_tokenizer, all_gather
 from torch.distributed import get_rank
@@ -8,6 +9,7 @@ import torch.distributed as dist
 from torch.utils.data import DataLoader, DistributedSampler
 from torch.optim import AdamW
 import torch.nn as nn
+import torch.nn.functional as F
 import deepspeed
 import math
 import numpy as np
@@ -200,7 +202,17 @@ class BaseTrainer():
     def compute_lm_loss(self, model_batch, no_model_batch, mean=True):        
         outputs = self.model(**model_batch, use_cache=False)
         logits = outputs.logits
+
+        # probs = torch.softmax(logits, dim=-1)
+        # one_hot_labels = F.one_hot(no_model_batch["label"], num_classes=probs.shape[-1])
         
+        # grad_on_logits = one_hot_labels - probs
+        
+        # tmp = grad_on_logits.norm(dim=-1) ** 0.5
+        # tmp = tmp * no_model_batch["loss_mask"] / torch.sum(no_model_batch["loss_mask"], dim=-1, keepdim=True)
+        # tmp = tmp * 2048 / 4
+        # print_rank(tmp)
+
         lm_loss = self._get_lm_loss_from_logits(logits, no_model_batch["label"], no_model_batch["loss_mask"])
         
         if mean:
@@ -260,6 +272,32 @@ class BaseTrainer():
         grad_norm = grad_norm ** 0.5
         return grad_norm
 
+    def compute_scaled_grad_norm_per_layer(self):
+        grad_norm = 0.0
+        pattern = r"model.layers.(\d+).*"
+        d = defaultdict(float)
+        for n, p in self.model.module.named_parameters():
+            m = re.match(pattern, n)
+            if p.grad is not None:
+                norm = p.grad.data.float().norm(2).item() ** 2
+
+            if m is not None:
+                layer_num = int(m.group(1))
+                d[layer_num] += norm
+            else:
+                d[n] += norm
+            
+            grad_norm += norm
+            
+        grad_norm = grad_norm ** 0.5
+        for k in d:
+            d[k] = d[k] ** 0.5
+
+        return grad_norm, d
+
+    def backward(self, loss):
+        self.model.backward(loss)
+
     def train(self):
 
         train_sampler = DistributedSampler(self.train_dataset, shuffle=(not self.args.precompute_data_order), drop_last=True, rank=self.dp_rank, num_replicas=self.dp_world_size)
@@ -272,7 +310,7 @@ class BaseTrainer():
         
         logging_stats = defaultdict(float)
         
-        if not self.args.resume_training:
+        if not self.args.resume_training and not self.args.no_eval_when_start:
             self.evaluate()
         self.model.train()
 
@@ -311,17 +349,18 @@ class BaseTrainer():
                 stats.update(loss_stats)
                 forward_time = time() - forward_time
 
-                # gn_2 = self.compute_instance_grad_norm_2(self.model.module, model_batch, no_model_batch)
-                # self.instance_grad_norm_2 += gn_2
-
                 # backward
                 backward_time = time()
-                self.model.backward(loss)
+                self.backward(loss)
                 backward_time = time() - backward_time
+
+                # exit(0)
 
                 if self.steps % self.args.gradient_accumulation_steps == 0:
                     if get_rank() == 0:
                         grad_norm_small_batch = self.compute_scaled_grad_norm(self.model.module)
+                        # _, gn_per_layer = self.compute_scaled_grad_norm_per_layer()
+                        # print(gn_per_layer)
                         grad_norm_small_batch = grad_norm_small_batch / self.optimizer.cur_scale * self.args.gradient_accumulation_steps
                         self.grad_norm_small_batch = torch.tensor([grad_norm_small_batch], device=self.device)
                     else:
@@ -394,6 +433,8 @@ class BaseTrainer():
                     print_rank("*" * 100)
                     save_rank(log_str, os.path.join(self.args.save, "log.txt"))
                     logging_stats = {k:0 for k in logging_stats}
+                    
+                    # exit(0)
 
                 # save
                 if (self.steps > 0) and (self.global_steps > 0) and ((self.steps+1) % self.args.gradient_accumulation_steps == 0) and \
