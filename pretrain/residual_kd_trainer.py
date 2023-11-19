@@ -102,6 +102,7 @@ class ResidualKDPreTrainer(PreTrainer):
         if output_all_losses:
             teacher_loss = self._get_lm_loss_from_logits(teacher_logits, no_model_batch["label"], no_model_batch["loss_mask"])
             base_loss = self._get_lm_loss_from_logits(base_logits, no_model_batch["label"], no_model_batch["loss_mask"])
+            base_kd_loss = self._get_kd_loss(base_logits, teacher_logits, no_model_batch["loss_mask"])
             residual_loss = self._get_lm_loss_from_logits(logits, no_model_batch["label"], no_model_batch["loss_mask"])
 
             if mean:
@@ -112,6 +113,7 @@ class ResidualKDPreTrainer(PreTrainer):
             outputs.update({
                 "teacher_loss": teacher_loss,
                 "base_loss": base_loss,
+                "base_kd_loss": base_kd_loss,
                 "residual_loss": residual_loss
             })
 
@@ -159,7 +161,7 @@ class ResidualKDPreTrainer(PreTrainer):
         
         self.model.eval()
         all_losses, all_lm_losses, all_kd_losses, all_kd_entropy = [], [], [], []
-        all_teacher_losses, all_base_losses, all_residual_losses, all_residual_real_losses = [], [], [], []
+        all_teacher_losses, all_base_losses, all_base_kd_losses, all_residual_losses, all_residual_real_losses = [], [], [], [], []
         all_residual_entropy = []
                     
         with torch.no_grad():
@@ -169,14 +171,15 @@ class ResidualKDPreTrainer(PreTrainer):
                 self.eval_dataset.move_to_device(model_batch, no_model_batch, self.device)
                 out = self._compute_kd_lm_loss(
                     model_batch, no_model_batch, mean=False, output_all_losses=True)
-                loss, lm_loss, kd_loss, kd_entropy, teacher_loss, base_loss, residual_loss, residual_real_loss, residual_entropy = \
-                    out["loss"], out["lm_loss"], out["kd_loss"], out["kd_entropy"], out["teacher_loss"], out["base_loss"], out["residual_loss"], out["residual_real_loss"], out["residual_entropy"]
+                loss, lm_loss, kd_loss, kd_entropy, teacher_loss, base_loss, base_kd_loss, residual_loss, residual_real_loss, residual_entropy = \
+                    out["loss"], out["lm_loss"], out["kd_loss"], out["kd_entropy"], out["teacher_loss"], out["base_loss"], out["base_kd_loss"], out["residual_loss"], out["residual_real_loss"], out["residual_entropy"]
                 all_losses.append(loss)
                 all_lm_losses.append(lm_loss)
                 all_kd_losses.append(kd_loss)
                 all_kd_entropy.append(kd_entropy)
                 all_teacher_losses.append(teacher_loss)
                 all_base_losses.append(base_loss)
+                all_base_kd_losses.append(base_kd_loss)
                 all_residual_losses.append(residual_loss)
                 all_residual_real_losses.append(residual_real_loss)
                 all_residual_entropy.append(residual_entropy)
@@ -199,6 +202,9 @@ class ResidualKDPreTrainer(PreTrainer):
         all_base_losses = torch.cat(all_base_losses, dim=0)
         avg_base_loss = self._avg_loss_cross_dp(all_base_losses)
         
+        all_base_kd_losses = torch.cat(all_base_kd_losses, dim=0)
+        avg_base_kd_loss = self._avg_loss_cross_dp(all_base_kd_losses)
+        
         all_residual_losses = torch.cat(all_residual_losses, dim=0)
         avg_residual_loss = self._avg_loss_cross_dp(all_residual_losses)
         
@@ -215,6 +221,7 @@ class ResidualKDPreTrainer(PreTrainer):
                    "avg_kd_entropy": avg_kd_entropy,
                    "avg_teacher_loss": avg_teacher_loss,
                    "avg_base_loss": avg_base_loss,
+                   "avg_base_kd_loss": avg_base_kd_loss,
                    "avg_residual_loss": avg_residual_loss,
                    "avg_residual_real_loss": avg_residual_real_loss,
                    "avg_residual_entropy": avg_residual_entropy,}

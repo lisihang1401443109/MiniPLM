@@ -23,14 +23,14 @@ class ResidualModel(nn.Module):
                 
         return base_logits, all_residual_logits
     
-    def save_pretrained(self, save_path):
+    def save_pretrained(self, save_path, **kwargs):
         base_model_path = os.path.join(save_path, "base")
         os.makedirs(base_model_path, exist_ok=True)
-        self.base_model.save_pretrained(base_model_path)
+        self.base_model.save_pretrained(base_model_path, **kwargs)
         for i, residual_model in enumerate(self.residual_model_list):
             residual_model_path = os.path.join(save_path, f"residual_{i}")
             os.makedirs(residual_model_path, exist_ok=True)
-            residual_model.save_pretrained(residual_model_path)
+            residual_model.save_pretrained(residual_model_path, **kwargs)
 
 class ResidualPreTrainer(PreTrainer):
     def __init__(self, args, ds_config, device, do_train=True):

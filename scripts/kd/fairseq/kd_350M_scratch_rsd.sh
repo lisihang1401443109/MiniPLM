@@ -14,7 +14,7 @@ DISTRIBUTED_ARGS="--num_gpus $GPUS_PER_NODE \
 # type
 TYPE="kd_rsd"
 # model
-CKPT_NAME="fairseq/125M-nt"
+CKPT_NAME="fairseq/355M-d-nt"
 CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
 # CKPT_NAME="355M-35k"
 # CKPT="${BASE_PATH}/results/fairseq/kd_rsd/fairseq_355M-d/t500K-w10K-bs4-lr0.0003cosine3e-05-G4-N16-NN2-scr/fairseq_1.3B-fairseq_125M-kd0.5/35000"
@@ -25,7 +25,7 @@ TEACHER_CKPT="${BASE_PATH}/checkpoints/${TEACHER_CKPT_NAME}/"
 BASE_CKPT_NAME="fairseq/125M"
 BASE_CKPT="${BASE_PATH}/checkpoints/${BASE_CKPT_NAME}/"
 # data
-DATA_DIR="${BASE_PATH}/processed_data/pretrain/owbt/chunked/fairseq-1025"
+DATA_DIR="${BASE_PATH}/processed_data_1/pretrain/owbt/chunked/fairseq-1025"
 # hp
 BATCH_SIZE=2
 LR=0.0003

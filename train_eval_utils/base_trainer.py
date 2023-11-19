@@ -599,7 +599,7 @@ class BaseTrainer():
                         }, f)
             else:
                 if get_rank() == 0:
-                    self.model.module.save_pretrained(ckpt_dir)
+                    self.model.module.save_pretrained(ckpt_dir, safe_serialization=False)
                 # torch.save(self.model.module.value_model.state_dict(), os.path.join(ckpt_dir, "value_model.ckpt"))
         
         dist.barrier()
