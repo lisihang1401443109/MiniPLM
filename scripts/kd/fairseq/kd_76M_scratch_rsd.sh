@@ -27,7 +27,7 @@ BASE_CKPT="${BASE_PATH}/checkpoints/${BASE_CKPT_NAME}/"
 # data
 DATA_DIR="${BASE_PATH}/processed_data/pretrain/owbt/chunked/fairseq-1025"
 # hp
-BATCH_SIZE=4
+BATCH_SIZE=2
 LR=0.0003
 LR_MIN=0.00003
 GRAD_ACC=4

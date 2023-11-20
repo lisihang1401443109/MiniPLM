@@ -73,6 +73,7 @@ def add_runtime_args(parser: argparse.ArgumentParser):
     group.add_argument("--from-scratch", action="store_true")
     
     group.add_argument("--resume-training", action="store_true")
+    group.add_argument("--start-from-global-step", type=int, default=None)
     group.add_argument("--resume-dir", type=str, default=None)
     group.add_argument("--resume-tag", type=str, default=None)
     group.add_argument("--no-eval-when-start", action="store_true")
@@ -167,6 +168,7 @@ def add_hp_args(parser: argparse.ArgumentParser):
     group.add_argument("--teacher-temperature", type=float, default=1.0)
     group.add_argument("--base-temperature", type=float, default=1.0)
     group.add_argument("--rsd-mix-ratio", type=float, default=1.0)
+    group.add_argument("--input-base-probs", action="store_true")
 
     return parser
 
@@ -294,7 +296,7 @@ def get_args():
             base_save_path(args),
             (f"-mos{args.mos_experts}" if args.mos_experts is not None else ""),
         )
-    elif args.type in ["kd"]:
+    elif args.type in ["kd", "kd_pretrain", "kd_contrastive"]:
         args.save = os.path.join(
             base_save_path(args),
             f"{args.teacher_ckpt_name.replace('/', '_')}" + f"-kd{args.kd_ratio}",
@@ -331,5 +333,7 @@ def get_args():
         
         if args.warmup_iters > 0:
             assert args.scheduler_name is not None
+    else:
+        raise NotImplementedError
 
     return args

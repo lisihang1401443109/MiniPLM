@@ -22,8 +22,8 @@ CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
 # CKPT="${BASE_PATH}/results/fairseq/kd_rsd/fairseq_355M-d-nt/t500K-w10K-bs4-lr0.0003cosine3e-05-G2-N32-NN4-scr/fairseq_1.3B-fairseq_125M-kd0.5/30000"
 TEACHER_CKPT_NAME="fairseq/1.3B"
 TEACHER_CKPT="${BASE_PATH}/checkpoints/${TEACHER_CKPT_NAME}/"
-BASE_CKPT_NAME="fairseq/125M"
-BASE_CKPT="${BASE_PATH}/checkpoints/${BASE_CKPT_NAME}/"
+BASE_CKPT_NAME="rsd125M_5000"
+BASE_CKPT="${BASE_PATH}/results/fairseq/kd_rsd/fairseq_125M-nt/t500K-w10K-bs2-lr0.0003cosine3e-05-G4-N16-NN2-scr/fairseq_1.3B-fairseq_125M-kd0.5/5000"
 # data
 DATA_DIR="${BASE_PATH}/processed_data/pretrain/owbt/chunked/fairseq-1025"
 # hp
@@ -86,6 +86,7 @@ OPTS+=" --eval-interval 1000"
 OPTS+=" --log-interval 4"
 OPTS+=" --mid-log-num 1"
 OPTS+=" --save ${SAVE_PATH}"
+OPTS+=" --start-from-global-step 5000"
 # OPTS+=" --no-eval-when-start"
 # seed
 OPTS+=" --seed ${SEED}"

@@ -28,6 +28,8 @@ from mos.trainer import MOSSFTTrainer
 from pretrain.trainer import PreTrainer
 from pretrain.residual_trainer import ResidualPreTrainer
 from pretrain.residual_kd_trainer import ResidualKDPreTrainer
+from pretrain.kd_trainer import KDPreTrainer
+from pretrain.contrastive_kd_trainer import ContrastiveKDPreTrainer
 
 
 torch.set_num_threads(16)
@@ -75,6 +77,10 @@ def main():
         trainer = ResidualPreTrainer(args, ds_config, device, args.do_train)
     elif args.type == "kd_rsd":
         trainer = ResidualKDPreTrainer(args, ds_config, device, args.do_train)
+    elif args.type == "kd_pretrain":
+        trainer = KDPreTrainer(args, ds_config, device, args.do_train)
+    elif args.type == "kd_contrastive":
+        trainer = ContrastiveKDPreTrainer(args, ds_config, device, args.do_train)
     else:
         raise NotImplementedError        
     

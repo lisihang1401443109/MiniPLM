@@ -16,7 +16,9 @@ class PreTrainer(BaseTrainer):
         self.setup_model_and_optimizer(set_optim=do_train)
         if do_train and self.args.resume_training:
             self.resume_training()
-    
+        elif args.start_from_global_step is not None:
+            self.last_global_steps = self.args.start_from_global_step
+
     def set_datasets(self, args=None, do_train=True):
         args = args or self.args
         if do_train:

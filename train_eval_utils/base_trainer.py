@@ -320,7 +320,7 @@ class BaseTrainer():
             self.train_dataset.set_epoch(epoch)
             print("new epoch")
             for it, (model_batch, no_model_batch) in enumerate(train_dataloader):
-                if self.args.resume_training:
+                if self.args.resume_training or self.args.start_from_global_step is not None:
                     if self.global_steps <= self.last_global_steps:
                         if (self.steps % self.args.gradient_accumulation_steps == 0) and (self.global_steps % 1000 == 0):
                             print_rank(f"Skipping global step {self.global_steps}")                        
@@ -328,13 +328,14 @@ class BaseTrainer():
                         if self.steps % self.args.gradient_accumulation_steps == 0:
                             self.global_steps += 1
                         continue
-                    if (self.steps % self.args.gradient_accumulation_steps == 0) and (self.global_steps == 34484 + 1):
+                    if (self.steps % self.args.gradient_accumulation_steps == 0):
                         print_rank(f"Starting from global step {self.global_steps}")
-                        torch.set_rng_state(self.last_rng_states["torch"])
-                        torch.cuda.set_rng_state(self.last_rng_states["cuda"])
-                        np.random.set_state(self.last_rng_states["numpy"])
-                        random.setstate(self.last_rng_states["python"])
-                
+                        if self.args.resume_training:
+                            torch.set_rng_state(self.last_rng_states["torch"])
+                            torch.cuda.set_rng_state(self.last_rng_states["cuda"])
+                            np.random.set_state(self.last_rng_states["numpy"])
+                            random.setstate(self.last_rng_states["python"])
+
                 # print_rank(f"Epoch {epochs}, Iter {it}")
                 self.train_dataset.move_to_device(model_batch, no_model_batch, self.device)
                 

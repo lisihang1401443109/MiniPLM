@@ -80,9 +80,13 @@ from transformers import AutoTokenizer
 # print(t1)
 # print(t11)
 
-states = torch.load("/home/lidong1/yuxian/sps/results/fairseq/test/fairseq_125M/t500K-bs2-lr0.0003cosine3e-05-G1-N4-NN1-scr/8/rng_states_0.pt", map_location="cpu")
-torch.set_rng_state(states["torch"])
+# states = torch.load("/home/lidong1/yuxian/sps/results/fairseq/test/fairseq_125M/t500K-bs2-lr0.0003cosine3e-05-G1-N4-NN1-scr/8/rng_states_0.pt", map_location="cpu")
+# torch.set_rng_state(states["torch"])
 
-t = torch.randint(0, 100, (1, 10))
+# t = torch.randint(0, 100, (1, 10))
 
-print(t)
+# print(t)
+
+m = torch.load("/home/aiscuser/sps/model_batch_None.pt", map_location="cpu")
+
+print(m["input_ids"][0].tolist()[:20])
