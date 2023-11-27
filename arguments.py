@@ -92,6 +92,8 @@ def add_data_args(parser: argparse.ArgumentParser):
     group.add_argument("--train-ratio", type=float, default=1)
     group.add_argument("--dev-num", type=int, default=-1)
     group.add_argument("--dev-ratio", type=float, default=1)
+    group.add_argument("--test-num", type=int, default=-1)
+    group.add_argument("--test-ratio", type=float, default=1)
     group.add_argument("--gen-num", type=int, default=-1)
     group.add_argument("--data-names", type=str, default=None)
     group.add_argument("--prompt-type", type=str, default=None)
@@ -214,6 +216,13 @@ def add_gen_args(parser: argparse.ArgumentParser):
     return parser
 
 
+def add_toy_args(parser: argparse.ArgumentParser):
+    group = parser.add_argument_group('toy', 'toy experiments')
+    group.add_argument("--linear-dim", type=int, default=512)
+    
+    return parser
+
+
 def base_save_path(args):
     return os.path.join(
         args.save,
@@ -236,6 +245,7 @@ def get_args():
     parser = add_ppo_args(parser)
     parser = add_minillm_args(parser)
     parser = add_gen_args(parser)
+    parser = add_toy_args(parser)
     parser = deepspeed.add_config_arguments(parser)
     
     args, unknown = parser.parse_known_args()
@@ -333,6 +343,17 @@ def get_args():
         
         if args.warmup_iters > 0:
             assert args.scheduler_name is not None
+    elif args.type == "toy":
+        model_info = args.model_type
+        if args.model_type == "linear":
+            model_info += f"-d{args.linear_dim}"
+        save_path = os.path.join(
+            args.save,
+            model_info,
+            (f"bs{args.batch_size}-lr{args.lr}"),
+            args.save_additional_suffix
+        )
+
     else:
         raise NotImplementedError
 
