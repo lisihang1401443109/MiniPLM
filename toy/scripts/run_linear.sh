@@ -19,11 +19,10 @@ OPTS+=" --type ${TYPE}"
 # model
 OPTS+=" --model-type linear"
 OPTS+=" --base-path ${BASE_PATH}"
-OPTS+=" --linear-dim 1024"
+OPTS+=" --linear-dim 128"
 # data
 OPTS+=" --train-num 1024"
-OPTS+=" --test-num 128"
-OPTS+=" --bin-data"
+OPTS+=" --test-num 64"
 # hp
 OPTS+=" --lr ${LR}"
 OPTS+=" --batch-size ${BATCH_SIZE}"
@@ -35,7 +34,7 @@ OPTS+=" --seed ${SEED}"
 
 
 export NCCL_DEBUG=""
-export WANDB_DISABLED=True
+# export WANDB_DISABLED=True
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
 export OMP_NUM_THREADS=16

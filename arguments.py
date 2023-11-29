@@ -219,6 +219,8 @@ def add_gen_args(parser: argparse.ArgumentParser):
 def add_toy_args(parser: argparse.ArgumentParser):
     group = parser.add_argument_group('toy', 'toy experiments')
     group.add_argument("--linear-dim", type=int, default=512)
+    group.add_argument("--lr-alpha", type=float, default=0.001)
+    group.add_argument("--lam", type=float, default=0.1)
     
     return parser
 
@@ -346,13 +348,14 @@ def get_args():
     elif args.type == "toy":
         model_info = args.model_type
         if args.model_type == "linear":
-            model_info += f"-d{args.linear_dim}"
+            model_info += f"-d{args.linear_dim}-l{args.lam}"
         save_path = os.path.join(
             args.save,
             model_info,
             (f"bs{args.batch_size}-lr{args.lr}"),
             args.save_additional_suffix
         )
+        args.save = save_path
 
     else:
         raise NotImplementedError

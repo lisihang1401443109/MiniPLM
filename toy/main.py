@@ -2,6 +2,7 @@ import os
 import time
 import json
 import torch
+import wandb
 
 from linear.linear_model import LinearModel
 from arguments import get_args
@@ -35,8 +36,10 @@ def main():
     linear_model.set_test_data(test_x, test_y)
     linear_model.set_init_theta()
 
-    linear_model.train()
-    linear_model.test()
+    # linear_model.train()
+    # linear_model.test()
+    # linear_model.train_with_alpha()
+    linear_model.train_iter_alpha()
     
 if __name__ == "__main__":
     main()
