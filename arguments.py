@@ -221,6 +221,10 @@ def add_toy_args(parser: argparse.ArgumentParser):
     group.add_argument("--linear-dim", type=int, default=512)
     group.add_argument("--lr-alpha", type=float, default=0.001)
     group.add_argument("--lam", type=float, default=0.1)
+    group.add_argument("--outer-epochs", type=int, default=5)
+    group.add_argument("--linear-theta-scale", type=int, default=1)
+    group.add_argument("--linear-x-scale", type=float, default=1)
+    group.add_argument("--linear-noise-scale", type=float, default=0.1)
     
     return parser
 

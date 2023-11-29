@@ -26,7 +26,7 @@ OPTS+=" --test-num 64"
 # hp
 OPTS+=" --lr ${LR}"
 OPTS+=" --batch-size ${BATCH_SIZE}"
-OPTS+=" --epochs 1000"
+OPTS+=" --epochs 2000"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"
 # seed

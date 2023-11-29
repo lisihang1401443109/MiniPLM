@@ -29,7 +29,7 @@ def main():
     linear_model.set_theta_gd()
     
     print(args.train_num, args.test_num)
-    train_x, train_y = linear_model.generate_data(args.train_num)
+    train_x, train_y = linear_model.generate_data_noise(args.train_num)
     test_x, test_y = linear_model.generate_data(args.test_num)
     
     linear_model.set_train_data(train_x, train_y)
