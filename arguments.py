@@ -361,8 +361,8 @@ def get_args():
         save_path = os.path.join(
             args.save,
             model_info,
-            (f"bs{args.batch_size}-lr{args.lr}"),
-            (f"oe{args.outer_epochs}-lra{args.lr_alpha}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}") \
+            (f"bs{args.batch_size}-lr{args.lr}-tn{args.train_num}-dn{args.dev_num}"),
+            (f"oe{args.outer_epochs}-lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}") \
             + args.save_additional_suffix
         )
         args.save = save_path

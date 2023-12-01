@@ -91,7 +91,7 @@ class LinearModel():
         else:
             alpha = alpha.to(self.device)
 
-        all_train_loss = []
+        all_train_loss, all_dev_loss, all_test_loss = [], [], []
         for epoch in tqdm(range(self.args.epochs), desc=f"{wandb_name} Training"):
             loss = self.loss(train_x, train_y, theta, alpha)
             dev_loss = self.loss(dev_x, dev_y, theta)
@@ -105,6 +105,8 @@ class LinearModel():
             wandb.log({"train_loss": loss.item(), "dev_loss": dev_loss.item(), "test_loss": test_loss.item(), "grad_norm": gn})
             
             all_train_loss.append(loss.item())
+            all_dev_loss.append(dev_loss.item())
+            all_test_loss.append(test_loss.item())
             
             if epoch % 1000 == 0:
                 log_str = "Epoch: {} | Train Loss: {:.4f} | Dev Loss: {:.4f} | Test Loss: {:.4f} | Grad Norm: {:.4f}".format(epoch, loss, dev_loss, test_loss, gn)
@@ -124,7 +126,7 @@ class LinearModel():
 
         run.finish()
         
-        return theta, loss, dev_loss
+        return theta, loss, dev_loss, all_train_loss, all_dev_loss, all_test_loss
 
     def train_iter_alpha(self):
         train_x, train_y = self.train_data
@@ -143,11 +145,12 @@ class LinearModel():
 
         ood_init_theta = self.generate_rand_theta()
 
-        self.train(alpha=alpha, theta_init=ood_init_theta, wandb_name=f"eval-init")
+        train_outputs = self.train(alpha=alpha, theta_init=ood_init_theta, wandb_name=f"eval-init")
+        init_test_losses = train_outputs[-1]
 
         for outer_epoch in range(self.args.outer_epochs):
 
-            theta, loss, dev_loss = self.train(
+            theta, loss, dev_loss, _, _, _ = self.train(
                 alpha=alpha,
                 theta_init=self.theta_init,
                 wandb_name=f"oe-{outer_epoch}")
@@ -165,10 +168,16 @@ class LinearModel():
             alpha = torch.clamp(alpha, min=0)
             alpha = alpha / torch.sum(alpha)
             
-            self.train(alpha=alpha, theta_init=ood_init_theta, wandb_name=f"eval-oe-{outer_epoch}")
+            train_outputs = self.train(alpha=alpha, theta_init=ood_init_theta, wandb_name=f"eval-oe-{outer_epoch}")
+            acc_rate = self.calc_acc_rate(init_test_losses, train_outputs[-1])
             naive_alpha = (alpha > 1e-10).float()
             naive_alpha = naive_alpha / torch.sum(naive_alpha)
-            self.train(alpha=naive_alpha, theta_init=ood_init_theta, wandb_name=f"eval-naive-oe-{outer_epoch}")
+            train_outputs = self.train(alpha=naive_alpha, theta_init=ood_init_theta, wandb_name=f"eval-naive-oe-{outer_epoch}")
+            acc_rate_naive = self.calc_acc_rate(init_test_losses, train_outputs[-1])
+            
+            log_str = f"Outer Epoch: {outer_epoch} | Acc Rate: {acc_rate} | Acc Rate Naive: {acc_rate_naive}"
+            print_rank(log_str)
+            save_rank(log_str, os.path.join(self.args.save, "log.txt"))
             
             if dev_loss < best_dev_loss:
                 best_alpha = alpha.clone()
@@ -188,6 +197,26 @@ class LinearModel():
         torch.save(naive_best_alpha, os.path.join(self.args.save, "naive_best_alpha.pt"))
 
         return best_alpha, best_outer_epoch, best_dev_loss
+
+    def calc_acc_rate(self, baseline_losses, losses, steps=None):
+        if steps is None:
+            steps = [100, 300, 500, 1000, 2000, 3000, 4000, 5000, 6000]
+        
+        def _calc(step):
+            baseline_loss = baseline_losses[step]
+            # binary search baseline_loss in losses
+            l, r = 0, len(losses) - 1
+            while l < r:
+                mid = (l + r) // 2
+                if losses[mid] >= baseline_loss:
+                    l = mid + 1
+                else:
+                    r = mid
+            return step / l
+            
+        acc_rate = [round(_calc(step), 3) for step in steps]
+
+        return acc_rate
 
     def train_alpha_t(self):
         train_x, train_y = self.train_data
