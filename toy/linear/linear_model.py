@@ -15,7 +15,7 @@ class LinearModel():
         self.device = device
         self.dim = dim
         self.theta_gd = None
-        self.train_data, self.test_data = None, None
+        self.train_data, self.dev_data = None, None
         self.theta_init = None
         self.exp_name = args.save.strip("/").replace(args.base_path.strip("/"), "").replace("_", "").replace("/", "_").strip("_")
         sum_writer_path = os.path.join(args.base_path, "runs", self.exp_name)
@@ -29,16 +29,11 @@ class LinearModel():
             theta_gd = torch.load(path, map_location=self.device)
         self.theta_gd = theta_gd
     
-    def generate_data(self, data_num):
-        x = torch.rand(data_num, self.dim, device=self.device) * self.args.linear_x_scale
+    def generate_data(self, data_num, noise_scale, x_u, x_sigma, theta_gd=None):
+        x = torch.randn(data_num, self.dim, device=self.device) * x_sigma + x_u
         x[:, 0] = 1
-        y = x @ self.theta_gd
-        return x, y
-
-    def generate_data_noise(self, data_num):
-        x = torch.randn(data_num, self.dim, device=self.device) * self.args.linear_x_scale
-        x[:, 0] = 1
-        y = x @ self.theta_gd + torch.randn(data_num, 1, device=self.device) * self.args.linear_noise_scale
+        theta_gd = self.theta_gd if theta_gd is None else theta_gd
+        y = x @ theta_gd + torch.randn(data_num, 1, device=self.device) * noise_scale
         return x, y
     
     def generate_rand_theta(self):
@@ -47,9 +42,12 @@ class LinearModel():
     def set_train_data(self, x, y):
         self.train_data = (x,y)
     
+    def set_dev_data(self, x, y):
+        self.dev_data = (x,y)
+
     def set_test_data(self, x, y):
-        self.test_data = (x,y)
-    
+        self.test_data = (x, y)
+
     def set_init_theta(self, theta=None):
         if theta is None:
             self.theta_init = torch.randn(self.dim, 1, device=self.device)
@@ -71,16 +69,16 @@ class LinearModel():
 
     def train(self, alpha=None, theta_init=None, wandb_name="debug"):
         train_x, train_y = self.train_data
+        dev_x, dev_y = self.dev_data
         test_x, test_y = self.test_data
         
-        cur_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         run = wandb.init(
-            name=f"{wandb_name}-{cur_time}",
+            name=f"{wandb_name}",
             project="toy-linear",
             group=self.exp_name,
             config=self.args,
             reinit=True,
-            tags=["debug"],)
+            tags=["debug", self.args.time_stamp],)
         
         if theta_init is not None:
             theta = torch.clone(theta_init)
@@ -96,6 +94,7 @@ class LinearModel():
         all_train_loss = []
         for epoch in tqdm(range(self.args.epochs), desc=f"{wandb_name} Training"):
             loss = self.loss(train_x, train_y, theta, alpha)
+            dev_loss = self.loss(dev_x, dev_y, theta)
             test_loss = self.loss(test_x, test_y, theta)
 
             grad_full = 2 * alpha * train_x * (train_x @ theta - train_y) # (train_num, dim)
@@ -103,18 +102,21 @@ class LinearModel():
             gn = torch.norm(grad)
             theta -= self.args.lr * grad
             
-            wandb.log({"train_loss": loss.item(), "test_loss": test_loss.item(), "step": epoch, "grad_norm": gn})
+            wandb.log({"train_loss": loss.item(), "dev_loss": dev_loss.item(), "test_loss": test_loss.item(), "grad_norm": gn})
             
             all_train_loss.append(loss.item())
             
-            if epoch % 100 == 0:
-                log_str = "Epoch: {} | Train Loss: {:.4f} | Test Loss: {:.4f} | Grad Norm: {:.4f}".format(epoch, loss, test_loss, gn)
+            if epoch % 1000 == 0:
+                log_str = "Epoch: {} | Train Loss: {:.4f} | Dev Loss: {:.4f} | Test Loss: {:.4f} | Grad Norm: {:.4f}".format(epoch, loss, dev_loss, test_loss, gn)
                 print_rank(log_str)
                 # save_rank(log_str, os.path.join(self.args.save, "log.txt"))
 
         log_str = "Final Train Loss: {}".format(loss)
         print_rank(log_str)
-        # save_rank(log_str, os.path.join(self.args.save, "log.txt"))
+        
+        dev_loss = self.loss(dev_x, dev_y, theta)
+        log_str = "Final Dev Loss: {}".format(dev_loss)
+        print_rank(log_str)
         
         test_loss = self.loss(test_x, test_y, theta)
         log_str = "Final Test Loss: {}".format(test_loss)
@@ -122,11 +124,11 @@ class LinearModel():
 
         run.finish()
         
-        return theta, loss, test_loss
-        # save_rank(log_str, os.path.join(self.args.save, "log.txt"))
+        return theta, loss, dev_loss
 
     def train_iter_alpha(self):
         train_x, train_y = self.train_data
+        dev_x, dev_y = self.dev_data
         test_x, test_y = self.test_data
         
         alpha = torch.ones(self.args.train_num, 1, device=self.device)
@@ -137,18 +139,25 @@ class LinearModel():
 
         best_alpha = None
         best_outer_epoch = None
-        best_test_loss = float("inf")
+        best_dev_loss = float("inf")
+
+        ood_init_theta = self.generate_rand_theta()
+
+        self.train(alpha=alpha, theta_init=ood_init_theta, wandb_name=f"eval-init")
 
         for outer_epoch in range(self.args.outer_epochs):
 
-            theta, loss, test_loss = self.train(alpha=alpha, theta_init=self.theta_init, wandb_name=f"oe-{outer_epoch}")
+            theta, loss, dev_loss = self.train(
+                alpha=alpha,
+                theta_init=self.theta_init,
+                wandb_name=f"oe-{outer_epoch}")
 
-            grad_dev = 2 / self.args.test_num * test_x.t() @ (test_x @ theta - test_y) # (dim, 1)
+            grad_dev = 2 / self.args.dev_num * dev_x.t() @ (dev_x @ theta - dev_y) # (dim, 1)
             grad_train_full = 2 * train_x * (train_x @ theta - train_y) # (train_num, dim)
             grad_train_full = grad_train_full + self.args.lam * theta.squeeze().unsqueeze(0) # (train_num, dim)
             H_full = train_x.unsqueeze(-1) @ train_x.unsqueeze(-2) + self.args.lam * torch.eye(self.dim, device=self.device).unsqueeze(0) # (train_num, dim, dim)
             inv_H_full = torch.inverse(H_full)
-            grad_alpha = -(grad_train_full.unsqueeze(-2) @ inv_H_full @ grad_dev).squeeze() # (train_num, 1, 1)
+            grad_alpha = -(grad_train_full.unsqueeze(-2) @ inv_H_full @ grad_dev).squeeze() # (train_num)
             proj_grad_alpha = grad_alpha - norm_vec * (torch.dot(norm_vec, grad_alpha))
             proj_grad_alpha = proj_grad_alpha.unsqueeze(-1)
             alpha -= self.args.lr_alpha * proj_grad_alpha
@@ -156,83 +165,99 @@ class LinearModel():
             alpha = torch.clamp(alpha, min=0)
             alpha = alpha / torch.sum(alpha)
             
-            if test_loss < best_test_loss:
+            self.train(alpha=alpha, theta_init=ood_init_theta, wandb_name=f"eval-oe-{outer_epoch}")
+            naive_alpha = (alpha > 1e-10).float()
+            naive_alpha = naive_alpha / torch.sum(naive_alpha)
+            self.train(alpha=naive_alpha, theta_init=ood_init_theta, wandb_name=f"eval-naive-oe-{outer_epoch}")
+            
+            if dev_loss < best_dev_loss:
                 best_alpha = alpha.clone()
-                best_test_loss = test_loss
+                best_dev_loss = dev_loss
                 best_outer_epoch = outer_epoch
         
-        new_init_theta = self.generate_rand_theta()
+        print_rank("##### Final Evaluate #####")
         
-        print_rank("##### Evaluate #####")
-        
-        print_rank(f"Best Test Loss: {best_test_loss}")
-        self.train(alpha=best_alpha, theta_init=new_init_theta, wandb_name=f"eval-oe-{best_outer_epoch}")
+        print_rank(f"Best Dev Loss: {best_dev_loss}")
+        self.train(alpha=best_alpha, theta_init=ood_init_theta, wandb_name=f"eval-best-oe-{best_outer_epoch}")
         torch.save(best_alpha, os.path.join(self.args.save, "best_alpha.pt"))
 
-        return best_alpha, best_outer_epoch, best_test_loss
+        naive_best_alpha = (best_alpha > 1e-10).float()
+        naive_best_alpha = naive_best_alpha / torch.sum(naive_best_alpha)
+        self.train(alpha=naive_best_alpha, theta_init=ood_init_theta, wandb_name=f"eval-naive-best-oe-{best_outer_epoch}")
 
-    # def train_alpha_t(self):
-    #     train_x, train_y = self.train_data
-    #     test_x, test_y = self.test_data
-        
-    #     # alpha = torch.rand(self.args.train_num, 1, device=self.device, requires_grad=True)
-    #     alpha = torch.ones(self.args.train_num, 1, device=self.device, requires_grad=True)
-    #     alpha_norm = alpha / torch.sum(alpha) * self.args.train_num
-        
-    #     assert self.theta_init is not None
-    #     self.theta = torch.clone(self.theta_init)
-        
-    #     all_train_loss = []
-    #     all_test_loss = []
-    #     all_mean_IF = []
-    #     all_var_IF = []
-    #     for epoch in tqdm(range(self.args.epochs), desc="Training"):
-    #         loss = self.loss(train_x, train_y, self.theta)
-    #         grad_full = 2 * alpha_norm * train_x * (train_x @ self.theta - train_y) # (train_num, dim)
-    #         grad = torch.sum(grad_full, dim=0).unsqueeze(-1) # (dim, 1)
-    #         grad_dev = 2 / self.args.test_num * test_x.t() @ (test_x @ self.theta - test_y) # (dim, 1)
-    #         IF = grad_full @ grad_dev # (train_num, 1)
-    #         mean_IF = torch.mean(IF)
-    #         var_IF = torch.var(IF)
-    #         all_mean_IF.append(mean_IF.item())
-    #         all_var_IF.append(var_IF.item())
-            
-    #         self.theta -= self.args.lr * grad
-            
-    #         all_train_loss.append(loss.item())
-    #         test_loss = self.loss(test_x, test_y, self.theta)
-    #         all_test_loss.append(test_loss.item())
-            
-    #         var_IF.backward()
-    #         print(alpha.grad)
-    #         delta_alpha = alpha.grad - torch.ones_like(alpha.grad) * (torch.ones_like(alpha.grad).t() @ alpha.grad) / torch.norm(torch.ones_like(alpha.grad))
-    #         print(delta_alpha)
-    #         print(torch.sum(delta_alpha))
-    #         exit(0)
+        torch.save(naive_best_alpha, os.path.join(self.args.save, "naive_best_alpha.pt"))
 
-    #         self.writer.add_scalar("train_loss", loss.item(), epoch)
-    #         self.writer.add_scalar("test_loss", test_loss.item(), epoch)
-    #         self.writer.add_scalar("mean_IF", mean_IF.item(), epoch)
-    #         self.writer.add_scalar("var_IF", var_IF.item(), epoch)
+        return best_alpha, best_outer_epoch, best_dev_loss
+
+    def train_alpha_t(self):
+        train_x, train_y = self.train_data
+        dev_x, dev_y = self.dev_data
+        
+        alpha = torch.ones(self.args.train_num, 1, device=self.device, requires_grad=True)
+        alpha_norm = alpha / torch.sum(alpha)
+        
+        assert self.theta_init is not None
+        theta = torch.clone(self.theta_init)
+
+        norm_vec = torch.ones(self.args.train_num, device=self.device)
+        norm_vec = norm_vec / torch.norm(norm_vec)
+
+        all_train_loss = []
+        all_dev_loss = []
+        all_mean_IF = []
+        all_var_IF = []
+        for epoch in tqdm(range(self.args.epochs), desc="Training"):
+            loss = self.loss(train_x, train_y, theta, alpha_norm)
+            dev_loss = self.loss(dev_x, dev_y, theta)
             
-    #         if epoch % 10 == 0:
-    #             log_str = "Epoch: {} | Train Loss: {:.4f} | Test Loss: {:.4f}".format(epoch, loss, test_loss)
-    #             print_rank(log_str)
-    #         # save_rank(log_str, os.path.join(self.args.save, "log.txt"))
+            grad_full = 2 * alpha_norm * train_x * (train_x @ theta - train_y) # (train_num, dim)
+            grad = torch.sum(grad_full, dim=0).unsqueeze(-1)  + self.args.lam * theta # (dim, 1)
+            grad_dev = 2 / self.args.dev_num * dev_x.t() @ (dev_x @ theta - dev_y) # (dim, 1)
+            IF = grad_full @ grad_dev # (train_num, 1)
+            mean_IF = torch.mean(IF)
+            var_IF = torch.var(IF)
+            all_mean_IF.append(mean_IF.item())
+            all_var_IF.append(var_IF.item())
+            
+            theta -= self.args.lr * grad
+            
+            all_train_loss.append(loss.item())
+            all_dev_loss.append(dev_loss.item())
+            
+            var_IF.backward()
+            print(alpha.grad)
+            delta_alpha = alpha.grad - norm_vec * (torch.dot(norm_vec, alpha.grad.squeeze()))
+            print(delta_alpha)
+            print(torch.sum(delta_alpha))
+            
+            alpha -= self.args.lr_alpha * delta_alpha
+            del alpha.grad
+            
+            exit(0)
+
+            self.writer.add_scalar("train_loss", loss.item(), epoch)
+            self.writer.add_scalar("dev_loss", dev_loss.item(), epoch)
+            self.writer.add_scalar("mean_IF", mean_IF.item(), epoch)
+            self.writer.add_scalar("var_IF", var_IF.item(), epoch)
+            
+            if epoch % 10 == 0:
+                log_str = "Epoch: {} | Train Loss: {:.4f} | Dev Loss: {:.4f}".format(epoch, loss, dev_loss)
+                print_rank(log_str)
+            # save_rank(log_str, os.path.join(self.args.save, "log.txt"))
                 
-    #     log_str = "Final Train Loss: {}".format(loss)
-    #     print_rank(log_str)
-    #     save_rank(log_str, os.path.join(self.args.save, "log.txt"))
+        log_str = "Final Train Loss: {}".format(loss)
+        print_rank(log_str)
+        save_rank(log_str, os.path.join(self.args.save, "log.txt"))
         
-    #     test_loss = self.loss(test_x, test_y, self.theta)
-    #     log_str = "Final Test Loss: {}".format(test_loss)
-    #     print_rank(log_str)
-    #     save_rank(log_str, os.path.join(self.args.save, "log.txt"))
+        dev_loss = self.loss(dev_x, dev_y, theta)
+        log_str = "Final Dev Loss: {}".format(dev_loss)
+        print_rank(log_str)
+        save_rank(log_str, os.path.join(self.args.save, "log.txt"))
         
-    #     self.save_and_plot(all_train_loss, "train_loss")
-    #     self.save_and_plot(all_test_loss, "test_loss")
-    #     self.save_and_plot(all_mean_IF, "mean_IF")
-    #     self.save_and_plot(all_var_IF, "var_IF")
+        self.save_and_plot(all_train_loss, "train_loss")
+        self.save_and_plot(all_dev_loss, "dev_loss")
+        self.save_and_plot(all_mean_IF, "mean_IF")
+        self.save_and_plot(all_var_IF, "var_IF")
 
     def get_A(self, x):
         # x: (data_num, dim)
@@ -256,7 +281,7 @@ class LinearModel():
     
     def simulate(self):
         train_x, train_y = self.train_data
-        test_x, test_y = self.test_data
+        dev_x, dev_y = self.dev_data
         
         A = self.get_A(train_x)
         b = self.get_b(train_x, train_y)

@@ -223,8 +223,13 @@ def add_toy_args(parser: argparse.ArgumentParser):
     group.add_argument("--lam", type=float, default=0.1)
     group.add_argument("--outer-epochs", type=int, default=5)
     group.add_argument("--linear-theta-scale", type=int, default=1)
-    group.add_argument("--linear-x-scale", type=float, default=1)
-    group.add_argument("--linear-noise-scale", type=float, default=0.1)
+    group.add_argument("--train-mu", type=float, default=0)
+    group.add_argument("--train-sigma", type=float, default=1)
+    group.add_argument("--train-noise", type=float, default=1)
+    group.add_argument("--dev-mu", type=float, default=0)
+    group.add_argument("--dev-sigma", type=float, default=1)
+    group.add_argument("--dev-noise", type=float, default=0.1)
+    group.add_argument("--ood", type=float, default=None)
     
     return parser
 
@@ -357,7 +362,8 @@ def get_args():
             args.save,
             model_info,
             (f"bs{args.batch_size}-lr{args.lr}"),
-            args.save_additional_suffix
+            (f"oe{args.outer_epochs}-lra{args.lr_alpha}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}") \
+            + args.save_additional_suffix
         )
         args.save = save_path
 

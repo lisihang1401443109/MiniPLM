@@ -24,15 +24,20 @@ def main():
     device = torch.cuda.current_device()
     cur_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     save_rank("\n\n" + "="*30 + f" EXP at {cur_time} " + "="*30, os.path.join(args.save, "log.txt"))
-
+    args.time_stamp = cur_time
     linear_model = LinearModel(args, device, dim=args.linear_dim)
     linear_model.set_theta_gd()
     
-    print(args.train_num, args.test_num)
-    train_x, train_y = linear_model.generate_data_noise(args.train_num)
-    test_x, test_y = linear_model.generate_data(args.test_num)
-    
+    print(args.train_num, args.dev_num, args.test_num)
+    train_x, train_y = linear_model.generate_data(
+        args.train_num, args.train_noise, args.train_mu, args.train_sigma)
+    dev_x, dev_y = linear_model.generate_data(
+        args.dev_num, args.dev_noise, args.dev_mu, args.dev_sigma)
+    test_x, test_y = linear_model.generate_data(
+        args.dev_num, args.dev_noise, args.dev_mu, args.dev_sigma)
+
     linear_model.set_train_data(train_x, train_y)
+    linear_model.set_dev_data(dev_x, dev_y)
     linear_model.set_test_data(test_x, test_y)
     linear_model.set_init_theta()
 
@@ -40,6 +45,7 @@ def main():
     # linear_model.test()
     # linear_model.train_with_alpha()
     linear_model.train_iter_alpha()
+    # linear_model.train_alpha_t()
     
 if __name__ == "__main__":
     main()
