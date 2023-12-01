@@ -5,6 +5,8 @@ import torch
 import wandb
 
 from linear.linear_model import LinearModel
+from linear.dyna_alpha import LinearModelDynaAlpha
+from linear.fix_alpha import LinearModelFixAlpha
 from arguments import get_args
 
 
@@ -25,7 +27,14 @@ def main():
     cur_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     save_rank("\n\n" + "="*30 + f" EXP at {cur_time} " + "="*30, os.path.join(args.save, "log.txt"))
     args.time_stamp = cur_time
-    linear_model = LinearModel(args, device, dim=args.linear_dim)
+    
+    model_cls = {
+        "linear": LinearModel,
+        "linear_da": LinearModelDynaAlpha,
+        "linear_fa": LinearModelFixAlpha
+    }[args.model_type]
+    
+    linear_model = model_cls(args, device, dim=args.linear_dim)
     linear_model.set_theta_gd()
     
     print(args.train_num, args.dev_num, args.test_num)
@@ -41,11 +50,7 @@ def main():
     linear_model.set_test_data(test_x, test_y)
     linear_model.set_init_theta()
 
-    # linear_model.train()
-    # linear_model.test()
-    # linear_model.train_with_alpha()
-    linear_model.train_iter_alpha()
-    # linear_model.train_alpha_t()
+    linear_model.train()
     
 if __name__ == "__main__":
     main()

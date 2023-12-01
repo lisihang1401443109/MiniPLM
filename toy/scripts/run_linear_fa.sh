@@ -17,7 +17,7 @@ OPTS=""
 # type
 OPTS+=" --type ${TYPE}"
 # model
-OPTS+=" --model-type linear"
+OPTS+=" --model-type linear_fa"
 OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --linear-dim 128"
 # data

@@ -356,7 +356,7 @@ def get_args():
             assert args.scheduler_name is not None
     elif args.type == "toy":
         model_info = args.model_type
-        if args.model_type == "linear":
+        if args.model_type in ["linear", "linear_fa", "linear_da"]:
             model_info += f"-d{args.linear_dim}-l{args.lam}"
         save_path = os.path.join(
             args.save,
