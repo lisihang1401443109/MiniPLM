@@ -18,7 +18,8 @@ class LinearModel():
         self.train_data, self.dev_data = None, None
         self.theta_init = None
         self.exp_name = args.save.strip("/").replace(args.base_path.strip("/"), "").replace("_", "").replace("/", "_").strip("_")
-        sum_writer_path = os.path.join(args.base_path, "runs", self.exp_name)
+        self.acc_rate_steps = [100, 300, 500, 1000, 2000, 3000, 4000, 5000, 6000]
+        # sum_writer_path = os.path.join(args.base_path, "runs", self.exp_name)
         # os.makedirs(sum_writer_path, exist_ok=True)
         # self.writer = SummaryWriter(log_dir=sum_writer_path)
     
@@ -67,7 +68,7 @@ class LinearModel():
         plt.savefig(os.path.join(self.args.save, f"{name}.png"))
         plt.close()
 
-    def _train(self, alpha=None, theta_init=None, wandb_name="debug"):
+    def _train(self, alpha=None, theta_init=None, IF_info=False, wandb_name="debug"):
         train_x, train_y = self.train_data
         dev_x, dev_y = self.dev_data
         test_x, test_y = self.test_data
@@ -88,6 +89,7 @@ class LinearModel():
         
         if alpha is None:
             alpha = torch.ones(self.args.train_num, 1, device=self.device)
+            alpha = alpha / torch.sum(alpha)
         else:
             alpha = alpha.to(self.device)
 
@@ -100,16 +102,38 @@ class LinearModel():
             grad_full = 2 * alpha * train_x * (train_x @ theta - train_y) # (train_num, dim)
             grad = torch.sum(grad_full, dim=0).unsqueeze(-1) + self.args.lam * theta # (dim, 1)
             gn = torch.norm(grad)
+            
+            if IF_info:
+                grad_dev = 2 / self.args.dev_num * dev_x.t() @ (dev_x @ theta - dev_y)  # (dim, 1)
+                IF = -grad_full @ grad_dev  # (train_num, 1)
+                mean_IF = torch.mean(IF)
+                var_IF = torch.var(IF)
+
             theta -= self.args.lr * grad
             
-            wandb.log({"train_loss": loss.item(), "dev_loss": dev_loss.item(), "test_loss": test_loss.item(), "grad_norm": gn})
+            wandb_log = {
+                "train_loss": loss.item(),
+                "dev_loss": dev_loss.item(),
+                "test_loss": test_loss.item(),
+                "grad_norm": gn
+            }
+            
+            if IF_info:
+                wandb_log.update({
+                    "mean_IF": mean_IF.item(),
+                    "var_IF": var_IF.item()
+                })
+            
+            wandb.log(wandb_log)
             
             all_train_loss.append(loss.item())
             all_dev_loss.append(dev_loss.item())
             all_test_loss.append(test_loss.item())
             
-            if epoch % 1000 == 0:
+            if epoch % self.args.log_interval == 0:
                 log_str = "Epoch: {} | Train Loss: {:.4f} | Dev Loss: {:.4f} | Test Loss: {:.4f} | Grad Norm: {:.4f}".format(epoch, loss, dev_loss, test_loss, gn)
+                if IF_info:
+                    log_str += " | Mean IF: {:.4f} | Var IF: {:.4f}".format(mean_IF, var_IF)
                 print_rank(log_str)
                 # save_rank(log_str, os.path.join(self.args.save, "log.txt"))
 
@@ -130,7 +154,7 @@ class LinearModel():
 
     def calc_acc_rate(self, baseline_losses, losses, steps=None):
         if steps is None:
-            steps = [100, 300, 500, 1000, 2000, 3000, 4000, 5000, 6000]
+            steps = self.acc_rate_steps
         
         def _calc(step):
             baseline_loss = baseline_losses[step]

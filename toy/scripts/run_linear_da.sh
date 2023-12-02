@@ -32,9 +32,10 @@ OPTS+=" --dev-sigma 0.1"
 OPTS+=" --dev-noise 0.01"
 # hp
 OPTS+=" --lr ${LR}"
-OPTS+=" --lr-alpha 0.001"
+OPTS+=" --lr-alpha 0.0001"
 OPTS+=" --batch-size ${BATCH_SIZE}"
 OPTS+=" --epochs 10000"
+OPTS+=" --log-interval 1000"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"
 # seed
