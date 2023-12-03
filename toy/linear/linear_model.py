@@ -10,10 +10,11 @@ from matplotlib import pyplot as plt
 
 
 class LinearModel():
-    def __init__(self, args, device, dim=None, path=None):
+    def __init__(self, args, device, dim=None, real_dim=None, path=None):
         self.args = args
         self.device = device
         self.dim = dim
+        self.real_dim = real_dim if real_dim is not None else dim
         self.theta_gd = None
         self.train_data, self.dev_data = None, None
         self.theta_init = None
@@ -25,7 +26,7 @@ class LinearModel():
     
     def set_theta_gd(self, path=None):
         if path is None:
-            theta_gd = torch.rand(self.dim, 1, device=self.device) * self.args.linear_theta_scale
+            theta_gd = torch.rand(self.real_dim, 1, device=self.device) * self.args.linear_theta_scale
         else:
             theta_gd = torch.load(path, map_location=self.device)
         self.theta_gd = theta_gd
@@ -34,7 +35,7 @@ class LinearModel():
         x = torch.randn(data_num, self.dim, device=self.device) * x_sigma + x_u
         x[:, 0] = 1
         theta_gd = self.theta_gd if theta_gd is None else theta_gd
-        y = x @ theta_gd + torch.randn(data_num, 1, device=self.device) * noise_scale
+        y = x[:, :self.real_dim] @ theta_gd + torch.randn(data_num, 1, device=self.device) * noise_scale
         return x, y
     
     def generate_rand_theta(self):

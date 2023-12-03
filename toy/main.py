@@ -34,12 +34,12 @@ def main():
         "linear_fa": LinearModelFixAlpha
     }[args.model_type]
     
-    linear_model = model_cls(args, device, dim=args.linear_dim)
+    linear_model = model_cls(args, device, dim=args.linear_dim, real_dim=args.linear_real_dim)
     linear_model.set_theta_gd()
     
-    print(args.train_num, args.dev_num, args.test_num)
     train_x, train_y = linear_model.generate_data(
         args.train_num, args.train_noise, args.train_mu, args.train_sigma)
+   
     dev_x, dev_y = linear_model.generate_data(
         args.dev_num, args.dev_noise, args.dev_mu, args.dev_sigma)
     test_x, test_y = linear_model.generate_data(
@@ -47,6 +47,7 @@ def main():
 
     linear_model.set_train_data(train_x, train_y)
     linear_model.set_dev_data(dev_x, dev_y)
+    # linear_model.set_dev_data(train_x, train_y)
     linear_model.set_test_data(test_x, test_y)
     linear_model.set_init_theta()
 

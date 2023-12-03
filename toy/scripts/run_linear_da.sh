@@ -36,6 +36,8 @@ OPTS+=" --lr-alpha 0.0001"
 OPTS+=" --batch-size ${BATCH_SIZE}"
 OPTS+=" --epochs 10000"
 OPTS+=" --log-interval 1000"
+OPTS+=" --alpha-update-interval 10"
+OPTS+=" --lam 0.001"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"
 # seed

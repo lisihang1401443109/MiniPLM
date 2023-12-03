@@ -11,8 +11,8 @@ from .linear_model import LinearModel
 
 
 class LinearModelFixAlpha(LinearModel):
-    def __init__(self, args, device, dim=None, path=None):
-        super(LinearModelFixAlpha, self).__init__(args, device, dim, path)
+    def __init__(self, args, device, dim=None, real_dim=None, path=None):
+        super(LinearModelFixAlpha, self).__init__(args, device, dim, real_dim, path)
     
     def train(self):
         train_x, train_y = self.train_data
@@ -49,10 +49,18 @@ class LinearModelFixAlpha(LinearModel):
             grad_alpha = -(grad_train_full.unsqueeze(-2) @ inv_H_full @ grad_dev).squeeze() # (train_num)
             proj_grad_alpha = grad_alpha - norm_vec * (torch.dot(norm_vec, grad_alpha))
             proj_grad_alpha = proj_grad_alpha.unsqueeze(-1)
+            
             alpha -= self.args.lr_alpha * proj_grad_alpha
             
             alpha = torch.clamp(alpha, min=0)
             alpha = alpha / torch.sum(alpha)
+            
+            # torch.save(alpha, os.path.join(self.args.save, f"alpha-{outer_epoch}.pt"))
+            # sorted_alpha = torch.sort(alpha.squeeze(), descending=True)[0]
+            # 画 sorted_alpha 的柱状图
+            # plt.bar(range(len(sorted_alpha)), sorted_alpha.cpu().numpy(), label="sorted_alpha")
+            # plt.savefig(os.path.join(self.args.save, f"sorted_alpha-{outer_epoch}.png"))
+            # plt.close()
             
             train_outputs = self._train(alpha=alpha, theta_init=ood_init_theta, wandb_name=f"eval-oe-{outer_epoch}")
             acc_rate = self.calc_acc_rate(init_test_losses, train_outputs[-1])

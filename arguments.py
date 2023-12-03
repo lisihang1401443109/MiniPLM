@@ -219,6 +219,7 @@ def add_gen_args(parser: argparse.ArgumentParser):
 def add_toy_args(parser: argparse.ArgumentParser):
     group = parser.add_argument_group('toy', 'toy experiments')
     group.add_argument("--linear-dim", type=int, default=512)
+    group.add_argument("--linear-real-dim", type=int, default=None)
     group.add_argument("--lr-alpha", type=float, default=0.001)
     group.add_argument("--lam", type=float, default=0.1)
     group.add_argument("--outer-epochs", type=int, default=5)
@@ -230,6 +231,7 @@ def add_toy_args(parser: argparse.ArgumentParser):
     group.add_argument("--dev-sigma", type=float, default=1)
     group.add_argument("--dev-noise", type=float, default=0.1)
     group.add_argument("--ood", type=float, default=None)
+    group.add_argument("--alpha-update-interval", type=int, default=1)
     
     return parser
 
@@ -357,7 +359,7 @@ def get_args():
     elif args.type == "toy":
         model_info = args.model_type
         if args.model_type in ["linear", "linear_fa", "linear_da"]:
-            model_info += f"-d{args.linear_dim}-l{args.lam}"
+            model_info += f"-d{args.linear_dim}-{args.linear_real_dim}-l{args.lam}"
         save_path = os.path.join(
             args.save,
             model_info,
