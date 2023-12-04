@@ -4,9 +4,8 @@ import json
 import torch
 import wandb
 
-from linear.linear_model import LinearModel
-from linear.dyna_alpha import LinearModelDynaAlpha
-from linear.fix_alpha import LinearModelFixAlpha
+from linear_dnn import LinearDNN
+from fix_alpha import LinearDNNFixAlpha
 from arguments import get_args
 
 
@@ -29,12 +28,11 @@ def main():
     args.time_stamp = cur_time
     
     model_cls = {
-        "linear": LinearModel,
-        "linear_da": LinearModelDynaAlpha,
-        "linear_fa": LinearModelFixAlpha
+        "linear_dnn": LinearDNN,
+        "linear_dnn_fa": LinearDNNFixAlpha
     }[args.model_type]
     
-    linear_model = model_cls(args, device, dim=args.linear_dim, real_dim=args.linear_real_dim)
+    linear_model = model_cls(args, device, dim=args.input_dim, real_dim=args.input_real_dim)
     linear_model.set_theta_gd()
     
     train_x, train_y = linear_model.generate_data(
@@ -49,7 +47,6 @@ def main():
     linear_model.set_dev_data(dev_x, dev_y)
     # linear_model.set_dev_data(train_x, train_y)
     linear_model.set_test_data(test_x, test_y)
-    linear_model.set_init_theta()
 
     linear_model.train()
     

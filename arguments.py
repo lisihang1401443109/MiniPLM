@@ -218,10 +218,10 @@ def add_gen_args(parser: argparse.ArgumentParser):
 
 def add_toy_args(parser: argparse.ArgumentParser):
     group = parser.add_argument_group('toy', 'toy experiments')
-    group.add_argument("--linear-dim", type=int, default=512)
-    group.add_argument("--linear-real-dim", type=int, default=None)
+    group.add_argument("--input-dim", type=int, default=512)
+    group.add_argument("--input-real-dim", type=int, default=None)
     group.add_argument("--lr-alpha", type=float, default=0.001)
-    group.add_argument("--lam", type=float, default=0.1)
+    group.add_argument("--lam", type=float, default=0.0)
     group.add_argument("--outer-epochs", type=int, default=5)
     group.add_argument("--linear-theta-scale", type=int, default=1)
     group.add_argument("--train-mu", type=float, default=0)
@@ -232,6 +232,9 @@ def add_toy_args(parser: argparse.ArgumentParser):
     group.add_argument("--dev-noise", type=float, default=0.1)
     group.add_argument("--ood", type=float, default=None)
     group.add_argument("--alpha-update-interval", type=int, default=1)
+    
+    group.add_argument("--dnn-hidden-dim", type=int, default=None)
+    group.add_argument("--gd-dnn-hidden-dim", type=int, default=None)
     
     return parser
 
@@ -357,15 +360,30 @@ def get_args():
         if args.warmup_iters > 0:
             assert args.scheduler_name is not None
     elif args.type == "toy":
-        model_info = args.model_type
         if args.model_type in ["linear", "linear_fa", "linear_da"]:
-            model_info += f"-d{args.linear_dim}-{args.linear_real_dim}-l{args.lam}"
+            model_info = f"d{args.input_dim}-{args.input_real_dim}-l{args.lam}"
+            suffix = ""
+            if args.model_type == "linear_fa":
+                suffix += (f"oe{args.outer_epochs}-lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}")
+        elif args.model_type in ["linear_dnn", "linear_dnn_fa"]:
+            model_info = f"d{args.input_dim}-l{args.lam}-h{args.dnn_hidden_dim}"
+            suffix = ""
+            if args.model_type == "linear_dnn_fa":
+                suffix += (f"oe{args.outer_epochs}-lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}")
+        elif args.model_type in ["dnn_dnn", "dnn_dnn_fa"]:
+            model_info = f"d{args.input_dim}-gh{args.gd_dnn_hidden_dim}-l{args.lam}-h{args.dnn_hidden_dim}"
+            suffix = ""
+            if args.model_type == "dnn_dnn_fa":
+                suffix += (f"oe{args.outer_epochs}-lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}")
+
+
+        suffix += args.save_additional_suffix
         save_path = os.path.join(
             args.save,
+            args.model_type,
             model_info,
             (f"bs{args.batch_size}-lr{args.lr}-tn{args.train_num}-dn{args.dev_num}"),
-            (f"oe{args.outer_epochs}-lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}") \
-            + args.save_additional_suffix
+            suffix
         )
         args.save = save_path
 

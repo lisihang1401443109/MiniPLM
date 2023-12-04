@@ -19,7 +19,7 @@ OPTS+=" --type ${TYPE}"
 # model
 OPTS+=" --model-type linear_da"
 OPTS+=" --base-path ${BASE_PATH}"
-OPTS+=" --linear-dim 128"
+OPTS+=" --input-dim 128"
 # data
 OPTS+=" --train-num 2048"
 OPTS+=" --dev-num 256"

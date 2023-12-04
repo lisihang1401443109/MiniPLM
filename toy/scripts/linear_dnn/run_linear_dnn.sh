@@ -5,7 +5,7 @@ BASE_PATH=${1-"/home/MiniLLM"}
 # type
 TYPE="toy"
 # hp
-LR=0.05
+LR=0.01
 BATCH_SIZE=-1
 # runtime
 SAVE_PATH="${BASE_PATH}/results/${TYPE}"
@@ -17,12 +17,12 @@ OPTS=""
 # type
 OPTS+=" --type ${TYPE}"
 # model
-OPTS+=" --model-type linear_fa"
+OPTS+=" --model-type linear_dnn"
 OPTS+=" --base-path ${BASE_PATH}"
-OPTS+=" --linear-dim 512"
-# OPTS+=" --linear-real-dim 256"
+OPTS+=" --input-dim 128"
+OPTS+=" --dnn-hidden-dim 128"
 # data
-OPTS+=" --train-num 1020"
+OPTS+=" --train-num 1024"
 OPTS+=" --dev-num 256"
 OPTS+=" --test-num 256"
 OPTS+=" --train-mu 0.0"
@@ -33,11 +33,10 @@ OPTS+=" --dev-sigma 0.1"
 OPTS+=" --dev-noise 0.0"
 # hp
 OPTS+=" --lr ${LR}"
-OPTS+=" --lr-alpha 0.00003"
 OPTS+=" --batch-size ${BATCH_SIZE}"
-OPTS+=" --epochs 10000"
-OPTS+=" --log-interval 1000"
-OPTS+=" --lam 0.001"
+OPTS+=" --epochs 1000"
+OPTS+=" --log-interval 100"
+OPTS+=" --lam 0.0"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"
 # seed
@@ -49,7 +48,7 @@ export NCCL_DEBUG=""
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
 export OMP_NUM_THREADS=16
-CMD="python3 ${BASE_PATH}/toy/main.py ${OPTS} $@"
+CMD="python3 ${BASE_PATH}/toy/linear_dnn/main.py ${OPTS} $@"
 
 echo ${CMD}
 echo "PYTHONPATH=${PYTHONPATH}"
