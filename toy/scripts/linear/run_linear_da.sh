@@ -37,7 +37,7 @@ OPTS+=" --batch-size ${BATCH_SIZE}"
 OPTS+=" --epochs 10000"
 OPTS+=" --log-interval 1000"
 OPTS+=" --alpha-update-interval 10"
-OPTS+=" --lam 0.001"
+OPTS+=" --lam 0.00"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"
 # seed
@@ -49,7 +49,7 @@ export NCCL_DEBUG=""
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
 export OMP_NUM_THREADS=16
-CMD="python3 ${BASE_PATH}/toy/main.py ${OPTS} $@"
+CMD="python3 ${BASE_PATH}/toy/linear/main.py ${OPTS} $@"
 
 echo ${CMD}
 echo "PYTHONPATH=${PYTHONPATH}"

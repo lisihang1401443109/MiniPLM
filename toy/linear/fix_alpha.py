@@ -7,7 +7,7 @@ import time
 from utils import print_rank, save_rank
 from tensorboardX import SummaryWriter
 from matplotlib import pyplot as plt
-from .linear_model import LinearModel
+from linear_model import LinearModel
 
 
 class LinearModelFixAlpha(LinearModel):

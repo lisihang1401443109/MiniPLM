@@ -97,6 +97,7 @@ class LinearModel():
         all_train_loss, all_dev_loss, all_test_loss = [], [], []
         for epoch in tqdm(range(self.args.epochs), desc=f"{wandb_name} Training"):
             loss = self.loss(train_x, train_y, theta, alpha)
+            loss_no_alpha = self.loss(train_x, train_y, theta)
             dev_loss = self.loss(dev_x, dev_y, theta)
             test_loss = self.loss(test_x, test_y, theta)
 
@@ -114,6 +115,7 @@ class LinearModel():
             
             wandb_log = {
                 "train_loss": loss.item(),
+                "train_loss_no_alpha": loss_no_alpha.item(),
                 "dev_loss": dev_loss.item(),
                 "test_loss": test_loss.item(),
                 "grad_norm": gn
@@ -132,7 +134,8 @@ class LinearModel():
             all_test_loss.append(test_loss.item())
             
             if epoch % self.args.log_interval == 0:
-                log_str = "Epoch: {} | Train Loss: {:.4f} | Dev Loss: {:.4f} | Test Loss: {:.4f} | Grad Norm: {:.4f}".format(epoch, loss, dev_loss, test_loss, gn)
+                log_str = "Epoch: {} | Train Loss: {:.4f} | Train Loss No Alpha: {:.4f} | Dev Loss: {:.4f} | Test Loss: {:.4f} | Grad Norm: {:.4f}".format(
+                    epoch, loss, loss_no_alpha, dev_loss, test_loss, gn)
                 if IF_info:
                     log_str += " | Mean IF: {:.4f} | Var IF: {:.4f}".format(mean_IF, var_IF)
                 print_rank(log_str)

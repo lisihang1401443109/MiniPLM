@@ -6,14 +6,16 @@ import json
 import time
 from scipy.stats import pearsonr, spearmanr
 from utils import print_rank, save_rank
-from tensorboardX import SummaryWriter
 from matplotlib import pyplot as plt
-from .linear_model import LinearModel
+from linear_model import LinearModel
 
 
 class LinearModelDynaAlpha(LinearModel):
-    def __init__(self, args, device, dim=None, path=None):
+    def __init__(self, args, device, dim=None, real_dim=None, path=None):
         super(LinearModelDynaAlpha, self).__init__(args, device, dim, path)
+
+    def get_correlation(self, x, y):
+        return round(pearsonr(x.cpu().numpy(), y.cpu().numpy())[0], 3)
 
     def train(self):
         train_x, train_y = self.train_data
@@ -48,8 +50,6 @@ class LinearModelDynaAlpha(LinearModel):
         print_rank("OOD Baseline Test Loss: {}".format(ood_baseline_test_loss.item()))
         avg_train_loss = self.loss(train_x, train_y, baseline_theta)
         print_rank("Avg Train Loss: {}".format(avg_train_loss.item()))
-
-        exit(0)
 
         run = wandb.init(
             name=f"dyna_alpha",
@@ -98,32 +98,21 @@ class LinearModelDynaAlpha(LinearModel):
                 alpha = torch.clamp(alpha, min=0)
                 alpha = alpha / torch.sum(alpha)
 
-                raw_grad_norm = torch.norm(grad_full_no_alpha, dim=1)
-                raw_grad_norm = raw_grad_norm / torch.sum(raw_grad_norm)
-                # plt.plot(range(len(raw_grad_norm)), raw_grad_norm.cpu().numpy(), label="raw_grad_norm")
-                # plt.savefig(os.path.join(self.args.save, f"raw_grad_norm-{epoch}.png"))
-                # plt.close()
-                # torch.save(alpha, os.path.join(self.args.save, f"alpha-{epoch}.pt"))
-                # sorted_alpha = torch.sort(alpha.squeeze(), descending=True)[0]
-                # print(sorted_noise_index)
-                # sorted_alpha = alpha[sorted_noise_index]
-                # plt.plot(range(len(alpha)), alpha.squeeze().cpu().numpy(), label="alpha")
-                # plt.plot(range(len(sorted_alpha)), sorted_alpha.squeeze().cpu().numpy(), label="sorted_alpha")
-                # plt.legend()
-                # plt.savefig(os.path.join(self.args.save, f"alpha-{epoch}.png"))
-                # plt.close()
-                
-                print(pearsonr(raw_grad_norm.cpu().numpy(), alpha.squeeze().cpu().numpy(
-                )), spearmanr(raw_grad_norm.cpu().numpy(), alpha.squeeze().cpu().numpy()))
-                print(pearsonr(noise_scale.cpu().numpy(), alpha.squeeze().cpu().numpy(
-                )), spearmanr(noise_scale.cpu().numpy(), alpha.squeeze().cpu().numpy()))
-                # with x norm
-                print(pearsonr(x_norm.cpu().numpy(), alpha.squeeze().cpu().numpy(
-                )), spearmanr(x_norm.cpu().numpy(), alpha.squeeze().cpu().numpy()))
-                # with part norm
-                print(pearsonr(part_norm.cpu().numpy(), alpha.squeeze().cpu().numpy(
-                )), spearmanr(part_norm.cpu().numpy(), alpha.squeeze().cpu().numpy()))
+                # if epoch <= 100 or (epoch <= 1000 and epoch % 100 == 0) or (epoch % 1000 == 0):
 
+                #     # plt.plot(range(len(raw_grad_norm)), raw_grad_norm.cpu().numpy(), label="raw_grad_norm")
+                #     # plt.savefig(os.path.join(self.args.save, f"raw_grad_norm-{epoch}.png"))
+                #     # plt.close()
+                #     torch.save(alpha, os.path.join(self.args.save, f"alpha-{epoch}.pt"))
+                #     # sorted_alpha = torch.sort(alpha.squeeze(), descending=True)[0]
+                #     # print(sorted_noise_index)
+                #     # sorted_alpha = alpha[sorted_noise_index]
+                #     plt.plot(range(len(alpha)), alpha.squeeze().cpu().numpy(), label="alpha")
+                #     # plt.plot(range(len(sorted_alpha)), sorted_alpha.squeeze().cpu().numpy(), label="sorted_alpha")
+                #     plt.legend()
+                #     plt.savefig(os.path.join(self.args.save, f"alpha-{epoch}.png"))
+                #     plt.close()
+                                        
             # if epoch < 10:
             #     torch.save(alpha, os.path.join(self.args.save, f"alpha-{epoch}.pt"))
             #     sorted_alpha = torch.sort(alpha.squeeze(), descending=True)[0]
@@ -136,7 +125,14 @@ class LinearModelDynaAlpha(LinearModel):
             theta -= self.args.lr * grad
             
             grad_norm = torch.norm(grad)
+
+            train_grad_norm = torch.norm(grad_full_no_alpha, dim=1)
+            dev_grad_norm = torch.norm(grad_dev)
+            cos_train_dev = -IF / (train_grad_norm * dev_grad_norm + 1e-8).unsqueeze(-1)
             
+            corr_train_grad = self.get_correlation(train_grad_norm, alpha.squeeze())
+            corr_cos_train_dev = self.get_correlation(cos_train_dev.squeeze(), alpha.squeeze())
+
             wandb.log({
                 "train_loss": loss.item(),
                 "train_loss_no_alpha": loss_no_alpha.item(),
@@ -144,7 +140,9 @@ class LinearModelDynaAlpha(LinearModel):
                 "test_loss": test_loss.item(),
                 "mean_IF": mean_IF.item(),
                 "var_IF": var_IF.item(),
-                "delta_alpha_norm": delta_alpha_norm.item()
+                "delta_alpha_norm": delta_alpha_norm.item(),
+                "corr_train_grad": corr_train_grad,
+                "corr_cos_train_dev": corr_cos_train_dev,
             })
 
             all_train_loss.append(loss.item())
@@ -164,9 +162,9 @@ class LinearModelDynaAlpha(LinearModel):
             # else:
             #     print_rank("Early stop at epoch {}".format(epoch))
             #     break
-            if dev_loss < 0.002:
-                print_rank("Early stop at epoch {}".format(epoch))
-                break
+            # if dev_loss < 0.002:
+            #     print_rank("Early stop at epoch {}".format(epoch))
+            #     break
         
         all_train_loss = all_train_loss + [all_train_loss[-1]] * (self.args.epochs - len(all_train_loss))
         all_dev_loss = all_dev_loss + [all_dev_loss[-1]] * (self.args.epochs - len(all_dev_loss))
