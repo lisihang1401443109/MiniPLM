@@ -365,6 +365,13 @@ def get_args():
             suffix = ""
             if args.model_type == "linear_fa":
                 suffix += (f"oe{args.outer_epochs}-lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}")
+            elif args.model_type == "linear_da":
+                suffix += (f"lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}-aui{args.alpha_update_interval}")
+        elif args.model_type in ["linear_cls", "linear_cls_da"]:
+            model_info = f"d{args.input_dim}-{args.input_real_dim}-l{args.lam}"
+            suffix = ""
+            if args.model_type == "linear_cls_da":
+                suffix += (f"lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-dmu{args.dev_mu}-dsig{args.dev_sigma}-aui{args.alpha_update_interval}")
         elif args.model_type in ["linear_dnn", "linear_dnn_fa"]:
             model_info = f"d{args.input_dim}-l{args.lam}-h{args.dnn_hidden_dim}"
             suffix = ""
@@ -375,7 +382,6 @@ def get_args():
             suffix = ""
             if args.model_type == "dnn_dnn_fa":
                 suffix += (f"oe{args.outer_epochs}-lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}")
-
 
         suffix += args.save_additional_suffix
         save_path = os.path.join(
