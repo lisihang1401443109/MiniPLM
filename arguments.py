@@ -367,7 +367,7 @@ def get_args():
                 suffix += (f"oe{args.outer_epochs}-lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}")
             elif args.model_type == "linear_da":
                 suffix += (f"lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}-aui{args.alpha_update_interval}")
-        elif args.model_type in ["linear_cls", "linear_cls_da"]:
+        elif args.model_type in ["linear_cls", "linear_cls_da", "linear_soft_cls", "linear_soft_cls_da"]:
             model_info = f"d{args.input_dim}-{args.input_real_dim}-l{args.lam}"
             suffix = ""
             if args.model_type == "linear_cls_da":
