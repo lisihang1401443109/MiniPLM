@@ -117,10 +117,13 @@ class LinearCLSModel():
             gn = torch.norm(grad)
             
             if IF_info:
-                grad_dev = 2 / self.args.dev_num * dev_x.t() @ (dev_x @ theta - dev_y.float())  # (dim, 1)
+                grad_dev = 1 / self.args.dev_num * dev_x.t() @ (self.soft_f(dev_x @ theta) - dev_y.float()) # (dim, 1)
                 IF = -grad_full @ grad_dev  # (train_num, 1)
                 mean_IF = torch.mean(IF)
+                weighted_mean_IF = torch.sum(alpha * IF)
                 var_IF = torch.var(IF)
+                ratio = torch.abs(mean_IF) / (torch.sqrt(var_IF) + 1e-8)
+                weighted_ratio = torch.abs(weighted_mean_IF) / (torch.sqrt(var_IF) + 1e-8)
 
             theta -= self.args.lr * grad
             
@@ -138,7 +141,11 @@ class LinearCLSModel():
             if IF_info:
                 wandb_log.update({
                     "mean_IF": mean_IF.item(),
-                    "var_IF": var_IF.item()
+                    "var_IF": var_IF.item(),
+                    "std_IF": torch.sqrt(var_IF).item(),
+                    "ratio": ratio.item(),
+                    "weighted_mean_IF": weighted_mean_IF.item(),
+                    "weighted_ratio": weighted_ratio.item()
                 })
             
             wandb.log(wandb_log)

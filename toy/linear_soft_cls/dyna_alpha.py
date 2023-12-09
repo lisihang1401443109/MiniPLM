@@ -8,6 +8,7 @@ from scipy.stats import pearsonr, spearmanr
 from utils import print_rank, save_rank
 from matplotlib import pyplot as plt
 from linear_cls_model import LinearCLSModel
+import cvxpy as cp
 
 
 class LinearCLSModelDynaAlpha(LinearCLSModel):
@@ -65,36 +66,48 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
             
             grad_full_no_alpha = train_x * (self.soft_f(train_x @ theta) - train_y.float()) # (train_num, dim)
             
-            grad_dev = 0.5 / self.args.dev_num * dev_x.t() @ (self.soft_f(dev_x @ theta) - dev_y.float()) # (dim, 1)
+            grad_dev = 1 / self.args.dev_num * dev_x.t() @ (self.soft_f(dev_x @ theta) - dev_y.float()) # (dim, 1)
             IF = -grad_full_no_alpha @ grad_dev # (train_num, 1)
             mean_IF = torch.mean(IF)
+            weighted_mean_IF = torch.sum(alpha * IF)
             var_IF = torch.var(IF)
-
-            delta_alpha = IF.squeeze() - norm_vec * (torch.dot(norm_vec, IF.squeeze()))
-            delta_alpha = delta_alpha.unsqueeze(-1)
-
-            delta_alpha_norm = torch.norm(delta_alpha)
+            
+            ratio = torch.abs(mean_IF) / (torch.sqrt(var_IF) + 1e-8)
+            weighted_ratio = torch.abs(weighted_mean_IF) / (torch.sqrt(var_IF) + 1e-8)
 
             if epoch % self.args.alpha_update_interval == 0:
-                alpha -= self.args.lr_alpha * delta_alpha
+                
+                # delta_alpha = IF.squeeze() - norm_vec * (torch.dot(norm_vec, IF.squeeze()))
+                # delta_alpha = delta_alpha.unsqueeze(-1)
 
-                alpha = torch.clamp(alpha, min=0)
-                alpha = alpha / torch.sum(alpha)
+                # delta_alpha_norm = torch.norm(delta_alpha)
+                
+                # alpha -= self.args.lr_alpha * delta_alpha
 
-                if epoch <= 100 or (epoch <= 1000 and epoch % 100 == 0) or (epoch % 1000 == 0):
+                # alpha = torch.clamp(alpha, min=0)
+                # alpha = alpha / torch.sum(alpha)
+                
+                alpha_before_proj = alpha - self.args.lr_alpha * IF
+                alpha_proj = cp.Variable(self.args.train_num)
+                objective = cp.Minimize(cp.sum_squares(alpha_before_proj.squeeze().cpu().numpy() - alpha_proj))
+                prob = cp.Problem(objective, [cp.sum(alpha_proj) == 1, alpha_proj >= 0])
+                result = prob.solve()
+                alpha = torch.tensor(alpha_proj.value).unsqueeze(-1).to(self.device)
+                
+                # if epoch <= 100 or (epoch <= 1000 and epoch % 100 == 0) or (epoch % 1000 == 0):
 
-                    # plt.plot(range(len(raw_grad_norm)), raw_grad_norm.cpu().numpy(), label="raw_grad_norm")
-                    # plt.savefig(os.path.join(self.args.save, f"raw_grad_norm-{epoch}.png"))
-                    # plt.close()
-                    torch.save(alpha, os.path.join(self.args.save, f"alpha-{epoch}.pt"))
-                    # sorted_alpha = torch.sort(alpha.squeeze(), descending=True)[0]
-                    # print(sorted_noise_index)
-                    # sorted_alpha = alpha[sorted_noise_index]
-                    plt.plot(range(len(alpha)), alpha.squeeze().cpu().numpy(), label="alpha")
-                    # plt.plot(range(len(sorted_alpha)), sorted_alpha.squeeze().cpu().numpy(), label="sorted_alpha")
-                    plt.legend()
-                    plt.savefig(os.path.join(self.args.save, f"alpha-{epoch}.png"))
-                    plt.close()
+                #     # plt.plot(range(len(raw_grad_norm)), raw_grad_norm.cpu().numpy(), label="raw_grad_norm")
+                #     # plt.savefig(os.path.join(self.args.save, f"raw_grad_norm-{epoch}.png"))
+                #     # plt.close()
+                #     torch.save(alpha, os.path.join(self.args.save, f"alpha-{epoch}.pt"))
+                #     # sorted_alpha = torch.sort(alpha.squeeze(), descending=True)[0]
+                #     # print(sorted_noise_index)
+                #     # sorted_alpha = alpha[sorted_noise_index]
+                #     plt.plot(range(len(alpha)), alpha.squeeze().cpu().numpy(), label="alpha")
+                #     # plt.plot(range(len(sorted_alpha)), sorted_alpha.squeeze().cpu().numpy(), label="sorted_alpha")
+                #     plt.legend()
+                #     plt.savefig(os.path.join(self.args.save, f"alpha-{epoch}.png"))
+                #     plt.close()
                                         
             # if epoch < 10:
             #     torch.save(alpha, os.path.join(self.args.save, f"alpha-{epoch}.pt"))
@@ -130,7 +143,11 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
                 "test_acc": test_acc.item(),
                 "mean_IF": mean_IF.item(),
                 "var_IF": var_IF.item(),
-                "delta_alpha_norm": delta_alpha_norm.item(),
+                "std_IF": torch.sqrt(var_IF).item(),
+                "ratio": ratio.item(),
+                "weighted_mean_IF": weighted_mean_IF.item(),
+                "weighted_ratio": weighted_ratio.item(),
+                # "delta_alpha_norm": delta_alpha_norm.item(),
                 # "corr_train_grad": corr_train_grad,
                 # "corr_cos_train_dev": corr_cos_train_dev,
             })
@@ -145,7 +162,7 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
                 log_str += " | Train Acc: {:.4f} | Dev Acc: {:.4f} | Test Acc: {:.4f}".format(
                     train_acc, dev_acc, test_acc)
                 log_str += " | Mean IF: {:.4f} | Var IF: {:.4f}".format(mean_IF, var_IF)
-                log_str += " | Delta Alpha Norm: {:.4f}".format(delta_alpha_norm)
+                # log_str += " | Delta Alpha Norm: {:.4f}".format(delta_alpha_norm)
                 log_str += " | Grad Norm: {:.4f}".format(grad_norm)
                 print_rank(log_str)
                 

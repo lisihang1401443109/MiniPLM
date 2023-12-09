@@ -34,7 +34,7 @@ OPTS+=" --lr-alpha 0.0003"
 OPTS+=" --batch-size ${BATCH_SIZE}"
 OPTS+=" --epochs 10000"
 OPTS+=" --log-interval 1000"
-OPTS+=" --alpha-update-interval 10"
+OPTS+=" --alpha-update-interval 1"
 OPTS+=" --lam 0.00"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"
