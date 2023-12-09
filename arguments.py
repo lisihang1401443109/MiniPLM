@@ -235,6 +235,7 @@ def add_toy_args(parser: argparse.ArgumentParser):
     
     group.add_argument("--dnn-hidden-dim", type=int, default=None)
     group.add_argument("--gd-dnn-hidden-dim", type=int, default=None)
+    group.add_argument("--approx-proj", action="store_true")
     
     return parser
 
@@ -370,8 +371,9 @@ def get_args():
         elif args.model_type in ["linear_cls", "linear_cls_da", "linear_soft_cls", "linear_soft_cls_da"]:
             model_info = f"d{args.input_dim}-{args.input_real_dim}-l{args.lam}"
             suffix = ""
-            if args.model_type == "linear_cls_da":
+            if args.model_type in ["linear_cls_da", "linear_soft_cls_da"]:
                 suffix += (f"lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-dmu{args.dev_mu}-dsig{args.dev_sigma}-aui{args.alpha_update_interval}")
+                suffix += ("-aproj" if args.approx_proj else "-proj")
         elif args.model_type in ["linear_dnn", "linear_dnn_fa"]:
             model_info = f"d{args.input_dim}-l{args.lam}-h{args.dnn_hidden_dim}"
             suffix = ""

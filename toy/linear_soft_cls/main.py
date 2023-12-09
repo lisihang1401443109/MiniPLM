@@ -51,6 +51,8 @@ def main():
     model.set_test_data(test_x, test_y)
     model.set_init_theta()
 
+    torch.save((train_x, train_y, dev_x, dev_y, test_x, test_y, model.theta_init), os.path.join(args.save, "data.pt"))
+
     model.train()
     
 if __name__ == "__main__":

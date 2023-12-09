@@ -112,13 +112,14 @@ class LinearCLSModel():
             dev_acc = self.acc(dev_x, dev_y, theta)
             test_acc = self.acc(test_x, test_y, theta)
 
-            grad_full = alpha * train_x * (self.soft_f(train_x @ theta) - train_y.float()) # (train_num, dim)
+            grad_full_no_alpha = train_x * (self.soft_f(train_x @ theta) - train_y.float()) # (train_num, dim)
+            grad_full = grad_full_no_alpha * alpha # (train_num, dim)
             grad = torch.sum(grad_full, dim=0).unsqueeze(-1) + self.args.lam * theta # (dim, 1)
             gn = torch.norm(grad)
             
             if IF_info:
                 grad_dev = 1 / self.args.dev_num * dev_x.t() @ (self.soft_f(dev_x @ theta) - dev_y.float()) # (dim, 1)
-                IF = -grad_full @ grad_dev  # (train_num, 1)
+                IF = -grad_full_no_alpha @ grad_dev  # (train_num, 1)
                 mean_IF = torch.mean(IF)
                 weighted_mean_IF = torch.sum(alpha * IF)
                 var_IF = torch.var(IF)

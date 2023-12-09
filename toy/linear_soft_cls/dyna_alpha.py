@@ -71,28 +71,28 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
             mean_IF = torch.mean(IF)
             weighted_mean_IF = torch.sum(alpha * IF)
             var_IF = torch.var(IF)
-            
             ratio = torch.abs(mean_IF) / (torch.sqrt(var_IF) + 1e-8)
             weighted_ratio = torch.abs(weighted_mean_IF) / (torch.sqrt(var_IF) + 1e-8)
 
             if epoch % self.args.alpha_update_interval == 0:
                 
-                # delta_alpha = IF.squeeze() - norm_vec * (torch.dot(norm_vec, IF.squeeze()))
-                # delta_alpha = delta_alpha.unsqueeze(-1)
+                if self.args.approx_proj:                
+                    delta_alpha = IF.squeeze() - norm_vec * (torch.dot(norm_vec, IF.squeeze()))
+                    delta_alpha = delta_alpha.unsqueeze(-1)
 
-                # delta_alpha_norm = torch.norm(delta_alpha)
-                
-                # alpha -= self.args.lr_alpha * delta_alpha
+                    delta_alpha_norm = torch.norm(delta_alpha)
+                    
+                    alpha -= self.args.lr_alpha * delta_alpha
 
-                # alpha = torch.clamp(alpha, min=0)
-                # alpha = alpha / torch.sum(alpha)
-                
-                alpha_before_proj = alpha - self.args.lr_alpha * IF
-                alpha_proj = cp.Variable(self.args.train_num)
-                objective = cp.Minimize(cp.sum_squares(alpha_before_proj.squeeze().cpu().numpy() - alpha_proj))
-                prob = cp.Problem(objective, [cp.sum(alpha_proj) == 1, alpha_proj >= 0])
-                result = prob.solve()
-                alpha = torch.tensor(alpha_proj.value).unsqueeze(-1).to(self.device)
+                    alpha = torch.clamp(alpha, min=0)
+                    alpha = alpha / torch.sum(alpha)
+                else:                
+                    alpha_before_proj = alpha - self.args.lr_alpha * IF
+                    alpha_proj = cp.Variable(self.args.train_num)
+                    objective = cp.Minimize(cp.sum_squares(alpha_before_proj.squeeze().cpu().numpy() - alpha_proj))
+                    prob = cp.Problem(objective, [cp.sum(alpha_proj) == 1, alpha_proj >= 0])
+                    result = prob.solve()
+                    alpha = torch.tensor(alpha_proj.value).unsqueeze(-1).to(self.device)
                 
                 # if epoch <= 100 or (epoch <= 1000 and epoch % 100 == 0) or (epoch % 1000 == 0):
 
