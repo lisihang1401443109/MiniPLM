@@ -19,7 +19,8 @@ class LinearCLSModel():
         self.train_data, self.dev_data = None, None
         self.theta_init = None
         self.exp_name = args.save.strip("/").replace(args.base_path.strip("/"), "").replace("_", "").replace("/", "_").strip("_")
-        self.acc_rate_steps = [100, 300, 500, 1000, 2000, 3000, 4000, 5000, 6000]
+        n = 10
+        self.acc_rate_steps = [int(i * self.args.epochs / n) for i in range(n)]
         # sum_writer_path = os.path.join(args.base_path, "runs", self.exp_name)
         # os.makedirs(sum_writer_path, exist_ok=True)
         # self.writer = SummaryWriter(log_dir=sum_writer_path)

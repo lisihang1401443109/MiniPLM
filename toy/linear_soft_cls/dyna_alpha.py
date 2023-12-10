@@ -39,20 +39,23 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
         avg_train_loss = self.loss(train_x, train_y.float(), baseline_theta)
         print_rank("Avg Train Loss: {}".format(avg_train_loss.item()))
 
+        print("Optimal Alpha")
         if self.args.load_alpha is not None:
-            print("Optimal Alpha")
-            alpha_t = torch.load(os.path.join(self.args.load_alpha, "opt_alpha.pt"))
-            opt_out = self._train(wandb_name="opt", IF_info=True, alpha_t=alpha_t)
-            opt_dev_losses = opt_out[-2]
-            opt_test_losses = opt_out[-1]
-            opt_theta = opt_out[0]
+            for e in [0, 1, 2, 3, 5, 7, 9, 19, 29, 39]:
+                load_alpha = os.path.join(self.args.load_alpha, f"epoch_{e}")
+                alpha_t = torch.load(os.path.join(load_alpha, "opt_alpha.pt"))
+                opt_info = load_alpha.replace(self.args.base_path, "").strip("/").replace("/", "_")
+                opt_out = self._train(wandb_name=f"opt_{opt_info}", IF_info=True, alpha_t=alpha_t)
+                opt_dev_losses = opt_out[-2]
+                opt_test_losses = opt_out[-1]
+                opt_theta = opt_out[0]
 
-            opt_dev_acc_rate = self.calc_acc_rate(baseline_dev_losses, opt_dev_losses)
-            opt_test_acc_rate = self.calc_acc_rate(baseline_test_losses, opt_test_losses)
+                opt_dev_acc_rate = self.calc_acc_rate(baseline_dev_losses, opt_dev_losses)
+                opt_test_acc_rate = self.calc_acc_rate(baseline_test_losses, opt_test_losses)
 
-            log_str = f"Dev Acc Rate: {opt_dev_acc_rate} | Test Acc Rate: {opt_test_acc_rate}"
-            print_rank(log_str)
-            save_rank(log_str, os.path.join(self.args.save, "log.txt"))
+                log_str = f"Dev Acc Rate: {opt_dev_acc_rate} | Test Acc Rate: {opt_test_acc_rate}"
+                print_rank(log_str)
+                save_rank(log_str, os.path.join(self.args.save, "log.txt"))
 
         run = wandb.init(
             name=f"dyna_alpha",
@@ -219,34 +222,46 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
         print_rank(log_str)
         save_rank(log_str, os.path.join(self.args.save, "log.txt"))
         
-        diff_dev_loss_bsl_opt = [np.abs(baseline_dev_losses[i] - opt_dev_losses[i]) for i in range(len(baseline_dev_losses))]
-        diff_dev_loss_bsl_opt = np.mean(diff_dev_loss_bsl_opt)
-        diff_test_loss_bsl_opt = [np.abs(baseline_test_losses[i] - opt_test_losses[i]) for i in range(len(baseline_test_losses))]
-        diff_test_loss_bsl_opt = np.mean(diff_test_loss_bsl_opt)
-        
-        diff_dev_loss_dyna_opt = [np.abs(all_dev_loss[i] - opt_dev_losses[i]) for i in range(len(all_dev_loss))]
-        diff_dev_loss_dyna_opt = np.mean(diff_dev_loss_dyna_opt)
-        diff_test_loss_dyna_opt = [np.abs(all_test_loss[i] - opt_test_losses[i]) for i in range(len(all_test_loss))]
-        diff_test_loss_dyna_opt = np.mean(diff_test_loss_dyna_opt)
-        
-        log_str = f"Diff Dev Loss Bsl Opt: {diff_dev_loss_bsl_opt:.4f} | Diff Test Loss Bsl Opt: {diff_test_loss_bsl_opt:.4f} \n"
-        log_str += f"Diff Dev Loss Dyna Opt: {diff_dev_loss_dyna_opt:.4f} | Diff Test Loss Dyna Opt: {diff_test_loss_dyna_opt:.4f}"
-        print_rank(log_str)
-        save_rank(log_str, os.path.join(self.args.save, "log.txt"))
-        
-        wandb.log({
-            "dev_acc_rate": wandb.plot.line_series(
-                xs=self.acc_rate_steps,
-                ys=[dev_acc_rate, opt_dev_acc_rate],
-                keys=["dyna", "opt"],
-                title="Dev Acc Rate",
-            ),
-            "test_acc_rate": wandb.plot.line_series(
-                xs=self.acc_rate_steps,
-                ys=[test_acc_rate, opt_test_acc_rate],
-                keys=["dyna", "opt"],
-                title="Test Acc Rate",
-            ),
-        })
+        if self.args.load_alpha is not None:
+            area_dev_bsl = np.mean(baseline_dev_losses)
+            area_dev_opt = np.mean(opt_dev_losses)
+            area_dev_dyna = np.mean(all_dev_loss)
+            area_test_bsl = np.mean(baseline_test_losses)
+            area_test_opt = np.mean(opt_test_losses)
+            area_test_dyna = np.mean(all_test_loss)
+            log_str = f"Area Dev Bsl: {area_dev_bsl:.4f} | Area Dev Opt: {area_dev_opt:.4f} | Area Dev Dyna: {area_dev_dyna:.4f} \n"
+            log_str += f"Area Test Bsl: {area_test_bsl:.4f} | Area Test Opt: {area_test_opt:.4f} | Area Test Dyna: {area_test_dyna:.4f}"
+            print_rank(log_str)
+            save_rank(log_str, os.path.join(self.args.save, "log.txt"))
+            
+            diff_dev_loss_bsl_opt = [np.abs(baseline_dev_losses[i] - opt_dev_losses[i]) for i in range(len(baseline_dev_losses))]
+            diff_dev_loss_bsl_opt = np.mean(diff_dev_loss_bsl_opt)
+            diff_test_loss_bsl_opt = [np.abs(baseline_test_losses[i] - opt_test_losses[i]) for i in range(len(baseline_test_losses))]
+            diff_test_loss_bsl_opt = np.mean(diff_test_loss_bsl_opt)
+            
+            diff_dev_loss_dyna_opt = [np.abs(all_dev_loss[i] - opt_dev_losses[i]) for i in range(len(all_dev_loss))]
+            diff_dev_loss_dyna_opt = np.mean(diff_dev_loss_dyna_opt)
+            diff_test_loss_dyna_opt = [np.abs(all_test_loss[i] - opt_test_losses[i]) for i in range(len(all_test_loss))]
+            diff_test_loss_dyna_opt = np.mean(diff_test_loss_dyna_opt)
+            
+            log_str = f"Diff Dev Loss Bsl Opt: {diff_dev_loss_bsl_opt:.4f} | Diff Test Loss Bsl Opt: {diff_test_loss_bsl_opt:.4f} \n"
+            log_str += f"Diff Dev Loss Dyna Opt: {diff_dev_loss_dyna_opt:.4f} | Diff Test Loss Dyna Opt: {diff_test_loss_dyna_opt:.4f}"
+            print_rank(log_str)
+            save_rank(log_str, os.path.join(self.args.save, "log.txt"))
+            
+            wandb.log({
+                "dev_acc_rate": wandb.plot.line_series(
+                    xs=self.acc_rate_steps,
+                    ys=[dev_acc_rate, opt_dev_acc_rate],
+                    keys=["dyna", "opt"],
+                    title="Dev Acc Rate",
+                ),
+                "test_acc_rate": wandb.plot.line_series(
+                    xs=self.acc_rate_steps,
+                    ys=[test_acc_rate, opt_test_acc_rate],
+                    keys=["dyna", "opt"],
+                    title="Test Acc Rate",
+                ),
+            })
         
         run.finish()

@@ -5,6 +5,7 @@ import cvxpy as cp
 import time
 import sys
 import os
+import matplotlib.pyplot as plt
 
 
 class OPTAlphaModel(nn.Module):
@@ -91,14 +92,19 @@ def solve_opt_alpha(base_path, device):
     optimizer = torch.optim.SGD(model.parameters(), lr=lr)
     optimizer.register_step_post_hook(proj_alpha)
 
-    epochs = 10
+    area_losses = []
+
+    epochs = 40
     with torch.no_grad():
         loss_0 = model(theta_init)
         print("Area Loss 0:", loss_0.item())
-        
+    
+    area_losses.append(loss_0.item())
+    
     for epoch in range(epochs):
         st = time.time()  
         loss = model(theta_init)
+        area_losses.append(loss.item())
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -112,6 +118,10 @@ def solve_opt_alpha(base_path, device):
         save_path = os.path.join(base_save_path, f"epoch_{epoch}")
         os.makedirs(save_path, exist_ok=True)
         torch.save(alpha_t, os.path.join(save_path, f"opt_alpha.pt"))
+    
+    torch.save(area_losses, os.path.join(base_save_path, "area_losses.pt"))
+    plt.plot(area_losses)
+    plt.savefig(os.path.join(base_save_path, "area_losses.png"))
 
 
 def main():
