@@ -9,6 +9,7 @@ from utils import print_rank, save_rank
 from matplotlib import pyplot as plt
 from linear_cls_model import LinearCLSModel
 import cvxpy as cp
+import numpy as np
 
 
 class LinearCLSModelDynaAlpha(LinearCLSModel):
@@ -37,6 +38,21 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
         print_rank("OOD Baseline Test Loss: {}".format(ood_baseline_test_loss.item()))
         avg_train_loss = self.loss(train_x, train_y.float(), baseline_theta)
         print_rank("Avg Train Loss: {}".format(avg_train_loss.item()))
+
+        if self.args.load_alpha is not None:
+            print("Optimal Alpha")
+            alpha_t = torch.load(os.path.join(self.args.load_alpha, "opt_alpha.pt"))
+            opt_out = self._train(wandb_name="opt", IF_info=True, alpha_t=alpha_t)
+            opt_dev_losses = opt_out[-2]
+            opt_test_losses = opt_out[-1]
+            opt_theta = opt_out[0]
+
+            opt_dev_acc_rate = self.calc_acc_rate(baseline_dev_losses, opt_dev_losses)
+            opt_test_acc_rate = self.calc_acc_rate(baseline_test_losses, opt_test_losses)
+
+            log_str = f"Dev Acc Rate: {opt_dev_acc_rate} | Test Acc Rate: {opt_test_acc_rate}"
+            print_rank(log_str)
+            save_rank(log_str, os.path.join(self.args.save, "log.txt"))
 
         run = wandb.init(
             name=f"dyna_alpha",
@@ -161,7 +177,7 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
                     epoch, loss, loss_no_alpha, dev_loss, test_loss)
                 log_str += " | Train Acc: {:.4f} | Dev Acc: {:.4f} | Test Acc: {:.4f}".format(
                     train_acc, dev_acc, test_acc)
-                log_str += " | Mean IF: {:.4f} | Var IF: {:.4f}".format(mean_IF, var_IF)
+                log_str += " | Weighted Mean IF: {:.4f} | Var IF: {:.4f}".format(weighted_mean_IF, var_IF)
                 # log_str += " | Delta Alpha Norm: {:.4f}".format(delta_alpha_norm)
                 log_str += " | Grad Norm: {:.4f}".format(grad_norm)
                 print_rank(log_str)
@@ -193,8 +209,8 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
         ood_test_loss = self.loss(ood_test_x, ood_test_y.float(), theta)
         print_rank("OOD Test Loss: {}".format(ood_test_loss.item()))
         
-        avg_train_loss = self.loss(train_x, train_y.float(), theta)
-        print_rank("Avg Train Loss: {}".format(avg_train_loss.item()))
+        train_loss_no_alpha = self.loss(train_x, train_y.float(), theta)
+        print_rank("Train Loss No Alpha: {}".format(train_loss_no_alpha.item()))
         
         dev_acc_rate = self.calc_acc_rate(baseline_dev_losses, all_dev_loss)
         test_acc_rate = self.calc_acc_rate(baseline_test_losses, all_test_loss)
@@ -203,10 +219,34 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
         print_rank(log_str)
         save_rank(log_str, os.path.join(self.args.save, "log.txt"))
         
+        diff_dev_loss_bsl_opt = [np.abs(baseline_dev_losses[i] - opt_dev_losses[i]) for i in range(len(baseline_dev_losses))]
+        diff_dev_loss_bsl_opt = np.mean(diff_dev_loss_bsl_opt)
+        diff_test_loss_bsl_opt = [np.abs(baseline_test_losses[i] - opt_test_losses[i]) for i in range(len(baseline_test_losses))]
+        diff_test_loss_bsl_opt = np.mean(diff_test_loss_bsl_opt)
+        
+        diff_dev_loss_dyna_opt = [np.abs(all_dev_loss[i] - opt_dev_losses[i]) for i in range(len(all_dev_loss))]
+        diff_dev_loss_dyna_opt = np.mean(diff_dev_loss_dyna_opt)
+        diff_test_loss_dyna_opt = [np.abs(all_test_loss[i] - opt_test_losses[i]) for i in range(len(all_test_loss))]
+        diff_test_loss_dyna_opt = np.mean(diff_test_loss_dyna_opt)
+        
+        log_str = f"Diff Dev Loss Bsl Opt: {diff_dev_loss_bsl_opt:.4f} | Diff Test Loss Bsl Opt: {diff_test_loss_bsl_opt:.4f} \n"
+        log_str += f"Diff Dev Loss Dyna Opt: {diff_dev_loss_dyna_opt:.4f} | Diff Test Loss Dyna Opt: {diff_test_loss_dyna_opt:.4f}"
+        print_rank(log_str)
+        save_rank(log_str, os.path.join(self.args.save, "log.txt"))
+        
         wandb.log({
             "dev_acc_rate": wandb.plot.line_series(
                 xs=self.acc_rate_steps,
-                ys=[dev_acc_rate]),
+                ys=[dev_acc_rate, opt_dev_acc_rate],
+                keys=["dyna", "opt"],
+                title="Dev Acc Rate",
+            ),
+            "test_acc_rate": wandb.plot.line_series(
+                xs=self.acc_rate_steps,
+                ys=[test_acc_rate, opt_test_acc_rate],
+                keys=["dyna", "opt"],
+                title="Test Acc Rate",
+            ),
         })
         
         run.finish()

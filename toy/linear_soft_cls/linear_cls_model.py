@@ -6,7 +6,6 @@ import os
 import json
 import time
 from utils import print_rank, save_rank
-from tensorboardX import SummaryWriter
 from matplotlib import pyplot as plt
 
 
@@ -76,7 +75,7 @@ class LinearCLSModel():
     def soft_f(self, x):
         return torch.sigmoid(x)
 
-    def _train(self, alpha=None, theta_init=None, IF_info=False, wandb_name="debug"):
+    def _train(self, alpha=None, alpha_t=None, theta_init=None, IF_info=False, wandb_name="debug"):
         train_x, train_y = self.train_data
         dev_x, dev_y = self.dev_data
         test_x, test_y = self.test_data
@@ -95,14 +94,19 @@ class LinearCLSModel():
             assert self.theta_init is not None
             theta = torch.clone(self.theta_init)
         
-        if alpha is None:
+        if alpha is None and alpha_t is None:
             alpha = torch.ones(self.args.train_num, 1, device=self.device)
             alpha = alpha / torch.sum(alpha)
-        else:
+        elif alpha_t is None:
             alpha = alpha.to(self.device)
+        else:
+            print(alpha_t)
+            alpha_t = alpha_t.to(self.device)
 
         all_train_loss, all_dev_loss, all_test_loss = [], [], []
         for epoch in tqdm(range(self.args.epochs), desc=f"{wandb_name} Training"):
+            if alpha_t is not None:
+                alpha = alpha_t[epoch].unsqueeze(-1)
             loss = self.loss(train_x, train_y.float(), theta, alpha)
             loss_no_alpha = self.loss(train_x, train_y.float(), theta)
             dev_loss = self.loss(dev_x, dev_y.float(), theta)
@@ -164,7 +168,7 @@ class LinearCLSModel():
                 )
                 log_str += " | Grad Norm: {:.4f}".format(gn)
                 if IF_info:
-                    log_str += " | Mean IF: {:.4f} | Var IF: {:.4f}".format(mean_IF, var_IF)
+                    log_str += " | Weighted Mean IF: {:.4f} | Var IF: {:.4f}".format(weighted_mean_IF, var_IF)
                 print_rank(log_str)
                 # save_rank(log_str, os.path.join(self.args.save, "log.txt"))
 
@@ -193,6 +197,8 @@ class LinearCLSModel():
             steps = self.acc_rate_steps
         
         def _calc(step):
+            if step >= len(baseline_losses):
+                return -1
             baseline_loss = baseline_losses[step]
             # binary search baseline_loss in losses
             l, r = 0, len(losses) - 1

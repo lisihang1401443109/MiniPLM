@@ -37,19 +37,24 @@ def main():
     model = model_cls(args, device, dim=args.input_dim, real_dim=args.input_real_dim)
     model.set_theta_gd()
     
-    train_x, train_y = model.generate_data(
-        args.train_num, args.train_noise, args.train_mu, args.train_sigma)
-   
-    dev_x, dev_y = model.generate_data(
-        args.dev_num, args.dev_noise, args.dev_mu, args.dev_sigma)
-    test_x, test_y = model.generate_data(
-        args.dev_num, args.dev_noise, args.dev_mu, args.dev_sigma)
+    if args.load_toy_data:
+        data_path = os.path.join(args.base_path, "processed_data/toy_data")
+        train_x, train_y, dev_x, dev_y, test_x, test_y, theta_init = torch.load(os.path.join(data_path, "data.pt"))
+    else:
+        train_x, train_y = model.generate_data(
+            args.train_num, args.train_noise, args.train_mu, args.train_sigma)
+    
+        dev_x, dev_y = model.generate_data(
+            args.dev_num, args.dev_noise, args.dev_mu, args.dev_sigma)
+        test_x, test_y = model.generate_data(
+            args.dev_num, args.dev_noise, args.dev_mu, args.dev_sigma)
+        theta_init = None
 
     model.set_train_data(train_x, train_y)
     model.set_dev_data(dev_x, dev_y)
     # linear_model.set_dev_data(train_x, train_y)
     model.set_test_data(test_x, test_y)
-    model.set_init_theta()
+    model.set_init_theta(theta_init)
 
     torch.save((train_x, train_y, dev_x, dev_y, test_x, test_y, model.theta_init), os.path.join(args.save, "data.pt"))
 

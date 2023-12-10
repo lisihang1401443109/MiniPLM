@@ -17,25 +17,23 @@ OPTS=""
 # type
 OPTS+=" --type ${TYPE}"
 # model
-OPTS+=" --model-type linear_soft_cls_da"
+OPTS+=" --model-type linear_soft_cls"
 OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --input-dim 128"
 # data
 OPTS+=" --train-num 1024"
-OPTS+=" --dev-num 512"
-OPTS+=" --test-num 512"
+OPTS+=" --dev-num 256"
+OPTS+=" --test-num 256"
 OPTS+=" --train-mu 0.0"
 OPTS+=" --train-sigma 2.0"
-OPTS+=" --dev-mu 0.5"
+OPTS+=" --dev-mu 0.1"
 OPTS+=" --dev-sigma 2.0"
 # hp
 OPTS+=" --lr ${LR}"
-OPTS+=" --lr-alpha 0.0003"
 OPTS+=" --batch-size ${BATCH_SIZE}"
-OPTS+=" --epochs 10000"
-OPTS+=" --log-interval 1000"
-OPTS+=" --alpha-update-interval 1"
-OPTS+=" --lam 0.00"
+OPTS+=" --epochs 2000"
+OPTS+=" --log-interval 100"
+OPTS+=" --lam 0.0"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"
 # seed

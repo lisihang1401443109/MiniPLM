@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 # path = "/home/lidong1/yuxian/sps-toy/results/toy/linear-d128-l0.1/bs-1-lr0.001/_oe5_lra1e-3_dev_noise/"
 # path = "/home/lidong1/yuxian/sps-toy/results/toy/linear-d128-l0.1/bs-1-lr0.001/oe5-lra0.001-dmu0.5-dsig0.1-dnoi0.01"
 # path = "/home/lidong1/yuxian/sps-toy/results/toy/linear-d128-l0.1/bs-1-lr0.001-tn2048-dn256/oe5-lra0.001-dmu0.5-dsig0.1-dnoi0.01"
-path = "/home/lidong1/yuxian/sps-toy/results/toy/linear_da/d128-None-l0.0/bs-1-lr0.001-tn2048-dn256"
+# path = "/home/lidong1/yuxian/sps-toy/results/toy/linear_da/d128-None-l0.0/bs-1-lr0.001-tn2048-dn256"
 
 # best_alpha = torch.load(os.path.join(path, "best_alpha.pt"), map_location="cpu").squeeze()
 
@@ -31,18 +31,23 @@ path = "/home/lidong1/yuxian/sps-toy/results/toy/linear_da/d128-None-l0.0/bs-1-l
 # plt.savefig(os.path.join(path, "naive_best_alpha.png"))
 # plt.close()
 
-alpha_10 = torch.load(os.path.join(path, "alpha-10.pt"), map_location="cpu").squeeze()
-alpha_100 = torch.load(os.path.join(path, "alpha-100.pt"), map_location="cpu").squeeze()
-alpha_1000 = torch.load(os.path.join(path, "alpha-1000.pt"), map_location="cpu").squeeze()
+# alpha_10 = torch.load(os.path.join(path, "alpha-10.pt"), map_location="cpu").squeeze()
+# alpha_100 = torch.load(os.path.join(path, "alpha-100.pt"), map_location="cpu").squeeze()
+# alpha_1000 = torch.load(os.path.join(path, "alpha-1000.pt"), map_location="cpu").squeeze()
 
-sorted_alpha_10, indices = torch.sort(alpha_10, descending=True)
-sorted_alpha_100 = alpha_100[indices]
-sorted_alpha_1000 = alpha_1000[indices]
+# sorted_alpha_10, indices = torch.sort(alpha_10, descending=True)
+# sorted_alpha_100 = alpha_100[indices]
+# sorted_alpha_1000 = alpha_1000[indices]
 
-plt.plot(range(sorted_alpha_10.size(0)), sorted_alpha_10, label="alpha-10")
-plt.plot(range(sorted_alpha_100.size(0)), sorted_alpha_100, label="alpha-100")
-plt.plot(range(sorted_alpha_1000.size(0)), sorted_alpha_1000, label="alpha-1000")
+# plt.plot(range(sorted_alpha_10.size(0)), sorted_alpha_10, label="alpha-10")
+# plt.plot(range(sorted_alpha_100.size(0)), sorted_alpha_100, label="alpha-100")
+# plt.plot(range(sorted_alpha_1000.size(0)), sorted_alpha_1000, label="alpha-1000")
 
-plt.legend()
-plt.savefig(os.path.join(path, "alpha_cmp.png"))
-plt.close()
+# plt.legend()
+# plt.savefig(os.path.join(path, "alpha_cmp.png"))
+# plt.close()
+
+xn, yn, dev_xn, dev_yn, test_xn, test_yn, theta_init = torch.load(
+    "/home/lidong1/yuxian/sps-toy/results/toy/linear_soft_cls/d128-None-l0.0/bs-1-lr0.1-tn1024-dn256/data.pt", map_location="cpu")
+
+print(dev_xn)

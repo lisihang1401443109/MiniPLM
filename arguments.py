@@ -236,6 +236,8 @@ def add_toy_args(parser: argparse.ArgumentParser):
     group.add_argument("--dnn-hidden-dim", type=int, default=None)
     group.add_argument("--gd-dnn-hidden-dim", type=int, default=None)
     group.add_argument("--approx-proj", action="store_true")
+    group.add_argument("--load-toy-data", action="store_true")
+    group.add_argument("--load-alpha", type=str, default=None)
     
     return parser
 
