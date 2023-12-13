@@ -25,18 +25,21 @@ class LinearCLSModel():
         # os.makedirs(sum_writer_path, exist_ok=True)
         # self.writer = SummaryWriter(log_dir=sum_writer_path)
     
-    def set_theta_gd(self):
-        theta_gd = torch.randn(self.dim, 1, device=self.device) * np.sqrt(self.dim)
+    def set_theta_gd(self, g=None):
+        theta_gd = torch.randn(self.dim, 1, device=self.device, generator=g) * np.sqrt(self.dim)
         self.theta_gd = theta_gd
     
-    def generate_data(self, data_num, noise_scale, x_u, x_sigma, theta_gd=None):
-        x = torch.randn(data_num, self.dim, device=self.device) * x_sigma + x_u
+    def generate_data(self, data_num, noise_scale, x_u, x_sigma, theta_gd=None, g=None):
+        x = torch.randn(data_num, self.dim, device=self.device, generator=g) * x_sigma + x_u
         theta_gd = self.theta_gd if theta_gd is None else theta_gd
+        # generate a vector that is orthogonal to theta_gd
+        # theta_orth = torch.randn(self.dim, 1, device=self.device, generator=g)
+        # theta_orth = theta_orth - theta_gd * (theta_orth.t() @ theta_gd) / (theta_gd.t() @ theta_gd)
         y = self.f(x @ theta_gd)
         return x, y
     
-    def generate_rand_theta(self):
-        return torch.randn(self.dim, 1, device=self.device)
+    def generate_rand_theta(self, g=None):
+        return torch.randn(self.dim, 1, device=self.device, generator=g)
     
     def set_train_data(self, x, y):
         self.train_data = (x,y)
@@ -47,9 +50,9 @@ class LinearCLSModel():
     def set_test_data(self, x, y):
         self.test_data = (x, y)
 
-    def set_init_theta(self, theta=None):
+    def set_init_theta(self, theta=None, g=None):
         if theta is None:
-            self.theta_init = torch.randn(self.dim, 1, device=self.device)
+            self.theta_init = torch.randn(self.dim, 1, device=self.device, generator=g)
         else:
             self.theta_init = theta
     
@@ -105,6 +108,9 @@ class LinearCLSModel():
             alpha_t = alpha_t.to(self.device)
 
         all_train_loss, all_dev_loss, all_test_loss = [], [], []
+        all_IF = []
+        all_var_IF = []
+        all_weighted_ratio = []
         for epoch in tqdm(range(self.args.epochs), desc=f"{wandb_name} Training"):
             if alpha_t is not None:
                 alpha = alpha_t[epoch].unsqueeze(-1)
@@ -130,6 +136,9 @@ class LinearCLSModel():
                 var_IF = torch.var(IF)
                 ratio = torch.abs(mean_IF) / (torch.sqrt(var_IF) + 1e-8)
                 weighted_ratio = torch.abs(weighted_mean_IF) / (torch.sqrt(var_IF) + 1e-8)
+                all_IF.append(IF)
+                all_var_IF.append(var_IF.item())
+                all_weighted_ratio.append(weighted_ratio.item())
 
             theta -= self.args.lr * grad
             
@@ -185,6 +194,15 @@ class LinearCLSModel():
         test_acc = self.acc(test_x, test_y, theta)
         log_str = "Final Test Loss: {:.4f}, Final Test Acc: {:.4f}".format(test_loss, test_acc)
         print_rank(log_str)
+
+        if IF_info:
+            all_IF = torch.stack(all_IF, dim=0)
+            more_save_path = os.path.join(self.args.save, wandb_name)
+            os.makedirs(more_save_path, exist_ok=True)
+            torch.save(all_IF, os.path.join(more_save_path, f"IF.pt"))
+            torch.save(all_var_IF, os.path.join(more_save_path, f"var_IF.pt"))
+            torch.save(all_weighted_ratio, os.path.join(more_save_path, f"weighted_ratio.pt"))
+            torch.save(all_dev_loss, os.path.join(more_save_path, f"dev_loss.pt"))
 
         run.finish()
         

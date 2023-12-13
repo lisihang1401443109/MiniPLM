@@ -34,27 +34,42 @@ def main():
         # "linear_fa": LinearModelFixAlpha
     }[args.model_type]
     
-    model = model_cls(args, device, dim=args.input_dim, real_dim=args.input_real_dim)
-    model.set_theta_gd()
+    g_gd = torch.Generator(device=device)
+    g_gd.manual_seed(args.seed_gd)
+    g_data = torch.Generator(device=device)
+    g_data.manual_seed(args.seed_data)
+    # g_train_data = torch.Generator(device=device)
+    # g_train_data.manual_seed(10)
+    g_train_data = torch.Generator(device=device)
+    g_train_data.manual_seed(args.seed_data)
+    g_init = torch.Generator(device=device)
+    g_init.manual_seed(args.seed)
     
-    if args.load_toy_data:
-        data_path = os.path.join(args.base_path, "processed_data/toy_data")
+    model = model_cls(args, device, dim=args.input_dim, real_dim=args.input_real_dim)
+    model.set_theta_gd(g=g_gd)
+    
+    if args.load_toy_data is not None:
+        data_path = os.path.join(args.base_path, f"processed_data/toy_data/{args.load_toy_data}/")
         train_x, train_y, dev_x, dev_y, test_x, test_y, theta_init = torch.load(os.path.join(data_path, "data.pt"))
     else:
         train_x, train_y = model.generate_data(
-            args.train_num, args.train_noise, args.train_mu, args.train_sigma)
+            args.train_num, args.train_noise, args.train_mu, args.train_sigma, g=g_train_data)
     
         dev_x, dev_y = model.generate_data(
-            args.dev_num, args.dev_noise, args.dev_mu, args.dev_sigma)
+            args.dev_num, args.dev_noise, args.dev_mu, args.dev_sigma, g=g_data)
         test_x, test_y = model.generate_data(
-            args.dev_num, args.dev_noise, args.dev_mu, args.dev_sigma)
+            args.dev_num, args.dev_noise, args.dev_mu, args.dev_sigma, g=g_data)
         theta_init = None
+
+    print("train y 1s", (train_y == 1).sum())
+    print("dev y 1s", (dev_y == 1).sum())
+    print("test y 1s", (test_y == 1).sum())
 
     model.set_train_data(train_x, train_y)
     model.set_dev_data(dev_x, dev_y)
     # linear_model.set_dev_data(train_x, train_y)
     model.set_test_data(test_x, test_y)
-    model.set_init_theta(theta_init)
+    model.set_init_theta(theta_init, g=g_init)
 
     torch.save((train_x, train_y, dev_x, dev_y, test_x, test_y, model.theta_init), os.path.join(args.save, "data.pt"))
 

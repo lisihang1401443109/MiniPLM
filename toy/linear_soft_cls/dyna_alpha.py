@@ -41,11 +41,11 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
 
         print("Optimal Alpha")
         if self.args.load_alpha is not None:
-            for e in [0, 1, 2, 3, 5, 7, 9, 19, 29, 39]:
+            for e in [5]:
                 load_alpha = os.path.join(self.args.load_alpha, f"epoch_{e}")
-                alpha_t = torch.load(os.path.join(load_alpha, "opt_alpha.pt"))
+                opt_alpha_t = torch.load(os.path.join(load_alpha, "opt_alpha.pt"))
                 opt_info = load_alpha.replace(self.args.base_path, "").strip("/").replace("/", "_")
-                opt_out = self._train(wandb_name=f"opt_{opt_info}", IF_info=True, alpha_t=alpha_t)
+                opt_out = self._train(wandb_name=f"opt_{opt_info}", IF_info=True, alpha_t=opt_alpha_t)
                 opt_dev_losses = opt_out[-2]
                 opt_test_losses = opt_out[-1]
                 opt_theta = opt_out[0]
@@ -76,6 +76,10 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
         norm_vec = norm_vec / torch.norm(norm_vec)
 
         all_train_loss, all_dev_loss, all_test_loss = [], [], []
+        all_alpha = []
+        all_IF = []
+        all_var_IF = []
+        all_weighted_ratio = []
         best_dev_loss = float("inf")
         for epoch in tqdm(range(self.args.epochs), desc="Training"):
             loss = self.loss(train_x, train_y.float(), theta, alpha)
@@ -87,6 +91,9 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
             
             grad_dev = 1 / self.args.dev_num * dev_x.t() @ (self.soft_f(dev_x @ theta) - dev_y.float()) # (dim, 1)
             IF = -grad_full_no_alpha @ grad_dev # (train_num, 1)
+            
+            all_IF.append(-IF)
+            
             mean_IF = torch.mean(IF)
             weighted_mean_IF = torch.sum(alpha * IF)
             var_IF = torch.var(IF)
@@ -135,6 +142,10 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
             #     plt.savefig(os.path.join(self.args.save, f"alpha-{epoch}.png"))
             #     plt.close()
             
+            all_alpha.append(alpha.squeeze())
+            all_var_IF.append(var_IF.item())
+            all_weighted_ratio.append(weighted_ratio.item())
+
             grad_full = alpha * grad_full_no_alpha # (train_num, dim)
             grad = torch.sum(grad_full, dim=0).unsqueeze(-1) + self.args.lam * theta # (dim, 1)
             theta -= self.args.lr * grad
@@ -152,7 +163,12 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
             # corr_train_grad = self.get_correlation(train_grad_norm, alpha.squeeze())
             # corr_cos_train_dev = self.get_correlation(cos_train_dev.squeeze(), alpha.squeeze())
 
-            wandb.log({
+            if self.args.load_alpha is not None:
+                # compute correlation betten alpha and opt_alpha[epoch]
+                pr = pearsonr(alpha.squeeze().cpu().numpy(), opt_alpha_t[epoch].squeeze().cpu().numpy())[0]
+                sr = spearmanr(alpha.squeeze().cpu().numpy(), opt_alpha_t[epoch].squeeze().cpu().numpy())[0]
+                
+            log_dict = {
                 "train_loss": loss.item(),
                 "train_loss_no_alpha": loss_no_alpha.item(),
                 "dev_loss": dev_loss.item(),
@@ -169,7 +185,15 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
                 # "delta_alpha_norm": delta_alpha_norm.item(),
                 # "corr_train_grad": corr_train_grad,
                 # "corr_cos_train_dev": corr_cos_train_dev,
-            })
+            }
+            
+            if self.args.load_alpha is not None:
+                log_dict.update({
+                    "pearsonr": pr,
+                    "spearmanr": sr,
+                })
+            
+            wandb.log(log_dict)
 
             all_train_loss.append(loss.item())
             all_dev_loss.append(dev_loss.item())
@@ -193,6 +217,9 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
             # if dev_loss < 0.002:
             #     print_rank("Early stop at epoch {}".format(epoch))
             #     break
+        
+        all_alpha = torch.stack(all_alpha, dim=0)
+        torch.save(all_alpha, os.path.join(self.args.save, "all_alpha.pt"))
         
         all_train_loss = all_train_loss + [all_train_loss[-1]] * (self.args.epochs - len(all_train_loss))
         all_dev_loss = all_dev_loss + [all_dev_loss[-1]] * (self.args.epochs - len(all_dev_loss))
@@ -222,6 +249,16 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
         print_rank(log_str)
         save_rank(log_str, os.path.join(self.args.save, "log.txt"))
         
+        all_IF = torch.stack(all_IF, dim=0)
+        
+        more_save_path = os.path.join(self.args.save, "dyna")
+        os.makedirs(more_save_path, exist_ok=True)
+        torch.save(all_IF, os.path.join(more_save_path, "all_IF.pt"))
+
+        torch.save(all_var_IF, os.path.join(more_save_path, f"var_IF.pt"))
+        torch.save(all_weighted_ratio, os.path.join(more_save_path, f"weighted_ratio.pt"))
+        torch.save(all_dev_loss, os.path.join(more_save_path, f"dev_loss.pt"))
+
         if self.args.load_alpha is not None:
             area_dev_bsl = np.mean(baseline_dev_losses)
             area_dev_opt = np.mean(opt_dev_losses)

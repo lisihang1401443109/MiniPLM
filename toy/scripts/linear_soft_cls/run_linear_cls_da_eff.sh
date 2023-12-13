@@ -10,6 +10,9 @@ BATCH_SIZE=-1
 # runtime
 SAVE_PATH="${BASE_PATH}/results/${TYPE}"
 # seed
+SEED_DATA=50
+SEED_GD=1
+
 SEED=10
 
 
@@ -21,18 +24,19 @@ OPTS+=" --model-type linear_soft_cls_da"
 OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --input-dim 128"
 # data
-OPTS+=" --train-num 1024"
+OPTS+=" --train-num 4096"
 OPTS+=" --dev-num 512"
 OPTS+=" --test-num 512"
 OPTS+=" --train-mu 0.0"
 OPTS+=" --train-sigma 2.0"
 OPTS+=" --dev-mu 0.5"
-OPTS+=" --dev-sigma 2.0"
-OPTS+=" --load-toy-data"
-OPTS+=" --load-alpha ${BASE_PATH}/results/toy/opt_alpha/d128-ns2000-na1024-eta0.1-lr0.1/"
+OPTS+=" --dev-sigma 1.0"
+OPTS+=" --load-toy-data 4096-10-50-1"
+# OPTS+=" --load-alpha ${BASE_PATH}/results/toy/opt_alpha/d128-ns2000-na1024-eta0.1-lr0.1/"
+# OPTS+=" --load-alpha ${BASE_PATH}/results/toy/opt_alpha/4096-10-50-1-d128-ns2000-na4096-eta0.1-lr0.05"
 # hp
 OPTS+=" --lr ${LR}"
-OPTS+=" --lr-alpha 0.0004"
+OPTS+=" --lr-alpha 0.0001"
 OPTS+=" --batch-size ${BATCH_SIZE}"
 OPTS+=" --epochs 2000"
 OPTS+=" --log-interval 100"
@@ -42,6 +46,9 @@ OPTS+=" --lam 0.00"
 OPTS+=" --save ${SAVE_PATH}"
 # seed
 OPTS+=" --seed ${SEED}"
+OPTS+=" --seed-data ${SEED_DATA}"
+OPTS+=" --seed-gd ${SEED_GD}"
+
 
 
 export NCCL_DEBUG=""

@@ -136,6 +136,7 @@ def add_hp_args(parser: argparse.ArgumentParser):
     group.add_argument("--seed-data", type=int, default=42)
     group.add_argument("--seed-ppo", type=int, default=42)
     group.add_argument("--seed-lm", type=int, default=7)
+    group.add_argument("--seed-gd", type=int, default=7)
     group.add_argument('--epochs', type=int, default=None,
                        help='total number of epochs to train over all training runs')
     group.add_argument("--gradient-accumulation-steps", type=int, default=1)
@@ -236,7 +237,7 @@ def add_toy_args(parser: argparse.ArgumentParser):
     group.add_argument("--dnn-hidden-dim", type=int, default=None)
     group.add_argument("--gd-dnn-hidden-dim", type=int, default=None)
     group.add_argument("--approx-proj", action="store_true")
-    group.add_argument("--load-toy-data", action="store_true")
+    group.add_argument("--load-toy-data", type=str, default=None)
     group.add_argument("--load-alpha", type=str, default=None)
     
     return parser
@@ -393,7 +394,8 @@ def get_args():
             args.model_type,
             model_info,
             (f"bs{args.batch_size}-lr{args.lr}-tn{args.train_num}-dn{args.dev_num}"),
-            suffix
+            suffix,
+            (f"{args.seed}-{args.seed_data}-{args.seed_gd}" if args.load_toy_data is None else f"{args.load_toy_data}"),
         )
         args.save = save_path
 

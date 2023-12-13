@@ -15,6 +15,7 @@ class OPTAlphaModel(nn.Module):
                  num_alphas,
                  xn, yn,
                  dev_xn, dev_yn,
+                 test_xn, test_yn,
                  eta):
         super(OPTAlphaModel, self).__init__()
         self.alphas = nn.ParameterList(
@@ -23,6 +24,8 @@ class OPTAlphaModel(nn.Module):
         self.yn = yn.float()
         self.dev_xn = dev_xn
         self.dev_yn = dev_yn.float()
+        self.test_xn = test_xn
+        self.test_yn = test_yn.float()
         self.num_steps = num_steps
         self.dim = dim
         self.num_alphas = num_alphas
@@ -45,19 +48,24 @@ class OPTAlphaModel(nn.Module):
         l = -y * (x @ theta) + torch.log(1 + torch.exp(x @ theta))
         return torch.mean(l)
 
-    def forward(self, theta):
+    def forward(self, theta, eval_mode="dev"):
         loss = 0
         losses = []
+        if eval_mode == "dev":
+            eval_xn, eval_yn = self.dev_xn, self.dev_yn
+        else:
+            eval_xn, eval_yn = self.test_xn, self.test_yn
+            
         for t in tqdm(range(self.num_steps)):
             if t % 100 == 0:
-                cur_loss = self.inner_loss(self.dev_xn, self.dev_yn, theta)
+                cur_loss = self.inner_loss(eval_xn, eval_yn, theta)
                 losses.append(round(cur_loss.item(), 3))
             grad_full = self.xn * (torch.sigmoid(self.xn @ theta) - self.yn)
             grad = torch.sum(self.alphas[t].unsqueeze(1) * grad_full, dim=0).unsqueeze(1)
             theta = theta - self.eta * grad
-            i_loss = self.inner_loss(self.dev_xn, self.dev_yn, theta)
+            i_loss = self.inner_loss(eval_xn, eval_yn, theta)
             loss += i_loss
-        print("Losses:", losses, "Final:", i_loss)
+        print(f"{eval_mode} Losses:", losses, "Final:", i_loss)
         loss = loss / self.num_steps
 
         return loss
@@ -75,20 +83,21 @@ def proj_alpha(optimizer, args, kwargs):
 
 
 def solve_opt_alpha(base_path, device):
-    path = f"{base_path}/processed_data/toy_data/data.pt"
+    data_seed = "4096-10-50-1"
+    path = f"{base_path}/processed_data/toy_data/{data_seed}/data.pt"
 
     dim = 128
     num_steps = 2000
-    num_alphas = 1024
+    num_alphas = 4096
     eta = 0.1
-    lr = 0.1
+    lr = 0.05
     
-    base_save_path = f"{base_path}/results/toy/opt_alpha/d{dim}-ns{num_steps}-na{num_alphas}-eta{eta}-lr{lr}/"
+    base_save_path = f"{base_path}/results/toy/opt_alpha/{data_seed}-d{dim}-ns{num_steps}-na{num_alphas}-eta{eta}-lr{lr}/"
     os.makedirs(base_save_path, exist_ok=True)
     
     location = "cpu" if device == "cpu" else f"cuda:{device}"
     xn, yn, dev_xn, dev_yn, test_xn, test_yn, theta_init = torch.load(path, map_location=location)
-    model = OPTAlphaModel(dim, num_steps, num_alphas, xn, yn, dev_xn, dev_yn, eta).to(device)
+    model = OPTAlphaModel(dim, num_steps, num_alphas, xn, yn, dev_xn, dev_yn, test_xn, test_yn, eta).to(device)
     optimizer = torch.optim.SGD(model.parameters(), lr=lr)
     optimizer.register_step_post_hook(proj_alpha)
 
@@ -104,6 +113,8 @@ def solve_opt_alpha(base_path, device):
     for epoch in range(epochs):
         st = time.time()  
         loss = model(theta_init)
+        with torch.no_grad():
+            model(theta_init, eval_mode="test")
         area_losses.append(loss.item())
         optimizer.zero_grad()
         loss.backward()
