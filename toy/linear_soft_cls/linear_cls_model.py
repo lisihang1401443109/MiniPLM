@@ -57,11 +57,21 @@ class LinearCLSModel():
             self.theta_init = theta
     
     def loss(self, x, y, theta, alpha=None):
-        l = -y * (x @ theta) + torch.log(1 + torch.exp(x @ theta))
+        batch = 1024
+        all_l = []
+        for i in range(0, x.size(0), batch):
+            x_batch = x[i:i+batch]
+            y_batch = y[i:i+batch]
+            l = -y_batch * (x_batch @ theta) + torch.log(1 + torch.exp(x_batch @ theta))
+            l = torch.where(torch.isinf(l), (1-y_batch) * (x_batch @ theta), l)
+            all_l.append(l)
+
+        all_l = torch.cat(all_l, dim=0)
+
         if alpha is not None:
-            return torch.sum(alpha * l)
+            return torch.sum(alpha * all_l)
         else:
-            return torch.mean(l)
+            return torch.mean(all_l)
 
     def acc(self, x, y, theta):
         pred = (self.f(x @ theta)).float()

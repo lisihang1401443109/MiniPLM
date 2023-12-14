@@ -41,11 +41,11 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
 
         print("Optimal Alpha")
         if self.args.load_alpha is not None:
-            for e in [5]:
+            for e in [0,2,5,9,15,19,25,29,35,39]:
                 load_alpha = os.path.join(self.args.load_alpha, f"epoch_{e}")
                 opt_alpha_t = torch.load(os.path.join(load_alpha, "opt_alpha.pt"))
                 opt_info = load_alpha.replace(self.args.base_path, "").strip("/").replace("/", "_")
-                opt_out = self._train(wandb_name=f"opt_{opt_info}", IF_info=True, alpha_t=opt_alpha_t)
+                opt_out = self._train(wandb_name=f"opt_epoch_{e}", IF_info=True, alpha_t=opt_alpha_t)
                 opt_dev_losses = opt_out[-2]
                 opt_test_losses = opt_out[-1]
                 opt_theta = opt_out[0]

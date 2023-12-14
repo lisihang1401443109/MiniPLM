@@ -53,7 +53,7 @@ def main():
         train_x, train_y, dev_x, dev_y, test_x, test_y, theta_init = torch.load(os.path.join(data_path, "data.pt"))
     else:
         train_x, train_y = model.generate_data(
-            args.train_num, args.train_noise, args.train_mu, args.train_sigma, g=g_train_data)
+            args.train_num, args.train_noise, args.train_mu, args.train_sigma, g=g_data)
     
         dev_x, dev_y = model.generate_data(
             args.dev_num, args.dev_noise, args.dev_mu, args.dev_sigma, g=g_data)
@@ -72,7 +72,12 @@ def main():
     model.set_init_theta(theta_init, g=g_init)
 
     torch.save((train_x, train_y, dev_x, dev_y, test_x, test_y, model.theta_init), os.path.join(args.save, "data.pt"))
-
+    data_save_path = os.path.join(
+        args.base_path, "processed_data", "toy_data", f"{args.dev_mu}-{args.train_sigma}-{args.dev_sigma}-{args.train_num}-{args.seed}-{args.seed_data}-{args.seed_gd}")
+    os.makedirs(data_save_path, exist_ok=True)
+    print(train_x)
+    torch.save((train_x, train_y, dev_x, dev_y, test_x, test_y, model.theta_init), os.path.join(data_save_path, "data.pt"))
+    # exit(0)
     model.train()
     
 if __name__ == "__main__":

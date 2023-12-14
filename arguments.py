@@ -375,6 +375,16 @@ def get_args():
             model_info = f"d{args.input_dim}-{args.input_real_dim}-l{args.lam}"
             suffix = ""
             if args.model_type in ["linear_cls_da", "linear_soft_cls_da"]:
+                if args.load_toy_data is not None:
+                    args.dev_mu, args.train_sigma, args.dev_sigma, args.train_num, args.seed, args.seed_data, args.seed_gd = \
+                        args.load_toy_data.split("-")
+                    args.dev_mu = float(args.dev_mu)
+                    args.train_sigma = float(args.train_sigma)
+                    args.dev_sigma = float(args.dev_sigma)
+                    args.train_num = int(args.train_num)
+                    args.seed = int(args.seed)
+                    args.seed_data = int(args.seed_data)
+                    args.seed_gd = int(args.seed_gd)
                 suffix += (f"lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-dmu{args.dev_mu}-dsig{args.dev_sigma}-aui{args.alpha_update_interval}")
                 suffix += ("-aproj" if args.approx_proj else "-proj")
         elif args.model_type in ["linear_dnn", "linear_dnn_fa"]:
@@ -395,7 +405,7 @@ def get_args():
             model_info,
             (f"bs{args.batch_size}-lr{args.lr}-tn{args.train_num}-dn{args.dev_num}"),
             suffix,
-            (f"{args.seed}-{args.seed_data}-{args.seed_gd}" if args.load_toy_data is None else f"{args.load_toy_data}"),
+            f"{args.seed}-{args.seed_data}-{args.seed_gd}",
         )
         args.save = save_path
 
