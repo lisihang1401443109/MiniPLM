@@ -34,7 +34,9 @@ OPTS+=" --dev-sigma 1"
 OPTS+=" --load-toy-data 0.5-3.0-1.0-4096-10-20-1"
 # OPTS+=" --load-alpha ${BASE_PATH}/results/toy/opt_alpha/d128-ns2000-na1024-eta0.1-lr0.1/"
 # OPTS+=" --load-alpha ${BASE_PATH}/results/toy/opt_alpha/4096-10-50-1-d128-ns2000-na4096-eta0.1-lr0.05"
-OPTS+=" --load-alpha ${BASE_PATH}/results/toy/opt_alpha/0.5-3.0-1.0-4096-10-20-1-d128-ns2000-na4096-eta0.1-lr0.05"
+# OPTS+=" --load-alpha ${BASE_PATH}/results/toy/opt_alpha/0.5-3.0-1.0-4096-10-20-1-d128-ns2000-na4096-eta0.1-lr0.05"
+OPTS+=" --load-alpha ${BASE_PATH}/results/toy/opt_alpha/0.5-3.0-1.0-4096-10-20-1-d128-ns2000-na4096-eta0.1-lr0.001"
+
 # hp
 OPTS+=" --lr ${LR}"
 OPTS+=" --lr-alpha 0.0004"

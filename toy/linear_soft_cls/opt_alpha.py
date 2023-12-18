@@ -121,7 +121,7 @@ def solve_opt_alpha(base_path, device):
     num_steps = 2000
     num_alphas = 4096
     eta = 0.1
-    lr = 0.05
+    lr = 0.002
     
     acc_steps = [int(i * num_steps / 10) for i in range(10)]
     
@@ -138,7 +138,7 @@ def solve_opt_alpha(base_path, device):
 
     area_losses = []
 
-    epochs = 40
+    epochs = 500
     with torch.no_grad():
         loss_0, bsl_losses_0, _ = model(theta_init)
         print("Area Loss 0:", loss_0.item())

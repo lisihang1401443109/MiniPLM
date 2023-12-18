@@ -87,29 +87,41 @@ import numpy as np
 # # plot_alpha_change(dyna_alpha, path_dyna)
 # plot_alpha_change(opt_alpha, path_opt)
 
-base_if_path = "/home/lidong1/yuxian/sps-toy/results/toy/linear_soft_cls_da/d128-None-l0.0/bs-1-lr0.1-tn1024-dn512/lra0.0004-tmu0.0-tsig2.0-dmu0.5-dsig2.0-aui1-proj/"
+base_if_path = "/home/lidong1/yuxian/sps-toy/results/toy/linear_soft_cls_da/d128-None-l0.0/bs-1-lr0.1-tn4096-dn512/lra0.0004-tmu0.0-tsig3.0-dmu0.5-dsig1.0-aui1-proj/10-20-1/"
 
-IF_baseline = torch.load(
-    os.path.join(base_if_path, "IF_baseline.pt"), map_location="cpu")
+plot, ax = plt.subplots(2, 1, figsize=(10, 10))
 
+for name in ["baseline", "opt_epoch_35"]:
+    IF = torch.load(
+        os.path.join(base_if_path, name, "IF.pt"), map_location="cpu")
 
-print(IF_baseline.shape)
+    e = 100
 
-e = 0
+    print(torch.mean(IF[e]), torch.var(IF[e]))
+    zero_num = (torch.abs(IF[e]) < 1e-3).sum()
+    print("origin shape", IF[e].shape)
+    print("zero_num", zero_num)
 
-zero_num = (torch.abs(IF_baseline[e]) < 1e-3).sum()
-print("zero_num", zero_num)
+    no_zero_IF = IF[e][torch.abs(IF[e]) > 0.3 * torch.std(IF[e])]
 
-# print(IF_baseline[e])
-# stat, p = stats.shapiro(IF_baseline[e])
-# print(stat, p)
-# p = stats.normaltest(IF_baseline[e])
-# print(p)
+    print("new_shape", no_zero_IF.shape)
 
-print(torch.mean(IF_baseline[e]), torch.var(IF_baseline[e]))
+    stat, p = stats.shapiro(no_zero_IF)
+    print("test normal", stat, p)
+    p = stats.normaltest(no_zero_IF)
+    print("test normal", p)
 
-plt.hist(IF_baseline[e].numpy(), bins=50, density=True)
-plt.savefig(os.path.join(base_if_path, f"IF_baseline_e{e}.png"))
+    print(torch.mean(no_zero_IF), torch.var(no_zero_IF))
+
+    ax[0].hist(IF[e].numpy(), bins=50, label=f"{name}")
+    ax[0].set_ylim(0, 300)
+    ax[0].set_title("IF")
+    ax[1].hist(no_zero_IF.numpy(), bins=50, label=f"{name}")
+    ax[1].set_ylim(0, 300)
+    ax[1].set_title("IF without zero")
+
+plt.legend()
+plt.savefig(os.path.join(base_if_path, name, f"IF_{e}.png"))
 plt.close()
 
 # base_if_path = "/home/lidong1/yuxian/sps-toy/results/toy/linear_soft_cls_da/d128-None-l0.0/bs-1-lr0.1-tn1024-dn512/lra0.0004-tmu0.0-tsig2.0-dmu0.5-dsig2.0-aui1-proj/"

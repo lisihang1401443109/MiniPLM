@@ -118,9 +118,8 @@ class LinearCLSModel():
             alpha_t = alpha_t.to(self.device)
 
         all_train_loss, all_dev_loss, all_test_loss = [], [], []
-        all_IF = []
-        all_var_IF = []
-        all_weighted_ratio = []
+        all_IF, all_var_IF, all_std_IF, all_weighted_mean_IF, all_weighted_ratio = [], [], [], [], []
+        all_IF_test, all_var_IF_test, all_std_IF_test, all_weighted_mean_IF_test, all_weighted_ratio_test = [], [], [], [], []
         for epoch in tqdm(range(self.args.epochs), desc=f"{wandb_name} Training"):
             if alpha_t is not None:
                 alpha = alpha_t[epoch].unsqueeze(-1)
@@ -148,7 +147,20 @@ class LinearCLSModel():
                 weighted_ratio = torch.abs(weighted_mean_IF) / (torch.sqrt(var_IF) + 1e-8)
                 all_IF.append(IF)
                 all_var_IF.append(var_IF.item())
+                all_std_IF.append(torch.sqrt(var_IF).item())
+                all_weighted_mean_IF.append(weighted_mean_IF.item())
                 all_weighted_ratio.append(weighted_ratio.item())
+
+                grad_test = 1 / self.args.test_num * test_x.t() @ (self.soft_f(test_x @ theta) - test_y.float()) # (dim, 1)
+                IF_test = -grad_full_no_alpha @ grad_test  # (train_num, 1)
+                weighted_mean_IF_test = torch.sum(alpha * IF_test)
+                var_IF_test = torch.var(IF_test)
+                weighted_ratio_test = torch.abs(weighted_mean_IF_test) / (torch.sqrt(var_IF_test) + 1e-8)
+                all_IF_test.append(IF_test)
+                all_var_IF_test.append(var_IF_test.item())
+                all_std_IF_test.append(torch.sqrt(var_IF_test).item())
+                all_weighted_mean_IF_test.append(weighted_mean_IF_test.item())
+                all_weighted_ratio_test.append(weighted_ratio_test.item())
 
             theta -= self.args.lr * grad
             
@@ -209,10 +221,20 @@ class LinearCLSModel():
             all_IF = torch.stack(all_IF, dim=0)
             more_save_path = os.path.join(self.args.save, wandb_name)
             os.makedirs(more_save_path, exist_ok=True)
-            torch.save(all_IF, os.path.join(more_save_path, f"IF.pt"))
-            torch.save(all_var_IF, os.path.join(more_save_path, f"var_IF.pt"))
-            torch.save(all_weighted_ratio, os.path.join(more_save_path, f"weighted_ratio.pt"))
+            
+            torch.save(all_IF, os.path.join(more_save_path, f"IF_dev.pt"))
+            torch.save(all_var_IF, os.path.join(more_save_path, f"var_IF_dev.pt"))
+            torch.save(all_std_IF, os.path.join(more_save_path, f"std_IF_dev.pt"))
+            torch.save(all_weighted_mean_IF, os.path.join(more_save_path, f"weighted_mean_IF_dev.pt"))
+            torch.save(all_weighted_ratio, os.path.join(more_save_path, f"weighted_ratio_dev.pt"))
             torch.save(all_dev_loss, os.path.join(more_save_path, f"dev_loss.pt"))
+            
+            torch.save(all_IF_test, os.path.join(more_save_path, f"IF_test.pt"))
+            torch.save(all_var_IF_test, os.path.join(more_save_path, f"var_IF_test.pt"))
+            torch.save(all_std_IF_test, os.path.join(more_save_path, f"std_IF_test.pt"))
+            torch.save(all_weighted_mean_IF_test, os.path.join(more_save_path, f"weighted_mean_IF_test.pt"))
+            torch.save(all_weighted_ratio_test, os.path.join(more_save_path, f"weighted_ratio_test.pt"))
+            torch.save(all_test_loss, os.path.join(more_save_path, f"test_loss.pt"))
 
         run.finish()
         

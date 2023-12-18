@@ -41,11 +41,12 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
 
         print("Optimal Alpha")
         if self.args.load_alpha is not None:
-            for e in [0,2,5,9,15,19,25,29,35,39]:
+            # for e in [0,2,5,9,15,19,25,29,35,39]:
+            for e in range(160, 500, 10):
                 load_alpha = os.path.join(self.args.load_alpha, f"epoch_{e}")
                 opt_alpha_t = torch.load(os.path.join(load_alpha, "opt_alpha.pt"))
                 opt_info = load_alpha.replace(self.args.base_path, "").strip("/").replace("/", "_")
-                opt_out = self._train(wandb_name=f"opt_epoch_{e}", IF_info=True, alpha_t=opt_alpha_t)
+                opt_out = self._train(wandb_name=f"opt_0.001_epoch_{e}", IF_info=True, alpha_t=opt_alpha_t)
                 opt_dev_losses = opt_out[-2]
                 opt_test_losses = opt_out[-1]
                 opt_theta = opt_out[0]
@@ -77,9 +78,8 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
 
         all_train_loss, all_dev_loss, all_test_loss = [], [], []
         all_alpha = []
-        all_IF = []
-        all_var_IF = []
-        all_weighted_ratio = []
+        all_IF, all_var_IF, all_std_IF, all_weighted_mean_IF, all_weighted_ratio = [], [], [], [], []
+        all_IF_test, all_var_IF_test, all_std_IF_test, all_weighted_mean_IF_test, all_weighted_ratio_test = [], [], [], [], []
         best_dev_loss = float("inf")
         for epoch in tqdm(range(self.args.epochs), desc="Training"):
             loss = self.loss(train_x, train_y.float(), theta, alpha)
@@ -143,8 +143,22 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
             #     plt.close()
             
             all_alpha.append(alpha.squeeze())
+            
             all_var_IF.append(var_IF.item())
+            all_std_IF.append(torch.sqrt(var_IF).item())
+            all_weighted_mean_IF.append(weighted_mean_IF.item())
             all_weighted_ratio.append(weighted_ratio.item())
+
+            grad_test = 1 / self.args.test_num * test_x.t() @ (self.soft_f(test_x @ theta) - test_y.float()) # (dim, 1)
+            IF_test = -grad_full_no_alpha @ grad_test  # (train_num, 1)
+            weighted_mean_IF_test = torch.sum(alpha * IF_test)
+            var_IF_test = torch.var(IF_test)
+            weighted_ratio_test = torch.abs(weighted_mean_IF_test) / (torch.sqrt(var_IF_test) + 1e-8)
+            all_IF_test.append(IF_test)
+            all_var_IF_test.append(var_IF_test.item())
+            all_std_IF_test.append(torch.sqrt(var_IF_test).item())
+            all_weighted_mean_IF_test.append(weighted_mean_IF_test.item())
+            all_weighted_ratio_test.append(weighted_ratio_test.item())
 
             grad_full = alpha * grad_full_no_alpha # (train_num, dim)
             grad = torch.sum(grad_full, dim=0).unsqueeze(-1) + self.args.lam * theta # (dim, 1)
@@ -253,11 +267,19 @@ class LinearCLSModelDynaAlpha(LinearCLSModel):
         
         more_save_path = os.path.join(self.args.save, "dyna")
         os.makedirs(more_save_path, exist_ok=True)
-        torch.save(all_IF, os.path.join(more_save_path, "all_IF.pt"))
-
-        torch.save(all_var_IF, os.path.join(more_save_path, f"var_IF.pt"))
-        torch.save(all_weighted_ratio, os.path.join(more_save_path, f"weighted_ratio.pt"))
+        torch.save(all_IF, os.path.join(more_save_path, "all_IF_dev.pt"))
+        torch.save(all_var_IF, os.path.join(more_save_path, f"var_IF_dev.pt"))
+        torch.save(all_std_IF, os.path.join(more_save_path, f"std_IF_dev.pt"))
+        torch.save(all_weighted_mean_IF, os.path.join(more_save_path, f"weighted_mean_IF_dev.pt"))
+        torch.save(all_weighted_ratio, os.path.join(more_save_path, f"weighted_ratio_dev.pt"))
         torch.save(all_dev_loss, os.path.join(more_save_path, f"dev_loss.pt"))
+
+        torch.save(all_IF_test, os.path.join(more_save_path, f"IF_test.pt"))
+        torch.save(all_var_IF_test, os.path.join(more_save_path, f"var_IF_test.pt"))
+        torch.save(all_std_IF_test, os.path.join(more_save_path, f"std_IF_test.pt"))
+        torch.save(all_weighted_mean_IF_test, os.path.join(more_save_path, f"weighted_mean_IF_test.pt"))
+        torch.save(all_weighted_ratio_test, os.path.join(more_save_path, f"weighted_ratio_test.pt"))
+        torch.save(all_test_loss, os.path.join(more_save_path, f"test_loss.pt"))
 
         if self.args.load_alpha is not None:
             area_dev_bsl = np.mean(baseline_dev_losses)
