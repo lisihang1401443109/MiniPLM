@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 # base_path = "/home/lidong1/yuxian/sps-toy/results/toy/linear_soft_cls_da/d128-None-l0.0/bs-1-lr0.1-tn1024-dn512/lra0.0004-tmu0.0-tsig2.0-dmu0.5-dsig2.0-aui1-proj"
 base_path = "/home/lidong1/yuxian/sps-toy/results/toy/linear_soft_cls_da/d128-None-l0.0/bs-1-lr0.1-tn4096-dn512/lra0.0004-tmu0.0-tsig3.0-dmu0.5-dsig1.0-aui1-proj/10-20-1"
 
-split = "test"
+split = "dev"
 
 paths = [
     (os.path.join(base_path, "baseline"), "baseline"),
@@ -76,18 +76,19 @@ all_colors = cm.reversed()(all_cp_rate_norm)
 for dev_loss, weighted_ratio, area_color in zip(all_dev_losses, all_weighted_ratios, all_colors):
     sorted_dev_loss, sorted_weighted_ratio = zip(*sorted(zip(dev_loss, weighted_ratio)))
     # remove < 0.01 values in sorted_weighted_ratios and corresponding values in sorted_dev_loss
-    sorted_dev_loss, sorted_weighted_ratio = zip(*[(d, w) for d, w in zip(sorted_dev_loss, sorted_weighted_ratio) if w > 0.01])
+    sorted_dev_loss, sorted_weighted_ratio = zip(*[(d, w) for d, w in zip(sorted_dev_loss, sorted_weighted_ratio) if w > 0.1])
+    sorted_weighted_ratio = 1 / np.array(sorted_weighted_ratio)
     # 根据 area 的值确定颜色
     ax.plot(sorted_dev_loss, sorted_weighted_ratio, c=area_color)
 
 ax.set_xscale("log")
 ax.set_yscale("log")
 ax.set_xlabel(f"{split}_loss")
-ax.set_ylabel("weighted_ratio")
+ax.set_ylabel(r"Std ($\frac{\text{IF}}{\text{Mean IF}}$)")
 ax.invert_xaxis()
 
 sm = plt.cm.ScalarMappable(cmap=cm.reversed(), norm=plt.Normalize(vmin=min(all_cp_rate), vmax=max(all_cp_rate)))
 plt.colorbar(sm, ax=ax)
 
-plt.savefig(os.path.join(base_path, f"{split}_main.png"), bbox_inches="tight")
+plt.savefig(os.path.join(base_path, f"{split}_main_inv.png"), bbox_inches="tight")
 plt.close()

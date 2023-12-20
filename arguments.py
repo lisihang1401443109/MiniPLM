@@ -240,6 +240,9 @@ def add_toy_args(parser: argparse.ArgumentParser):
     group.add_argument("--load-toy-data", type=str, default=None)
     group.add_argument("--load-alpha", type=str, default=None)
     
+    group.add_argument("--ratio-1-2", type=float, default=1.0)
+    group.add_argument("--opt-alpha", action="store_true")
+    
     return parser
 
 
@@ -397,7 +400,12 @@ def get_args():
             suffix = ""
             if args.model_type == "dnn_dnn_fa":
                 suffix += (f"oe{args.outer_epochs}-lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}")
-
+        elif args.model_type in ["trm"]:
+            model_info = f"d{args.input_dim}"
+            suffix = f"r{args.ratio_1_2}"
+            if args.opt_alpha:
+                suffix += "-opt"
+        
         suffix += args.save_additional_suffix
         save_path = os.path.join(
             args.save,

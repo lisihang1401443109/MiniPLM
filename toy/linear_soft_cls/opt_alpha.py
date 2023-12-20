@@ -58,17 +58,18 @@ class OPTAlphaModel(nn.Module):
         else:
             eval_xn, eval_yn = self.test_xn, self.test_yn
             
+        init_loss = self.inner_loss(eval_xn, eval_yn, theta)
+        full_losses.append(init_loss.item())
         for t in tqdm(range(self.num_steps)):
-            cur_loss = self.inner_loss(eval_xn, eval_yn, theta)
-            full_losses.append(cur_loss.item())
-            if t % 100 == 0:
-                losses.append(round(cur_loss.item(), 3))
             grad_full = self.xn * (torch.sigmoid(self.xn @ theta) - self.yn)
             grad = torch.sum(self.alphas[t].unsqueeze(1) * grad_full, dim=0).unsqueeze(1)
             theta = theta - self.eta * grad
             i_loss = self.inner_loss(eval_xn, eval_yn, theta)
+            full_losses.append(i_loss.item())
             loss += i_loss
-        
+            if t % 100 == 0:
+                losses.append(round(i_loss.item(), 4))
+
         log_str = f"{eval_mode} Losses: {losses} Final: {i_loss}"
         loss = loss / self.num_steps
 
@@ -76,10 +77,11 @@ class OPTAlphaModel(nn.Module):
 
 
 def proj_alpha(optimizer, args, kwargs):
-    for p in optimizer.param_groups[0]["params"]:
+    for p in tqdm(optimizer.param_groups[0]["params"], desc="Solving Projection"):
         data = p.data
+        data_cpu = data.squeeze().cpu().numpy()
         data_proj = cp.Variable(data.size(0))
-        objective = cp.Minimize(cp.sum_squares(data.squeeze().cpu().numpy() - data_proj))
+        objective = cp.Minimize(cp.sum_squares(data_cpu - data_proj))
         prob = cp.Problem(objective, [cp.sum(data_proj) == 1, data_proj >= 0])
         result = prob.solve()
         data_res = torch.tensor(data_proj.value).view(data.size()).to(data.device).to(data.dtype)
@@ -157,9 +159,7 @@ def solve_opt_alpha(base_path, device):
         
         with torch.no_grad():
             test_loss, test_losses_0, log_str = model(theta_init, eval_mode="test")
-        
-        print_and_save(log_str, base_save_path)
-        
+                
         area_losses.append(loss.item())
         optimizer.zero_grad()
         loss.backward()
