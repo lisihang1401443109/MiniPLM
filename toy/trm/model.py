@@ -93,7 +93,7 @@ class ToyTransformer(nn.Module):
         preds = torch.argmax(logits, dim=-1)
         acc = torch.sum(preds == labels).item() / labels.size(0)
         
-        return loss, acc
+        return loss, acc, preds
 
     @staticmethod
     def compute_loss_func(params, buffers, model, xn, yn, alpha=None):

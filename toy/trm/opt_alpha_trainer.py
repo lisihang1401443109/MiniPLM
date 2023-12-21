@@ -8,6 +8,7 @@ import os
 import time
 from tqdm import tqdm
 from utils import print_rank, save_rank
+from transformers import get_linear_schedule_with_warmup, get_constant_schedule_with_warmup
 
 
 def proj_alpha(optimizer, args, kwargs):
@@ -22,9 +23,19 @@ def proj_alpha(optimizer, args, kwargs):
         p.data = data_res
 
 
-class GradLayerFunction(torch.autograd.Function):    
+class GradLayerFunction(torch.autograd.Function):   
     @staticmethod
-    def forward(ctx, theta, alpha, model, xn, yn, eta, t):
+    def clip_grad(theta, max_norm):
+        if max_norm < 0:
+            return theta, torch.tensor(1.0, device=theta.device)
+        total_norm = torch.norm(theta)
+        clip_coef = max_norm / (total_norm + 1e-6)
+        clip_coef_clamped = torch.clamp(clip_coef, max=1.0)
+        theta.mul_(clip_coef_clamped)
+        return theta, clip_coef_clamped
+     
+    @staticmethod
+    def forward(ctx, theta, alpha, model, xn, yn, eta, t, max_gn):
         params = model.vector_to_params(theta)
         buffers = {n: b.detach() for n, b in model.named_buffers()}
         g, l = grad_and_value(model.compute_loss_func)(params, buffers, model, xn, yn, alpha=alpha)
@@ -33,8 +44,16 @@ class GradLayerFunction(torch.autograd.Function):
         ctx.eta = eta
         ctx.t = t
         
+        g_vec = model.params_to_vector(g)
+        g_params = model.vector_to_params(g_vec)
+        
+        g_vec_clipped, clip_coef = GradLayerFunction.clip_grad(g_vec, max_gn)        
+        g_params_clip = model.vector_to_params(g_vec_clipped)
+
         new_theta = theta.clone()
-        new_theta.add_(model.params_to_vector(g), alpha=-eta)
+        ctx.clip_coef = clip_coef
+        new_theta.add_(g_vec, alpha=-eta)
+
         return new_theta
 
     @staticmethod
@@ -57,7 +76,7 @@ class GradLayerFunction(torch.autograd.Function):
             x2 = vmapped_g[n].contiguous().view(vmapped_g[n].size(0), -1)
             IF_abs += x2 @ x1
         
-        grad_alpha = -IF_abs * eta
+        grad_alpha = -ctx.clip_coef * IF_abs * eta
 
         def hvp_fwdrev(f, primals, tangents):
             def grad_wrapper(pr):
@@ -76,9 +95,11 @@ class GradLayerFunction(torch.autograd.Function):
         
         hvp_vec = model.params_to_vector(hvp)
         
-        theta_grad = grad_output - eta * hvp_vec
+        theta_grad = grad_output - ctx.clip_coef * eta * hvp_vec
         
-        return theta_grad, grad_alpha, None, None, None, None, None
+        # TODO: more accurate way to compute the gradient of alpha with clip_coef
+        
+        return theta_grad, grad_alpha, None, None, None, None, None, None
 
 
 class DevGradLayerFunction(torch.autograd.Function):
@@ -127,7 +148,8 @@ class AlphaModel(nn.Module):
         with torch.no_grad():
             for t in tqdm(range(self.n_wm_steps), desc=f"{mode} forward warming up"):
                 cur_eta = constant_schedule_with_warmup(eta, self.args.warmup_iters, t)
-                theta = GradLayerFunction.apply(theta, self.alpha[t], model, xn, yn, cur_eta, t)
+                theta = GradLayerFunction.apply(
+                    theta, self.alpha[t], model, xn, yn, cur_eta, t, self.args.clip_grad)
                 loss = DevGradLayerFunction.apply(theta, model, dev_xn, dev_yn)
                 if t % 100 == 0:
                     # print("Forward | t: {} | inner loss: {:.4f}".format(t, loss.item()))
@@ -138,7 +160,8 @@ class AlphaModel(nn.Module):
 
         for t in tqdm(range(self.n_wm_steps, self.n_steps), desc=f"{mode} forward"):
             cur_eta = constant_schedule_with_warmup(eta, self.args.warmup_iters, t)
-            theta = GradLayerFunction.apply(theta, self.alpha[t], model, xn, yn, cur_eta, t)
+            theta = GradLayerFunction.apply(
+                theta, self.alpha[t], model, xn, yn, cur_eta, t, self.args.clip_grad)
             loss = DevGradLayerFunction.apply(theta, model, dev_xn, dev_yn)
             if t % 100 == 0:
                 # print("Forward | t: {} | inner loss: {:.4f}".format(t, loss.item()))
@@ -177,6 +200,8 @@ class OptAlphaTrainer():
         self.alpha_model = AlphaModel(args, self.train_data[0].size(0), args.epochs, args.opt_alpha_wm_steps).to(device)
         self.optimizer = torch.optim.SGD(self.alpha_model.get_trainable_params(), lr=self.outer_lr)
         self.optimizer.register_step_post_hook(proj_alpha)
+        # self.scheduler = get_constant_schedule_with_warmup(self.optimizer, 0)
+        self.scheduler = get_linear_schedule_with_warmup(self.optimizer, 0, self.outer_epochs)
     
     def train(self):
         params = {n: p.detach() for n, p in self.model.named_parameters()}
@@ -201,6 +226,7 @@ class OptAlphaTrainer():
             backward_elapsed = time.time() - st - forward_elapsed
             
             self.optimizer.step()
+            self.scheduler.step()
             step_elapsed = time.time() - st - forward_elapsed - backward_elapsed
             
             log_str = "Forward Elapsed: {:.4f} | Backward Elapsed: {:.4f} | Step Elapsed: {:.4f}\n\n".format(

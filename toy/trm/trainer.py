@@ -164,12 +164,14 @@ class ToyTrmTrainer():
         for e in range(self.args.epochs):
             self.optimizer.zero_grad()
             alpha_e = alpha[e] if alpha is not None else None
-            loss, _ = self.model.compute_loss(*self.train_data, alpha=alpha_e)
+            loss, _, _ = self.model.compute_loss(*self.train_data, alpha=alpha_e)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.clip_grad)
+            
             gn = self.get_grad_norm()
             self.optimizer.step()
-            dev_loss, dev_acc = self.model.compute_loss(*self.dev_data)
-            test_loss, test_acc = self.model.compute_loss(*self.test_data)
+            dev_loss, dev_acc, dev_preds = self.model.compute_loss(*self.dev_data)
+            test_loss, test_acc, test_preds = self.model.compute_loss(*self.test_data)
             
             all_dev_loss.append(dev_loss.item())
             all_test_loss.append(test_loss.item())
@@ -215,11 +217,12 @@ class ToyTrmTrainer():
                     log_str += "Test IF | IF_mean: {:.4f} | IF_var: {:.4f} | IF_std: {:.4f} | IF_ratio: {:.4f}\n".format(
                         test_IF_mean.item(), test_IF_var.item(), test_IF_std.item(), test_IF_ratio.item())
                 print(log_str)
+                # print(self.dev_data[0][:20], self.dev_data[1][:20], dev_preds[:20])
         
         print(time.time() - st)
-        final_loss, _ = self.model.compute_loss(*self.train_data)
-        final_dev_loss, final_dev_acc = self.model.compute_loss(*self.dev_data)
-        final_test_loss, final_test_acc = self.model.compute_loss(*self.test_data)
+        final_loss, _, _ = self.model.compute_loss(*self.train_data)
+        final_dev_loss, final_dev_acc,  _ = self.model.compute_loss(*self.dev_data)
+        final_test_loss, final_test_acc, _ = self.model.compute_loss(*self.test_data)
           
         print("final | train loss {:.4f} | dev loss {:.4f} | test loss {:.4f} | dev acc: {:.4f} | test acc: {:.4f}".format(
             final_loss.item(), final_dev_loss.item(), final_test_loss.item(), final_dev_acc, final_test_acc))
