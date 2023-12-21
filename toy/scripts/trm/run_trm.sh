@@ -5,7 +5,7 @@ BASE_PATH=${1-"/home/MiniLLM"}
 # type
 TYPE="toy"
 # hp
-LR=0.1
+LR=0.05
 BATCH_SIZE=-1
 # runtime
 SAVE_PATH="${BASE_PATH}/results/${TYPE}"
@@ -30,7 +30,7 @@ OPTS+=" --load-toy-data 1"
 # hp
 OPTS+=" --lr ${LR}"
 OPTS+=" --batch-size ${BATCH_SIZE}"
-OPTS+=" --epochs 3000"
+OPTS+=" --epochs 2000"
 OPTS+=" --log-interval 100"
 OPTS+=" --lam 0.0"
 # runtime

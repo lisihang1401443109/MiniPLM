@@ -27,6 +27,7 @@ OPTS+=" --dev-num 500"
 OPTS+=" --test-num 500"
 OPTS+=" --ratio-1-2 1.3"
 OPTS+=" --load-toy-data 1"
+OPTS+=" --load-alpha ${BASE_PATH}/results/toy/trm/d128/bs-1-lr0.05-tn4000-dn500/r1.3-opt/10-20-7"
 # hp
 OPTS+=" --lr ${LR}"
 OPTS+=" --batch-size ${BATCH_SIZE}"
@@ -35,7 +36,7 @@ OPTS+=" --log-interval 100"
 OPTS+=" --lam 0.0"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"
-OPTS+=" --opt-alpha"
+OPTS+=" --eval-opt-alpha"
 # seed
 OPTS+=" --seed ${SEED}"
 OPTS+=" --seed-data ${SEED_DATA}"

@@ -89,10 +89,14 @@ class ToyTransformer(nn.Module):
             loss = torch.mean(losses)
         else:
             loss = torch.sum(alpha * losses)
-        return loss
+        
+        preds = torch.argmax(logits, dim=-1)
+        acc = torch.sum(preds == labels).item() / labels.size(0)
+        
+        return loss, acc
 
     @staticmethod
-    def compute_loss_func(ctx, params, buffers, model, xn, yn, alpha=None):
+    def compute_loss_func(params, buffers, model, xn, yn, alpha=None):
         loss_fn = nn.CrossEntropyLoss(reduction="none")
         logits = functional_call(model, (params, buffers), xn)
         logits = logits[:, -1, :]
@@ -104,7 +108,7 @@ class ToyTransformer(nn.Module):
         return loss
 
     @staticmethod
-    def compute_loss_func_single(ctx, params, buffers, model, xn, yn):
+    def compute_loss_func_single(params, buffers, model, xn, yn):
         loss_fn = nn.CrossEntropyLoss(reduction="none")
         logits = functional_call(model, (params, buffers), xn.unsqueeze(0))
         logits = logits[:, -1, :]

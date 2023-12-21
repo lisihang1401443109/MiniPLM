@@ -242,6 +242,7 @@ def add_toy_args(parser: argparse.ArgumentParser):
     
     group.add_argument("--ratio-1-2", type=float, default=1.0)
     group.add_argument("--opt-alpha", action="store_true")
+    group.add_argument("--eval-opt-alpha", action="store_true")
     
     return parser
 
@@ -405,6 +406,8 @@ def get_args():
             suffix = f"r{args.ratio_1_2}"
             if args.opt_alpha:
                 suffix += "-opt"
+            if args.eval_opt_alpha:
+                suffix += "-eval_opt"
         
         suffix += args.save_additional_suffix
         save_path = os.path.join(

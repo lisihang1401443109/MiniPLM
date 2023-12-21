@@ -8,6 +8,7 @@ import sys
 import wandb
 import random
 import time
+from torch.func import grad, vmap
 
 from toy.trm.model import ToyTransformer
 
@@ -47,6 +48,9 @@ class ToyTrmTrainer():
             (self.train_data[0].size(), self.train_data[1].size()), 
             (self.dev_data[0].size(), self.dev_data[1].size()), 
             (self.test_data[0].size(), self.test_data[1].size())))
+    
+    def reload_model(self):
+        self.model.load_state_dict(torch.load(os.path.join(self.data_dir, "model_init.pt")))
     
     def get_label(self, x, y):
         return ((x + y) // 10) % 10
@@ -106,19 +110,6 @@ class ToyTrmTrainer():
         new_data = torch.tensor(new_data, dtype=torch.long, device=self.device)
         return new_data[:, :-1], new_data[:, -1]
     
-    def forward(self, batch):
-        loss_fn = nn.CrossEntropyLoss(reduction="none")
-        input_ids = batch[:, :-1]
-        labels = batch[:, -1]
-        logits = self.model(input_ids)
-        logits = logits[:, -1, :]
-        losses = loss_fn(logits, labels)
-        loss = torch.mean(losses)
-        
-        preds = torch.argmax(logits, dim=-1)
-        acc = torch.sum(preds == labels).item() / labels.size(0)
-        return loss, acc
-    
     def get_grad_norm(self):
         total_norm = 0
         for p in self.model.parameters():
@@ -128,7 +119,34 @@ class ToyTrmTrainer():
         total_norm = total_norm ** (1. / 2)
         return total_norm
     
-    def train(self, wandb_name="baseline"):
+    def calc_IF(self, xn, yn, eval_xn, eval_yn, alpha=None):
+        params = {n: p.detach() for n, p in self.model.named_parameters()}
+        buffers = {n: p.detach() for n, p in self.model.named_buffers()}
+        grad_eval_func = grad(self.model.compute_loss_func)
+        grad_eval = grad_eval_func(params, buffers, self.model, eval_xn, eval_yn)
+        
+        grad_train_single_func = grad(self.model.compute_loss_func_single)
+        grad_train_func = vmap(grad_train_single_func, in_dims=(None, None, None, 0, 0))
+        grad_train = grad_train_func(params, buffers, self.model, xn, yn)
+        
+        IF = torch.zeros(xn.size(0), device=self.device)
+        for n, _ in self.model.named_parameters():
+            x1 = grad_eval[n].view(-1)
+            x2 = grad_train[n].contiguous().view(grad_train[n].size(0), -1)
+            IF += x2 @ x1
+            
+        if alpha is None:
+            IF_mean = torch.mean(IF, dim=0)
+        else:
+            IF_mean = torch.sum(alpha * IF, dim=0)
+            
+        IF_var = torch.var(IF, dim=0)
+        IF_std = torch.std(IF, dim=0)
+        IF_ratio = IF_mean / (IF_std + 1e-8)
+        
+        return IF_mean, IF_var, IF_std, IF_ratio
+    
+    def train(self, alpha=None, wandb_name="baseline"):
         
         run = wandb.init(
             name=f"{wandb_name}",
@@ -139,41 +157,71 @@ class ToyTrmTrainer():
             tags=[self.args.time_stamp],)
         
         st = time.time()
+        all_dev_loss, all_test_loss = [], []
+        all_dev_IF_mean, all_dev_IF_var, all_dev_IF_std, all_dev_IF_ratio = [], [], [], []
+        all_test_IF_mean, all_test_IF_var, all_test_IF_std, all_test_IF_ratio = [], [], [], []
         for e in range(self.args.epochs):
             self.optimizer.zero_grad()
-            loss, _ = self.forward(self.train_data)
+            alpha_e = alpha[e] if alpha is not None else None
+            loss, _ = self.model.compute_loss(*self.train_data, alpha=alpha_e)
             loss.backward()
             gn = self.get_grad_norm()
-            for p in self.model.parameters():
-                # p.data = p.data - self.args.lr * p.grad.data
-                p.data.add_(p.grad.data, alpha=-self.args.lr)
-            # self.optimizer.step()
-            dev_loss, dev_acc = self.forward(self.dev_data)
-            test_loss, test_acc = self.forward(self.test_data)
-            # print(e)
-            # print("train loss", loss.item())
-            # print(dev_loss.item())
+            self.optimizer.step()
+            dev_loss, dev_acc = self.model.compute_loss(*self.dev_data)
+            test_loss, test_acc = self.model.compute_loss(*self.test_data)
+            
+            all_dev_loss.append(dev_loss.item())
+            all_test_loss.append(test_loss.item())
+            
+            dev_IF_mean, dev_IF_var, dev_IF_std, dev_IF_ratio = self.calc_IF(*self.train_data, *self.dev_data, alpha=alpha_e)
+            all_dev_IF_mean.append(dev_IF_mean.item())
+            all_dev_IF_var.append(dev_IF_var.item())
+            all_dev_IF_std.append(dev_IF_std.item())
+            all_dev_IF_ratio.append(dev_IF_ratio.item())
+            
+            test_IF_mean, test_IF_var, test_IF_std, test_IF_ratio = self.calc_IF(*self.train_data, *self.test_data, alpha=alpha_e)
+            all_test_IF_mean.append(test_IF_mean.item())
+            all_test_IF_var.append(test_IF_var.item())
+            all_test_IF_std.append(test_IF_std.item())
+            all_test_IF_ratio.append(test_IF_ratio.item())
+            
             wandb_log = {
                 "train_loss": loss.item(),
                 "dev_loss": dev_loss.item(),
                 "test_loss": test_loss.item(),
                 "dev_acc": dev_acc,
                 "test_acc": test_acc,
-                "grad_norm": gn
+                "grad_norm": gn,
+                "dev_IF_mean": dev_IF_mean.item(),
+                "dev_IF_var": dev_IF_var.item(),
+                "dev_IF_std": dev_IF_std.item(),
+                "dev_IF_ratio": dev_IF_ratio.item(),
             }
             
             wandb.log(wandb_log)
             
             if e % self.args.log_interval == 0:
-                print("epoch {} | train loss {:.4f} | dev loss {:.4f} | test loss {:.4f} | dev_acc: {:.4f} | test_acc: {:.4f} | gn: {:.4f}".format(
-                    e, loss.item(), dev_loss.item(), test_loss.item(), dev_acc, test_acc, gn))
+                log_str = "epoch {} | train loss {:.4f} | dev loss {:.4f} | test loss {:.4f} | dev_acc: {:.4f} | test_acc: {:.4f} | gn: {:.4f}\n".format(
+                    e, loss.item(), dev_loss.item(), test_loss.item(), dev_acc, test_acc, gn)
+                log_str += "Dev IF | IF_mean: {:.4f} | IF_var: {:.4f} | IF_std: {:.4f} | IF_ratio: {:.4f}\n".format(
+                    dev_IF_mean.item(), dev_IF_var.item(), dev_IF_std.item(), dev_IF_ratio.item())
+                log_str += "Test IF | IF_mean: {:.4f} | IF_var: {:.4f} | IF_std: {:.4f} | IF_ratio: {:.4f}\n".format(
+                    test_IF_mean.item(), test_IF_var.item(), test_IF_std.item(), test_IF_ratio.item())
+                print(log_str)
+        
         print(time.time() - st)
-        final_loss, _ = self.forward(self.train_data)
-        final_dev_loss, final_dev_acc = self.forward(self.dev_data)
-        final_test_loss, final_test_acc = self.forward(self.test_data)
+        final_loss, _ = self.model.compute_loss(*self.train_data)
+        final_dev_loss, final_dev_acc = self.model.compute_loss(*self.dev_data)
+        final_test_loss, final_test_acc = self.model.compute_loss(*self.test_data)
           
         print("final | train loss {:.4f} | dev loss {:.4f} | test loss {:.4f} | dev acc: {:.4f} | test acc: {:.4f}".format(
             final_loss.item(), final_dev_loss.item(), final_test_loss.item(), final_dev_acc, final_test_acc))
+        
+        save_path = os.path.join(self.args.save, wandb_name)
+        os.makedirs(save_path, exist_ok=True)
+        torch.save((all_dev_loss, all_test_loss), os.path.join(save_path, "all_loss.pt"))
+        torch.save((all_dev_IF_mean, all_dev_IF_var, all_dev_IF_std, all_dev_IF_ratio), os.path.join(save_path, "all_dev_IF.pt"))
+        torch.save((all_test_IF_mean, all_test_IF_var, all_test_IF_std, all_test_IF_ratio), os.path.join(save_path, "all_test_IF.pt"))
         
         run.finish()
             

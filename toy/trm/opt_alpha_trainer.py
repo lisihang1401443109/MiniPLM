@@ -7,6 +7,7 @@ import cvxpy as cp
 import os
 import time
 from tqdm import tqdm
+from utils import print_rank, save_rank
 
 
 def proj_alpha(optimizer, args, kwargs):
@@ -38,7 +39,7 @@ class GradLayerFunction(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_output):
-        if ctx.t % 1000 == 0:
+        if ctx.t % 100 == 0:
             print("Backward", ctx.t)
 
         theta, alpha, xn, yn = ctx.saved_tensors
@@ -109,15 +110,15 @@ class AlphaModel(nn.Module):
         self.alpha = nn.ParameterList(
             [nn.Parameter(torch.ones(n_alpha) / n_alpha) for _ in range(n_steps)])
         
-    def forward(self, theta, model, xn, yn, dev_xn, dev_yn, eta):
+    def forward(self, theta, model, xn, yn, dev_xn, dev_yn, eta, mode="dev"):
         all_losses, all_logging_losses = [], []
         area_loss = 0
         st = time.time()
-        for t in tqdm(range(self.n_steps), desc="Forward"):
+        for t in tqdm(range(self.n_steps), desc=f"{mode} forward"):
             theta = GradLayerFunction.apply(theta, self.alpha[t], model, xn, yn, eta, t)
             loss = DevGradLayerFunction.apply(theta, model, dev_xn, dev_yn)
             if t % 100 == 0:
-                print("Forward | t: {} | inner loss: {:.4f}".format(t, loss.item()))
+                # print("Forward | t: {} | inner loss: {:.4f}".format(t, loss.item()))
                 all_logging_losses.append(round(loss.item(), 4))
             
             all_losses.append(loss.item())
@@ -129,8 +130,8 @@ class AlphaModel(nn.Module):
 class OptAlphaTrainer():
     def __init__(self, args, device) -> None:
         
-        # self.base_trainer = ToyTrmTrainer(args, device)
-        self.base_trainer = LogisticTrainer(args, device)
+        self.base_trainer = ToyTrmTrainer(args, device)
+        # self.base_trainer = LogisticTrainer(args, device)
         
         self.model = self.base_trainer.model
         self.train_data = self.base_trainer.train_data
@@ -140,7 +141,7 @@ class OptAlphaTrainer():
         self.device = device
         
         self.outer_epochs = 40
-        self.outer_lr = 0.005
+        self.outer_lr = 0.0001
         self.alpha_model = AlphaModel(self.train_data[0].size(0), args.epochs).to(device)
         self.optimizer = torch.optim.SGD(self.alpha_model.parameters(), lr=self.outer_lr)
         self.optimizer.register_step_post_hook(proj_alpha)
@@ -150,23 +151,51 @@ class OptAlphaTrainer():
         theta = self.model.params_to_vector(params)
         xn, yn = self.train_data
         dev_xn, dev_yn = self.dev_data
+        test_xn, test_yn = self.test_data
         for e in range(self.outer_epochs):
             st = time.time()
             self.optimizer.zero_grad()
             area_loss, all_losses, all_logging_losses = self.alpha_model(
                 theta, self.model, xn, yn, dev_xn, dev_yn, self.args.lr)
             forward_elapsed = time.time() - st
+                        
+            log_str = "epoch {} | dev area loss {:.4f}\n".format(e, area_loss.item())
+            log_str += "All Dev Losses: {}".format(all_logging_losses)
+            self.print_and_save(log_str)
+            
+            self.evaluate(e, theta, xn, yn, test_xn, test_yn)
+
             area_loss.backward()
             backward_elapsed = time.time() - st - forward_elapsed
-            
-            print("epoch {} | train area loss {:.4f}".format(e, area_loss.item()))
-            print("All Losses", all_logging_losses)
             
             self.optimizer.step()
             step_elapsed = time.time() - st - forward_elapsed - backward_elapsed
             
-            print("Forward Elapsed: {:.4f} | Backward Elapsed: {:.4f} | Step Elapsed: {:.4f}".format(
-                forward_elapsed, backward_elapsed, step_elapsed))
+            log_str = "Forward Elapsed: {:.4f} | Backward Elapsed: {:.4f} | Step Elapsed: {:.4f}\n\n".format(
+                forward_elapsed, backward_elapsed, step_elapsed)
+            self.print_and_save(log_str)
             
+            self.save(e)
 
-                
+    def evaluate(self, e, theta, xn, yn, test_xn, test_yn):
+        with torch.no_grad():
+            area_loss, all_losses, all_logging_losses = self.alpha_model(
+                theta, self.model, xn, yn, test_xn, test_yn, self.args.lr, mode="test")
+
+            log_str = "epoch {} | test area loss {:.4f}\n".format(e, area_loss.item())
+            log_str += "All Test Losses: {}".format(all_logging_losses)
+            self.print_and_save(log_str)
+       
+    def print_and_save(self, log_str):
+        print_rank(log_str)
+        save_rank(log_str, os.path.join(self.args.save, "log.txt"))
+         
+    def save(self, epoch):
+        sd = self.alpha_model.state_dict()
+        alpha_t = torch.stack([sd[f"alpha.{t}"] for t in range(self.args.epochs)], dim=0)
+        # print(alpha_t)
+        # print(torch.sum(alpha_t, dim=1))
+        save_path = os.path.join(self.args.save, f"epoch_{epoch}")
+        os.makedirs(save_path, exist_ok=True)
+        torch.save(alpha_t, os.path.join(save_path, f"opt_alpha.pt"))
+              
