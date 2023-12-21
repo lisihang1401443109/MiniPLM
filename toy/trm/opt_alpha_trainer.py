@@ -40,7 +40,7 @@ class GradLayerFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         if ctx.t % 100 == 0:
-            print("Backward", ctx.t)
+            print("Backward", ctx.t, ctx.eta)
 
         theta, alpha, xn, yn = ctx.saved_tensors
         model = ctx.model
@@ -110,8 +110,9 @@ def constant_schedule_with_warmup(lr, n_wm_steps, t):
 
 
 class AlphaModel(nn.Module):
-    def __init__(self, n_alpha, n_steps, n_wm_steps) -> None:
+    def __init__(self, args, n_alpha, n_steps, n_wm_steps) -> None:
         super().__init__()
+        self.args = args
         self.n_alpha = n_alpha
         self.n_steps = n_steps
         self.n_wm_steps = n_wm_steps
@@ -125,7 +126,8 @@ class AlphaModel(nn.Module):
         
         with torch.no_grad():
             for t in tqdm(range(self.n_wm_steps), desc=f"{mode} forward warming up"):
-                theta = GradLayerFunction.apply(theta, self.alpha[t], model, xn, yn, eta, t)
+                cur_eta = constant_schedule_with_warmup(eta, self.args.warmup_iters, t)
+                theta = GradLayerFunction.apply(theta, self.alpha[t], model, xn, yn, cur_eta, t)
                 loss = DevGradLayerFunction.apply(theta, model, dev_xn, dev_yn)
                 if t % 100 == 0:
                     # print("Forward | t: {} | inner loss: {:.4f}".format(t, loss.item()))
@@ -135,7 +137,8 @@ class AlphaModel(nn.Module):
                 area_loss += loss
 
         for t in tqdm(range(self.n_wm_steps, self.n_steps), desc=f"{mode} forward"):
-            theta = GradLayerFunction.apply(theta, self.alpha[t], model, xn, yn, eta, t)
+            cur_eta = constant_schedule_with_warmup(eta, self.args.warmup_iters, t)
+            theta = GradLayerFunction.apply(theta, self.alpha[t], model, xn, yn, cur_eta, t)
             loss = DevGradLayerFunction.apply(theta, model, dev_xn, dev_yn)
             if t % 100 == 0:
                 # print("Forward | t: {} | inner loss: {:.4f}".format(t, loss.item()))
@@ -171,7 +174,7 @@ class OptAlphaTrainer():
         
         self.outer_epochs = args.outer_epochs
         self.outer_lr = args.outer_lr
-        self.alpha_model = AlphaModel(self.train_data[0].size(0), args.epochs, args.opt_alpha_wm_steps).to(device)
+        self.alpha_model = AlphaModel(args, self.train_data[0].size(0), args.epochs, args.opt_alpha_wm_steps).to(device)
         self.optimizer = torch.optim.SGD(self.alpha_model.get_trainable_params(), lr=self.outer_lr)
         self.optimizer.register_step_post_hook(proj_alpha)
     
