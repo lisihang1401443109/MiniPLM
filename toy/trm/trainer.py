@@ -22,7 +22,7 @@ class ToyTrmTrainer():
             "vocab_size": 12,
             "max_len": 6,
             "hidden_size": args.input_dim,
-            "num_head": 4,
+            "num_head": args.num_head,
         }
         
         self.exp_name = args.save.strip("/").replace(args.base_path.strip("/"), "").replace("_", "").replace("/", "_").strip("_")
@@ -32,10 +32,11 @@ class ToyTrmTrainer():
         
         self.model = ToyTransformer(self.config).to(device)
         
-        if args.load_toy_data is None:
-            torch.save(self.model.state_dict(), os.path.join(self.data_dir, "model_init.pt"))
+        model_init_path = os.path.join(self.data_dir, f"model_init_{args.input_dim}_{args.num_head}.pt")
+        if args.load_toy_data is None or not os.path.exists(model_init_path):
+            torch.save(self.model.state_dict(), model_init_path)
         else:
-            self.model.load_state_dict(torch.load(os.path.join(self.data_dir, "model_init.pt")))
+            self.model.load_state_dict(torch.load(model_init_path))
         
         self.optimizer = SGD(self.model.parameters(), lr=args.lr)
     
@@ -146,7 +147,7 @@ class ToyTrmTrainer():
         
         return IF_mean, IF_var, IF_std, IF_ratio
     
-    def train(self, alpha=None, wandb_name="baseline"):
+    def train(self, alpha=None, wandb_name="baseline", calc_IF=False):
         
         run = wandb.init(
             name=f"{wandb_name}",
@@ -173,17 +174,18 @@ class ToyTrmTrainer():
             all_dev_loss.append(dev_loss.item())
             all_test_loss.append(test_loss.item())
             
-            dev_IF_mean, dev_IF_var, dev_IF_std, dev_IF_ratio = self.calc_IF(*self.train_data, *self.dev_data, alpha=alpha_e)
-            all_dev_IF_mean.append(dev_IF_mean.item())
-            all_dev_IF_var.append(dev_IF_var.item())
-            all_dev_IF_std.append(dev_IF_std.item())
-            all_dev_IF_ratio.append(dev_IF_ratio.item())
-            
-            test_IF_mean, test_IF_var, test_IF_std, test_IF_ratio = self.calc_IF(*self.train_data, *self.test_data, alpha=alpha_e)
-            all_test_IF_mean.append(test_IF_mean.item())
-            all_test_IF_var.append(test_IF_var.item())
-            all_test_IF_std.append(test_IF_std.item())
-            all_test_IF_ratio.append(test_IF_ratio.item())
+            if calc_IF:
+                dev_IF_mean, dev_IF_var, dev_IF_std, dev_IF_ratio = self.calc_IF(*self.train_data, *self.dev_data, alpha=alpha_e)
+                all_dev_IF_mean.append(dev_IF_mean.item())
+                all_dev_IF_var.append(dev_IF_var.item())
+                all_dev_IF_std.append(dev_IF_std.item())
+                all_dev_IF_ratio.append(dev_IF_ratio.item())
+                
+                test_IF_mean, test_IF_var, test_IF_std, test_IF_ratio = self.calc_IF(*self.train_data, *self.test_data, alpha=alpha_e)
+                all_test_IF_mean.append(test_IF_mean.item())
+                all_test_IF_var.append(test_IF_var.item())
+                all_test_IF_std.append(test_IF_std.item())
+                all_test_IF_ratio.append(test_IF_ratio.item())
             
             wandb_log = {
                 "train_loss": loss.item(),
@@ -192,21 +194,26 @@ class ToyTrmTrainer():
                 "dev_acc": dev_acc,
                 "test_acc": test_acc,
                 "grad_norm": gn,
-                "dev_IF_mean": dev_IF_mean.item(),
-                "dev_IF_var": dev_IF_var.item(),
-                "dev_IF_std": dev_IF_std.item(),
-                "dev_IF_ratio": dev_IF_ratio.item(),
+
             }
+            if calc_IF:
+                wandb_log.update({
+                    "dev_IF_mean": dev_IF_mean.item(),
+                    "dev_IF_var": dev_IF_var.item(),
+                    "dev_IF_std": dev_IF_std.item(),
+                    "dev_IF_ratio": dev_IF_ratio.item(),
+                })
             
             wandb.log(wandb_log)
             
             if e % self.args.log_interval == 0:
                 log_str = "epoch {} | train loss {:.4f} | dev loss {:.4f} | test loss {:.4f} | dev_acc: {:.4f} | test_acc: {:.4f} | gn: {:.4f}\n".format(
                     e, loss.item(), dev_loss.item(), test_loss.item(), dev_acc, test_acc, gn)
-                log_str += "Dev IF | IF_mean: {:.4f} | IF_var: {:.4f} | IF_std: {:.4f} | IF_ratio: {:.4f}\n".format(
-                    dev_IF_mean.item(), dev_IF_var.item(), dev_IF_std.item(), dev_IF_ratio.item())
-                log_str += "Test IF | IF_mean: {:.4f} | IF_var: {:.4f} | IF_std: {:.4f} | IF_ratio: {:.4f}\n".format(
-                    test_IF_mean.item(), test_IF_var.item(), test_IF_std.item(), test_IF_ratio.item())
+                if calc_IF:
+                    log_str += "Dev IF | IF_mean: {:.4f} | IF_var: {:.4f} | IF_std: {:.4f} | IF_ratio: {:.4f}\n".format(
+                        dev_IF_mean.item(), dev_IF_var.item(), dev_IF_std.item(), dev_IF_ratio.item())
+                    log_str += "Test IF | IF_mean: {:.4f} | IF_var: {:.4f} | IF_std: {:.4f} | IF_ratio: {:.4f}\n".format(
+                        test_IF_mean.item(), test_IF_var.item(), test_IF_std.item(), test_IF_ratio.item())
                 print(log_str)
         
         print(time.time() - st)
@@ -220,8 +227,9 @@ class ToyTrmTrainer():
         save_path = os.path.join(self.args.save, wandb_name)
         os.makedirs(save_path, exist_ok=True)
         torch.save((all_dev_loss, all_test_loss), os.path.join(save_path, "all_loss.pt"))
-        torch.save((all_dev_IF_mean, all_dev_IF_var, all_dev_IF_std, all_dev_IF_ratio), os.path.join(save_path, "all_dev_IF.pt"))
-        torch.save((all_test_IF_mean, all_test_IF_var, all_test_IF_std, all_test_IF_ratio), os.path.join(save_path, "all_test_IF.pt"))
+        if calc_IF:
+            torch.save((all_dev_IF_mean, all_dev_IF_var, all_dev_IF_std, all_dev_IF_ratio), os.path.join(save_path, "all_dev_IF.pt"))
+            torch.save((all_test_IF_mean, all_test_IF_var, all_test_IF_std, all_test_IF_ratio), os.path.join(save_path, "all_test_IF.pt"))
         
         run.finish()
             

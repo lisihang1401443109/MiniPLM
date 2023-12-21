@@ -102,11 +102,19 @@ class DevGradLayerFunction(torch.autograd.Function):
         return g_dev, None, None, None, None
 
 
+def constant_schedule_with_warmup(lr, n_wm_steps, t):
+    if t < n_wm_steps:
+        return lr * t / n_wm_steps
+    else:
+        return lr
+
+
 class AlphaModel(nn.Module):
-    def __init__(self, n_alpha, n_steps) -> None:
+    def __init__(self, n_alpha, n_steps, n_wm_steps) -> None:
         super().__init__()
         self.n_alpha = n_alpha
         self.n_steps = n_steps
+        self.n_wm_steps = n_wm_steps
         self.alpha = nn.ParameterList(
             [nn.Parameter(torch.ones(n_alpha) / n_alpha) for _ in range(n_steps)])
         
@@ -114,17 +122,38 @@ class AlphaModel(nn.Module):
         all_losses, all_logging_losses = [], []
         area_loss = 0
         st = time.time()
-        for t in tqdm(range(self.n_steps), desc=f"{mode} forward"):
+        
+        with torch.no_grad():
+            for t in tqdm(range(self.n_wm_steps), desc=f"{mode} forward warming up"):
+                theta = GradLayerFunction.apply(theta, self.alpha[t], model, xn, yn, eta, t)
+                loss = DevGradLayerFunction.apply(theta, model, dev_xn, dev_yn)
+                if t % 100 == 0:
+                    # print("Forward | t: {} | inner loss: {:.4f}".format(t, loss.item()))
+                    all_logging_losses.append(round(loss.item(), 4))
+            
+                all_losses.append(loss.item())
+                area_loss += loss
+
+        for t in tqdm(range(self.n_wm_steps, self.n_steps), desc=f"{mode} forward"):
             theta = GradLayerFunction.apply(theta, self.alpha[t], model, xn, yn, eta, t)
             loss = DevGradLayerFunction.apply(theta, model, dev_xn, dev_yn)
             if t % 100 == 0:
                 # print("Forward | t: {} | inner loss: {:.4f}".format(t, loss.item()))
                 all_logging_losses.append(round(loss.item(), 4))
-            
+        
             all_losses.append(loss.item())
             area_loss += loss
+
         area_loss = area_loss / self.n_steps
         return area_loss, all_losses, all_logging_losses
+    
+    def get_trainable_params(self):
+        trainable_params = []
+        for n, p in self.named_parameters():
+            n = n.split(".")
+            if int(n[1]) >= self.n_wm_steps:
+                trainable_params.append(p)
+        return trainable_params
 
     
 class OptAlphaTrainer():
@@ -140,10 +169,10 @@ class OptAlphaTrainer():
         self.args = args
         self.device = device
         
-        self.outer_epochs = 40
-        self.outer_lr = 0.0001
-        self.alpha_model = AlphaModel(self.train_data[0].size(0), args.epochs).to(device)
-        self.optimizer = torch.optim.SGD(self.alpha_model.parameters(), lr=self.outer_lr)
+        self.outer_epochs = args.outer_epochs
+        self.outer_lr = args.outer_lr
+        self.alpha_model = AlphaModel(self.train_data[0].size(0), args.epochs, args.opt_alpha_wm_steps).to(device)
+        self.optimizer = torch.optim.SGD(self.alpha_model.get_trainable_params(), lr=self.outer_lr)
         self.optimizer.register_step_post_hook(proj_alpha)
     
     def train(self):

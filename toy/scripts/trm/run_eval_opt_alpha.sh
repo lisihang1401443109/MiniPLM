@@ -31,7 +31,7 @@ OPTS+=" --load-alpha ${BASE_PATH}/results/toy/trm/d128/bs-1-lr0.05-tn4000-dn500/
 # hp
 OPTS+=" --lr ${LR}"
 OPTS+=" --batch-size ${BATCH_SIZE}"
-OPTS+=" --epochs 2000"
+OPTS+=" --epochs 8000"
 OPTS+=" --log-interval 100"
 OPTS+=" --lam 0.0"
 # runtime

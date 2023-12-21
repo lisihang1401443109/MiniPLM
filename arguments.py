@@ -243,6 +243,10 @@ def add_toy_args(parser: argparse.ArgumentParser):
     group.add_argument("--ratio-1-2", type=float, default=1.0)
     group.add_argument("--opt-alpha", action="store_true")
     group.add_argument("--eval-opt-alpha", action="store_true")
+    group.add_argument("--num-head", type=int, default=4)
+    group.add_argument("--outer-lr", type=float, default=0.0001)
+    group.add_argument("--outer-epoch", type=int, default=40)
+    group.add_argument("--opt-alpha-wm-steps", type=int, default=0)
     
     return parser
 
@@ -402,10 +406,11 @@ def get_args():
             if args.model_type == "dnn_dnn_fa":
                 suffix += (f"oe{args.outer_epochs}-lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}")
         elif args.model_type in ["trm"]:
+            # model_info = f"d{args.input_dim}-h{args.num_head}"
             model_info = f"d{args.input_dim}"
             suffix = f"r{args.ratio_1_2}"
             if args.opt_alpha:
-                suffix += "-opt"
+                suffix += f"-opt-{args.outer_lr}-{args.opt_alpha_wm_steps}"
             if args.eval_opt_alpha:
                 suffix += "-eval_opt"
         

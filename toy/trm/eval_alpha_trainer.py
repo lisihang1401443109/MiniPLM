@@ -20,9 +20,9 @@ class EvalAlphaTrainer():
         self.base_trainer = ToyTrmTrainer(args, device)
         
     def train(self):
-        self.base_trainer.train(wandb_name="baseline")
+        self.base_trainer.train(wandb_name="baseline", calc_IF=True)
         self.base_trainer.reload_model()
-        for alpha_epoch in [5, 10, 15, 20, 25, 30, 35, 40]:
-            alpha = torch.load(os.path.join(self.args.load_alpha, f"epoch_{alpha_epoch}", "opt_alpha.pt"))
-            self.base_trainer.train(alpha=alpha, wandb_name="opt_alpha_{}".format(alpha_epoch))
-            self.base_trainer.reload_model()
+        # for alpha_epoch in [5, 10, 15, 20, 25, 30, 35, 40]:
+        #     alpha = torch.load(os.path.join(self.args.load_alpha, f"epoch_{alpha_epoch}", "opt_alpha.pt"))
+        #     self.base_trainer.train(alpha=alpha, wandb_name="opt_alpha_{}".format(alpha_epoch))
+        #     self.base_trainer.reload_model()
