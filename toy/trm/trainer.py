@@ -51,7 +51,8 @@ class ToyTrmTrainer():
             (self.test_data[0].size(), self.test_data[1].size())))
     
     def reload_model(self):
-        self.model.load_state_dict(torch.load(os.path.join(self.data_dir, "model_init.pt")))
+        self.model.load_state_dict(torch.load(os.path.join(
+            self.data_dir, f"model_init_{self.args.input_dim}_{self.args.num_head}.pt")))
     
     def get_label(self, x, y):
         return ((x + y) // 10) % 10
@@ -140,12 +141,12 @@ class ToyTrmTrainer():
             IF_mean = torch.mean(IF, dim=0)
         else:
             IF_mean = torch.sum(alpha * IF, dim=0)
-            
+        
         IF_var = torch.var(IF, dim=0)
         IF_std = torch.std(IF, dim=0)
         IF_ratio = IF_mean / (IF_std + 1e-8)
         
-        return IF_mean, IF_var, IF_std, IF_ratio
+        return IF, IF_mean, IF_var, IF_std, IF_ratio
     
     def train(self, alpha=None, wandb_name="baseline", calc_IF=False):
         
@@ -161,12 +162,14 @@ class ToyTrmTrainer():
         all_dev_loss, all_test_loss = [], []
         all_dev_IF_mean, all_dev_IF_var, all_dev_IF_std, all_dev_IF_ratio = [], [], [], []
         all_test_IF_mean, all_test_IF_var, all_test_IF_std, all_test_IF_ratio = [], [], [], []
+        all_dev_IF, all_test_IF = [], []
         for e in range(self.args.epochs):
             self.optimizer.zero_grad()
             alpha_e = alpha[e] if alpha is not None else None
             loss, _, _ = self.model.compute_loss(*self.train_data, alpha=alpha_e)
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.clip_grad)
+            if self.args.clip_grad > 0:
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.clip_grad)
             
             gn = self.get_grad_norm()
             self.optimizer.step()
@@ -177,17 +180,19 @@ class ToyTrmTrainer():
             all_test_loss.append(test_loss.item())
             
             if calc_IF:
-                dev_IF_mean, dev_IF_var, dev_IF_std, dev_IF_ratio = self.calc_IF(*self.train_data, *self.dev_data, alpha=alpha_e)
+                dev_IF, dev_IF_mean, dev_IF_var, dev_IF_std, dev_IF_ratio = self.calc_IF(*self.train_data, *self.dev_data, alpha=alpha_e)
                 all_dev_IF_mean.append(dev_IF_mean.item())
                 all_dev_IF_var.append(dev_IF_var.item())
                 all_dev_IF_std.append(dev_IF_std.item())
                 all_dev_IF_ratio.append(dev_IF_ratio.item())
+                all_dev_IF.append(dev_IF)
                 
-                test_IF_mean, test_IF_var, test_IF_std, test_IF_ratio = self.calc_IF(*self.train_data, *self.test_data, alpha=alpha_e)
+                test_IF, test_IF_mean, test_IF_var, test_IF_std, test_IF_ratio = self.calc_IF(*self.train_data, *self.test_data, alpha=alpha_e)
                 all_test_IF_mean.append(test_IF_mean.item())
                 all_test_IF_var.append(test_IF_var.item())
                 all_test_IF_std.append(test_IF_std.item())
                 all_test_IF_ratio.append(test_IF_ratio.item())
+                all_test_IF.append(test_IF)
             
             wandb_log = {
                 "train_loss": loss.item(),
@@ -231,8 +236,8 @@ class ToyTrmTrainer():
         os.makedirs(save_path, exist_ok=True)
         torch.save((all_dev_loss, all_test_loss), os.path.join(save_path, "all_loss.pt"))
         if calc_IF:
-            torch.save((all_dev_IF_mean, all_dev_IF_var, all_dev_IF_std, all_dev_IF_ratio), os.path.join(save_path, "all_dev_IF.pt"))
-            torch.save((all_test_IF_mean, all_test_IF_var, all_test_IF_std, all_test_IF_ratio), os.path.join(save_path, "all_test_IF.pt"))
+            torch.save((all_dev_IF, all_dev_IF_mean, all_dev_IF_var, all_dev_IF_std, all_dev_IF_ratio), os.path.join(save_path, "all_dev_IF.pt"))
+            torch.save((all_test_IF, all_test_IF_mean, all_test_IF_var, all_test_IF_std, all_test_IF_ratio), os.path.join(save_path, "all_test_IF.pt"))
         
         run.finish()
             

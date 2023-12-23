@@ -10,7 +10,7 @@ BATCH_SIZE=-1
 # runtime
 SAVE_PATH="${BASE_PATH}/results/${TYPE}"
 # seed
-SEED=10
+SEED=30
 SEED_DATA=20
 
 
@@ -27,13 +27,16 @@ OPTS+=" --dev-num 500"
 OPTS+=" --test-num 500"
 OPTS+=" --ratio-1-2 1.3"
 OPTS+=" --load-toy-data 1"
-OPTS+=" --load-alpha ${BASE_PATH}/results/toy/trm/d128/bs-1-lr0.05-tn4000-dn500/r1.3-opt/10-20-7"
+OPTS+=" --load-alpha ${BASE_PATH}/results/toy/trm/d128/bs-1-lr0.05-tn4000-dn500/r1.3-opt-0.0001-0_linear/30-20-7"
+# OPTS+=" --load-alpha ${BASE_PATH}/results/toy/trm/d128/bs-1-lr0.05-tn4000-dn500/r1.3-opt-0.0005-700_linear/30-20-7"
+
 # hp
 OPTS+=" --lr ${LR}"
 OPTS+=" --batch-size ${BATCH_SIZE}"
-OPTS+=" --epochs 8000"
+OPTS+=" --epochs 2000"
 OPTS+=" --log-interval 100"
 OPTS+=" --lam 0.0"
+OPTS+=" --clip-grad -1"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"
 OPTS+=" --eval-opt-alpha"

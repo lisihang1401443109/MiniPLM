@@ -73,12 +73,14 @@ all_cp_rate_norm = all_cp_rate - min(all_cp_rate)
 all_cp_rate_norm = all_cp_rate_norm / max(all_cp_rate_norm)
 all_colors = cm.reversed()(all_cp_rate_norm)
 
-for dev_loss, weighted_ratio, area_color in zip(all_dev_losses, all_weighted_ratios, all_colors):
+for (i, dev_loss), weighted_ratio, area_color in zip(enumerate(all_dev_losses), all_weighted_ratios, all_colors):
     sorted_dev_loss, sorted_weighted_ratio = zip(*sorted(zip(dev_loss, weighted_ratio)))
     # remove < 0.01 values in sorted_weighted_ratios and corresponding values in sorted_dev_loss
     sorted_dev_loss, sorted_weighted_ratio = zip(*[(d, w) for d, w in zip(sorted_dev_loss, sorted_weighted_ratio) if w > 0.1])
     sorted_weighted_ratio = 1 / np.array(sorted_weighted_ratio)
     # 根据 area 的值确定颜色
+    if i == 50:
+        area_color = "black"
     ax.plot(sorted_dev_loss, sorted_weighted_ratio, c=area_color)
 
 ax.set_xscale("log")

@@ -10,7 +10,7 @@ BATCH_SIZE=-1
 # runtime
 SAVE_PATH="${BASE_PATH}/results/${TYPE}"
 # seed
-SEED=10
+SEED=30
 SEED_DATA=20
 
 
@@ -35,6 +35,7 @@ OPTS+=" --log-interval 100"
 OPTS+=" --lam 0.0"
 OPTS+=" --outer-lr 0.0001"
 OPTS+=" --outer-epochs 40"
+OPTS+=" --clip-grad -1"
 # OPTS+=" --opt-alpha-wm-steps 200"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"

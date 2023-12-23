@@ -10,7 +10,7 @@ BATCH_SIZE=-1
 # runtime
 SAVE_PATH="${BASE_PATH}/results/${TYPE}"
 # seed
-SEED=10
+SEED=30
 SEED_DATA=20
 
 
@@ -26,7 +26,7 @@ OPTS+=" --num-head 4"
 OPTS+=" --train-num 4000"
 OPTS+=" --dev-num 500"
 OPTS+=" --test-num 500"
-OPTS+=" --ratio-1-2 1.2"
+OPTS+=" --ratio-1-2 1.3"
 # OPTS+=" --load-toy-data 1"
 # hp
 OPTS+=" --lr ${LR}"
@@ -34,6 +34,7 @@ OPTS+=" --batch-size ${BATCH_SIZE}"
 OPTS+=" --epochs 2000"
 OPTS+=" --log-interval 100"
 OPTS+=" --lam 0.0"
+OPTS+=" --clip-grad -1"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"
 # seed
