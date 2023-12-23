@@ -16,8 +16,8 @@ paths = [
 # for e in range(0, 400, 10):
 #     paths.append((os.path.join(base_path, f"opt_alpha_{e}_wm700"), f"opt_alpha_{e}_wm700"))
 
-for e in [0, 1, 5, 8, 10 ,12, 14]:
-    paths.append((os.path.join(base_path, f"opt_alpha_{e}"), f"opt_alpha_{e}"))
+for e in range(40):
+    paths.append((os.path.join(base_path, f"opt_alpha/{e}"), f"opt_alpha_{e}"))
 
 plot, ax = plt.subplots(1, 1, figsize=(10, 5))
 
@@ -61,7 +61,7 @@ for (k, loss), IF_ratio in zip(enumerate(all_loss), all_IF_ratio):
 
 idxs = list(range(len(all_cp)))
 plt.plot(all_mean_ratio, all_cp, marker="o")
-for idx in idxs:
-    plt.annotate(str(idx), (all_mean_ratio[idx], all_cp[idx]))
-plt.savefig(os.path.join(base_path, "mean_ratio_cp.png"))
+# for idx in idxs:
+#     plt.annotate(str(idx), (all_mean_ratio[idx], all_cp[idx]))
+plt.savefig(os.path.join(base_path, f"mean_ratio_cp_{split}.png"))
 plt.close()

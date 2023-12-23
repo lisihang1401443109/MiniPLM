@@ -37,27 +37,34 @@ for e in range(160, 500, 10):
 #     paths.append((os.path.join(base_path, f"opt_epoch_{e}"), f"opt_epoch_{e}"))
 
 
-step = 500
+max_step = 2000
 
 cm = plt.colormaps['RdYlBu']
 
-all_IF_ratio, all_loss = [], []
+all_IF_ratio, all_loss, all_IF_mean = [], [], []
 
 for path in paths:
     weighted_ratio = torch.load(os.path.join(path[0], f"weighted_ratio_{split}.pt"), map_location="cpu")
+    weighted_mean = torch.load(os.path.join(path[0], f"weighted_mean_IF_{split}.pt"), map_location="cpu")
     loss = torch.load(os.path.join(path[0], f"{split}_loss.pt"), map_location="cpu")
+    
+    weighted_ratio = weighted_ratio[:max_step]
+    weighted_mean = weighted_mean[:max_step]
+    loss = loss[:max_step]
+    
     all_loss.append(loss)
     all_IF_ratio.append(weighted_ratio)
+    all_IF_mean.append(weighted_mean)
     
 loss_threshold = all_loss[0][-1]
 # loss_threshold = 0
      
 print(loss_threshold)
         
-all_mean_ratio, all_cp = [], []
+all_mean_ratio, all_mean_mean, all_cp = [], [], []
 
 max_IF_mean_step = len(all_IF_ratio[0])
-for (k,loss), IF_ratio in zip(enumerate(all_loss), all_IF_ratio):
+for (k,loss), IF_ratio, IF_mean in zip(enumerate(all_loss), all_IF_ratio, all_IF_mean):
     if k > 0:
         for i in range(len(loss)-1, -1, -1):
             if loss[i] > loss_threshold:
@@ -65,21 +72,24 @@ for (k,loss), IF_ratio in zip(enumerate(all_loss), all_IF_ratio):
                 break
     
     IF_ratio = IF_ratio[:max_IF_mean_step]
+    IF_mean = IF_mean[:max_IF_mean_step]
     # loss = loss[:max_IF_mean_step]
     if k >= 80 if split == "test" else 54:
         break
     mean_ratio = np.mean(IF_ratio)
     all_mean_ratio.append(mean_ratio)
+    mean_mean = np.mean(IF_mean)
+    all_mean_mean.append(mean_mean)
     cp = len(loss) / np.sum(loss)
     all_cp.append(cp)
-    if k in [0, 1, 8, 9, 10, 11, 12, 104]:
-        print(k, mean_ratio)
-        ax[1].plot(IF_ratio, label=f"{k}")
-        ax[2].plot(loss, label=f"{k}")
-    ax[2].hlines(loss_threshold, 0, len(loss), color="red", linestyle="--")
+    # if k in [0, 1, 8, 9, 10, 11, 12, 104]:
+    #     print(k, mean_ratio)
+    #     ax[1].plot(IF_ratio, label=f"{k}")
+    #     ax[2].plot(loss, label=f"{k}")
+    # ax[2].hlines(loss_threshold, 0, len(loss), color="red", linestyle="--")
     # # ax[2].set_yscale("log")
 
-ax[2].set_ylim(0.1, 0.15)
+# ax[2].set_ylim(0.1, 0.15)
 
 
 
@@ -89,4 +99,9 @@ ax[0].plot(all_mean_ratio, all_cp, marker='o')
 #     ax[0].annotate(str(idx), (all_mean_ratio[idx], all_cp[idx]))
 ax[0].set_xlabel(r"Mean $\frac{\overline{IF}}{Std(IF)}$")
 ax[0].set_ylabel(r"Compression Rate")
+
+# ax[1].plot(all_mean_mean, all_cp, marker='o')
+# ax[1].set_xlabel(r"Mean $\overline{IF}$")
+# ax[1].set_ylabel(r"Compression Rate")
+
 plt.savefig(os.path.join(base_path, f"cp_vs_mean_ratio_2_{split}.png"))
