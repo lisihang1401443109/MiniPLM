@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.func import functional_call, grad, vmap
+from torch.func import functional_call 
 
 
 class ToyTransformer(nn.Module):

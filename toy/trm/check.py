@@ -20,28 +20,32 @@ import matplotlib.pyplot as plt
 # print(c_test)
 
 # path = "/home/lidong1/yuxian/sps-toy/results/toy/trm/d128/bs-1-lr0.05-tn4000-dn500/r1.3-eval_opt/30-20-7/baseline/"
-path = "/home/lidong1/yuxian/sps-toy/results/toy/trm/d128/bs-1-lr0.05-tn4000-dn500/r1.3-eval_opt/30-20-7/opt_alpha_330_wm700"
+# path = "/home/lidong1/yuxian/sps-toy/results/toy/trm/d128/bs-1-lr0.05-tn4000-dn500/r1.3-eval_opt/30-20-7/opt_alpha_330_wm700"
 
-all_dev_IF = torch.load(os.path.join(path, "all_dev_IF.pt"), map_location="cpu")
+# all_dev_IF = torch.load(os.path.join(path, "all_dev_IF.pt"), map_location="cpu")
 
-dev_IF = all_dev_IF[0]
+# dev_IF = all_dev_IF[0]
 
-e = 1400
+# e = 1400
 
-data_path = "/home/lidong1/yuxian/sps-toy/processed_data/toy-add/tn4000-dn500-r1.3/30-20/data.pt"
+# data_path = "/home/lidong1/yuxian/sps-toy/processed_data/toy-add/tn4000-dn500-r1.3/30-20/data.pt"
 
-data = torch.load(data_path, map_location="cpu")
-
-
-train_labels = data[0][:, 2]
-
-# print(dev_IF[0].size())
-
-# exit(0)
+# data = torch.load(data_path, map_location="cpu")
 
 
-plt.hist(dev_IF[e], bins=4000)
+# train_labels = data[0][:, 2]
 
-plt.plot(dev_IF[e], train_labels, "o")
+# # print(dev_IF[0].size())
 
-plt.savefig(os.path.join(path, f"dev_IF_bsl_{e}.png"))
+# # exit(0)
+
+
+# plt.hist(dev_IF[e], bins=4000)
+
+# plt.plot(dev_IF[e], train_labels, "o")
+
+# plt.savefig(os.path.join(path, f"dev_IF_bsl_{e}.png"))
+
+vocab = torch.load("/mnt/yuxian/data/tinystories/all_data/all_tokens.pt", map_location="cpu")
+
+print(len(vocab))

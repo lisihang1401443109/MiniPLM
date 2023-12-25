@@ -407,8 +407,12 @@ def get_args():
                 suffix += (f"oe{args.outer_epochs}-lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}")
         elif args.model_type in ["trm"]:
             # model_info = f"d{args.input_dim}-h{args.num_head}"
-            model_info = f"d{args.input_dim}"
-            suffix = f"r{args.ratio_1_2}"
+            if args.data_names == "addition":
+                model_info = f"d{args.input_dim}"
+                suffix = f"r{args.ratio_1_2}"
+            elif args.data_names == "tiny_story":
+                model_info = f"{args.ckpt_name}-ts"
+                suffix = ""
             if args.opt_alpha:
                 suffix += f"-opt-{args.outer_lr}-{args.opt_alpha_wm_steps}"
             if args.eval_opt_alpha:

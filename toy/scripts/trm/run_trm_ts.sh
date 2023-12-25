@@ -6,11 +6,11 @@ BASE_PATH=${1-"/home/MiniLLM"}
 TYPE="toy"
 # hp
 LR=0.05
-BATCH_SIZE=-1
+BATCH_SIZE=500
 # runtime
 SAVE_PATH="${BASE_PATH}/results/${TYPE}"
 # seed
-SEED=30
+SEED=10
 SEED_DATA=20
 
 
@@ -20,22 +20,22 @@ OPTS+=" --type ${TYPE}"
 # model
 OPTS+=" --model-type trm"
 OPTS+=" --base-path ${BASE_PATH}"
-OPTS+=" --input-dim 128"
-OPTS+=" --num-head 4"
+OPTS+=" --model-path ${BASE_PATH}/checkpoints/tiny_stories/tiny"
+OPTS+=" --ckpt-name tiny"
 # data
 OPTS+=" --train-num 4000"
 OPTS+=" --dev-num 500"
 OPTS+=" --test-num 500"
-OPTS+=" --ratio-1-2 1.3"
-OPTS+=" --data-names addition"
+OPTS+=" --data-names tiny_story"
+OPTS+=" --data-dir ${BASE_PATH}/processed_data/toy-ts/mistral/small_128"
 # OPTS+=" --load-toy-data 1"
 # hp
 OPTS+=" --lr ${LR}"
 OPTS+=" --batch-size ${BATCH_SIZE}"
 OPTS+=" --epochs 2000"
-OPTS+=" --log-interval 100"
-OPTS+=" --lam 0.0"
+OPTS+=" --log-interval 10"
 OPTS+=" --clip-grad -1"
+OPTS+=" --max-length 128"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"
 # seed

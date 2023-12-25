@@ -8,31 +8,36 @@ import sys
 import wandb
 import random
 import time
+import json
+import math
 from torch.func import grad, vmap
 
-from toy.trm.model import ToyTransformer
+from toy.trm.tiny_story_model import ToyTSTransformer, ToyTokenizer
+from toy.trm.base_trainer import ToyBaseTrainer
+from transformers import AutoConfig, AutoTokenizer
 
 
-class ToyTrmTrainer():
+class ToyTSTrainer(ToyBaseTrainer):
     def __init__(self, args, device) -> None:
-        self.args = args
-        self.device = device
+        super(ToyTSTrainer, self).__init__(args, device)
         
         self.config = {
-            "vocab_size": 12,
-            "max_len": 6,
-            "hidden_size": args.input_dim,
-            "num_head": args.num_head,
+            "base_model_config": AutoConfig.from_pretrained(args.model_path)
         }
+        self.tokenizer = ToyTokenizer(
+            args.model_path, "/mnt/yuxian/data/tinystories/all_data/all_tokens_mistral.pt")
+        print("vocab size: {}".format(self.tokenizer.vocab_size))
+        self.max_length = args.max_length
+        print("max length: {}".format(self.max_length))
+
+        self.model_init_dir = os.path.join(args.base_path, "processed_data", "toy-ts", "model_init")
+        os.makedirs(self.model_init_dir, exist_ok=True)
+        model_init_path = os.path.join(self.model_init_dir, f"{args.ckpt_name}.pt")
         
-        self.exp_name = args.save.strip("/").replace(args.base_path.strip("/"), "").replace("_", "").replace("/", "_").strip("_")
-        self.data_dir = os.path.join(
-            args.base_path, "processed_data", "toy-add", f"tn{args.train_num}-dn{args.dev_num}-r{args.ratio_1_2}", f"{args.seed}-{args.seed_data}")
-        os.makedirs(self.data_dir, exist_ok=True)
+        self.model = self.get_model()
+        print(' > number of parameters: {}'.format(
+            sum([p.nelement() for p in self.model.parameters()])), flush=True)
         
-        self.model = ToyTransformer(self.config).to(device)
-        
-        model_init_path = os.path.join(self.data_dir, f"model_init_{args.input_dim}_{args.num_head}.pt")
         if args.load_toy_data is None or not os.path.exists(model_init_path):
             torch.save(self.model.state_dict(), model_init_path)
         else:
@@ -51,66 +56,27 @@ class ToyTrmTrainer():
             (self.test_data[0].size(), self.test_data[1].size())))
     
     def reload_model(self):
-        self.model.load_state_dict(torch.load(os.path.join(
-            self.data_dir, f"model_init_{self.args.input_dim}_{self.args.num_head}.pt")))
+        self.model.load_state_dict(torch.load(os.path.join(self.model_init_dir, f"{args.model_name}.pt")))
     
-    def get_label(self, x, y):
-        return ((x + y) // 10) % 10
-    
-    def generate_data(self):
-        origin_state = random.getstate()
-        random.seed(self.args.seed_data)
-        all_data = []
-        for i in range(100):
-            all_data.extend([(i, j, self.get_label(i,j)) for j in range(100)])
-        random.shuffle(all_data)
-        dev_data = all_data[:self.args.dev_num]
-        test_data = all_data[self.args.dev_num:2*self.args.dev_num]
-        train_data = all_data[2*self.args.dev_num:]
+    def get_model(self):
+        return ToyTSTransformer(self.config).to(self.device)
         
-        split_1 = [x for x in train_data if x[2] < 5]
-        split_2 = [x for x in train_data if x[2] >= 5]
-        
-        ratio_1_2 = self.args.ratio_1_2
-        if ratio_1_2 > 1:
-            split_2 = split_2[:int(len(split_2) / ratio_1_2)]
-        else:
-            split_1 = split_1[:int(len(split_1) * ratio_1_2)]
-            
-        train_data = split_1 + split_2
-        
-        random.shuffle(train_data)
-        train_data = train_data[:self.args.train_num]
-        
-        train_data = torch.tensor(train_data, dtype=torch.long)
-        dev_data = torch.tensor(dev_data, dtype=torch.long)
-        test_data = torch.tensor(test_data, dtype=torch.long)
-
-        torch.save((train_data, dev_data, test_data), os.path.join(self.data_dir, "data.pt"))
-        
-        random.setstate(origin_state)
-        
-        return (train_data, dev_data, test_data)
-
     def get_data(self):
-        if self.args.load_toy_data is not None:
-            data = torch.load(os.path.join(self.data_dir, "data.pt"))
-        else:
-            data = self.generate_data()
-        
-        return data
+        all_data_splits = {}
+        for split in ["train", "dev", "test"]:
+            data = torch.load(os.path.join(self.args.data_dir, f"{split}.pt"))
+            all_data_splits[split] = data
+        all_data_splits["train"] = all_data_splits["train"][:self.args.train_num]
+        all_data_splits["dev"] = all_data_splits["dev"][:self.args.dev_num]
+        all_data_splits["test"] = all_data_splits["test"][:self.args.dev_num]
+        return all_data_splits["train"], all_data_splits["dev"], all_data_splits["test"]
     
     def reform_data(self, data):
-        new_data = []
-        for x in data:
-            d1 = [int(p) for p in "{:0=2d}".format(x[0])]
-            d2 = [int(p) for p in "{:0=2d}".format(x[1])]
-            d3 = [int(x[2])]
-            d = d1 + [10] + d2 + [11] + d3 # 10: +, 11: =
-            new_data.append(d)
-        
-        new_data = torch.tensor(new_data, dtype=torch.long, device=self.device)
-        return new_data[:, :-1], new_data[:, -1]
+        assert data.size(1) == self.max_length + 1
+        input_ids = data[:, :-1].clone().to(self.device)
+        labels = data[:, 1:].clone().to(self.device)
+        labels[labels == self.tokenizer.pad_token_id] = -100
+        return input_ids, labels
     
     def get_grad_norm(self):
         total_norm = 0
@@ -163,21 +129,46 @@ class ToyTrmTrainer():
         all_dev_IF_mean, all_dev_IF_var, all_dev_IF_std, all_dev_IF_ratio = [], [], [], []
         all_test_IF_mean, all_test_IF_var, all_test_IF_std, all_test_IF_ratio = [], [], [], []
         all_dev_IF, all_test_IF = [], []
+        assert self.train_data[0].size(0) % self.args.batch_size == 0
+        assert self.dev_data[0].size(0) % self.args.batch_size == 0
+        grad_acc_steps = self.train_data[0].size(0) // self.args.batch_size
+        dev_grad_acc_steps = self.dev_data[0].size(0) // self.args.batch_size
+        
         for e in range(self.args.epochs):
             self.optimizer.zero_grad()
             alpha_e = alpha[e] if alpha is not None else None
-            loss, _, _ = self.model.compute_loss(*self.train_data, alpha=alpha_e)
-            loss.backward()
+            train_losses = []
+            for i in range(grad_acc_steps):
+                start = i * self.args.batch_size
+                end = (i+1) * self.args.batch_size
+                batch_alpha_e = alpha_e[start:end] if alpha is not None else None
+                loss = self.model.compute_loss(self.train_data[0][start:end], self.train_data[1][start:end], alpha=batch_alpha_e)
+                train_losses.append(loss.item())
+                if alpha is None:
+                    loss = loss / grad_acc_steps
+                loss.backward()
+            
+            loss = np.mean(train_losses)
+
             if self.args.clip_grad > 0:
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.clip_grad)
             
             gn = self.get_grad_norm()
             self.optimizer.step()
-            dev_loss, dev_acc, dev_preds = self.model.compute_loss(*self.dev_data)
-            test_loss, test_acc, test_preds = self.model.compute_loss(*self.test_data)
-            
-            all_dev_loss.append(dev_loss.item())
-            all_test_loss.append(test_loss.item())
+            dev_losses, test_losses = [], []
+            with torch.no_grad():
+                for i in range(dev_grad_acc_steps):
+                    start = i * self.args.batch_size
+                    end = (i+1) * self.args.batch_size
+                    dev_loss = self.model.compute_loss(self.dev_data[0][start:end], self.dev_data[1][start:end])
+                    test_loss = self.model.compute_loss(self.test_data[0][start:end], self.test_data[1][start:end])
+                    dev_losses.append(dev_loss.item())
+                    test_losses.append(test_loss.item())
+                dev_loss = np.mean(dev_losses)
+                test_loss = np.mean(test_losses)
+
+            all_dev_loss.append(dev_loss)
+            all_test_loss.append(test_loss)
             
             if calc_IF:
                 dev_IF, dev_IF_mean, dev_IF_var, dev_IF_std, dev_IF_ratio = self.calc_IF(*self.train_data, *self.dev_data, alpha=alpha_e)
@@ -198,8 +189,6 @@ class ToyTrmTrainer():
                 "train_loss": loss.item(),
                 "dev_loss": dev_loss.item(),
                 "test_loss": test_loss.item(),
-                "dev_acc": dev_acc,
-                "test_acc": test_acc,
                 "grad_norm": gn,
 
             }
@@ -214,8 +203,8 @@ class ToyTrmTrainer():
             wandb.log(wandb_log)
             
             if e % self.args.log_interval == 0:
-                log_str = "epoch {} | train loss {:.4f} | dev loss {:.4f} | test loss {:.4f} | dev_acc: {:.4f} | test_acc: {:.4f} | gn: {:.4f}\n".format(
-                    e, loss.item(), dev_loss.item(), test_loss.item(), dev_acc, test_acc, gn)
+                log_str = "epoch {} | train loss {:.4f} | dev loss {:.4f} | test loss {:.4f} | gn: {:.4f}\n".format(
+                    e, loss.item(), dev_loss.item(), test_loss.item(), gn)
                 if calc_IF:
                     log_str += "Dev IF | IF_mean: {:.4f} | IF_var: {:.4f} | IF_std: {:.4f} | IF_ratio: {:.4f}\n".format(
                         dev_IF_mean.item(), dev_IF_var.item(), dev_IF_std.item(), dev_IF_ratio.item())
@@ -225,12 +214,12 @@ class ToyTrmTrainer():
                 # print(self.dev_data[0][:20], self.dev_data[1][:20], dev_preds[:20])
         
         print(time.time() - st)
-        final_loss, _, _ = self.model.compute_loss(*self.train_data)
-        final_dev_loss, final_dev_acc,  _ = self.model.compute_loss(*self.dev_data)
-        final_test_loss, final_test_acc, _ = self.model.compute_loss(*self.test_data)
+        # final_loss = self.model.compute_loss(*self.train_data)
+        # final_dev_loss, = self.model.compute_loss(*self.dev_data)
+        # final_test_loss, = self.model.compute_loss(*self.test_data)
           
-        print("final | train loss {:.4f} | dev loss {:.4f} | test loss {:.4f} | dev acc: {:.4f} | test acc: {:.4f}".format(
-            final_loss.item(), final_dev_loss.item(), final_test_loss.item(), final_dev_acc, final_test_acc))
+        # print("final | train loss {:.4f} | dev loss {:.4f} | test loss {:.4f}".format(
+        #     final_loss.item(), final_dev_loss.item(), final_test_loss.item()))
         
         save_path = os.path.join(self.args.save, wandb_name)
         os.makedirs(save_path, exist_ok=True)

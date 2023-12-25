@@ -1,4 +1,4 @@
-from trainer import ToyTrmTrainer
+from addition_trainer import ToyAdditionTrainer
 from logistic_trainer import LogisticTrainer
 from torch.func import functional_call, grad, vmap, hessian, grad_and_value, jvp, vjp
 import torch
@@ -185,7 +185,7 @@ class AlphaModel(nn.Module):
 class OptAlphaTrainer():
     def __init__(self, args, device) -> None:
         
-        self.base_trainer = ToyTrmTrainer(args, device)
+        self.base_trainer = ToyAdditionTrainer(args, device)
         # self.base_trainer = LogisticTrainer(args, device)
         
         self.model = self.base_trainer.model

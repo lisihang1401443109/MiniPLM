@@ -3,8 +3,8 @@ import time
 import json
 import torch
 
-
-from trainer import ToyTrmTrainer
+from tiny_story_trainer import ToyTSTrainer
+from addition_trainer import ToyAdditionTrainer
 from opt_alpha_trainer import OptAlphaTrainer
 from eval_alpha_trainer import EvalAlphaTrainer
 from arguments import get_args
@@ -33,7 +33,12 @@ def main():
     elif args.eval_opt_alpha:
         trainer_cls = EvalAlphaTrainer
     else:
-        trainer_cls = ToyTrmTrainer
+        if args.data_names == "addition":
+            trainer_cls = ToyAdditionTrainer
+        elif args.data_names == "tiny_story":
+            trainer_cls = ToyTSTrainer
+        else:
+            raise NotImplementedError
     
     trainer = trainer_cls(args, device)
     trainer.train()

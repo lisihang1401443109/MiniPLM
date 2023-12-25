@@ -9,7 +9,7 @@ import wandb
 import random
 import time
 
-from trainer import ToyTrmTrainer
+from addition_trainer import ToyAdditionTrainer
 
 
 class EvalAlphaTrainer():
@@ -17,7 +17,7 @@ class EvalAlphaTrainer():
         self.args = args
         self.device = device
         
-        self.base_trainer = ToyTrmTrainer(args, device)
+        self.base_trainer = ToyAdditionTrainer(args, device)
         
     def train(self):
         # self.base_trainer.train(wandb_name="baseline", calc_IF=True)
