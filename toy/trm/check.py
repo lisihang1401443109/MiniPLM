@@ -46,6 +46,13 @@ import matplotlib.pyplot as plt
 
 # plt.savefig(os.path.join(path, f"dev_IF_bsl_{e}.png"))
 
-vocab = torch.load("/mnt/yuxian/data/tinystories/all_data/all_tokens.pt", map_location="cpu")
+# vocab = torch.load("/mnt/yuxian/data/tinystories/all_data/all_tokens.pt", map_location="cpu")
 
-print(len(vocab))
+# print(len(vocab))
+
+g_opt = torch.load("/home/lidong1/yuxian/sps-toy/toy/g_params_opt.pt", map_location="cpu")
+grad = torch.load("/home/lidong1/yuxian/sps-toy/toy/grad.pt", map_location="cpu")
+
+delta = g_opt - grad
+
+print(torch.sum(torch.abs(delta)))

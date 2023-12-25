@@ -19,6 +19,8 @@ def main():
     args = get_args()
     initialize(args, do_distributed=False)
 
+    print(args.save)
+    
     print_args(args)
     with open(os.path.join(args.save, "args.json"), "w") as f:
         json.dump(vars(args), f, indent=4)

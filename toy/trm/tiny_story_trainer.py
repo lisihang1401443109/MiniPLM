@@ -10,7 +10,7 @@ import random
 import time
 import json
 import math
-from torch.func import grad, vmap
+from torch.func import grad, vmap, grad_and_value, functional_call
 from utils import save_rank
 
 from toy.trm.tiny_story_model import ToyTSTransformer, ToyTokenizer
@@ -142,16 +142,24 @@ class ToyTSTrainer(ToyBaseTrainer):
         assert self.train_data[0].size(0) % self.args.batch_size == 0, (self.train_data[0].size(0), self.args.batch_size)
         grad_acc_steps = self.train_data[0].size(0) // self.args.batch_size
         assert self.dev_data[0].size(0) % self.args.eval_batch_size == 0, (self.dev_data[0].size(0), self.args.eval_batch_size)
-        dev_grad_acc_steps = self.dev_data[0].size(0) // self.args.batch_size
+        dev_grad_acc_steps = self.dev_data[0].size(0) // self.args.eval_batch_size
         
         min_dev_loss = 1e8
         min_dev_loss_epoch = -1
         
+        if alpha is None:
+            flat_alpha = torch.ones(self.train_data[0].size(0), device=self.device) / self.train_data[0].size(0)
+        
         for e in range(self.args.epochs):
             epoch_st = time.time()
             self.optimizer.zero_grad()
-            alpha_e = alpha[e] if alpha is not None else None
+            alpha_e = alpha[e] if alpha is not None else flat_alpha
             train_losses = []
+            
+            # params = {n: p.detach() for n, p in self.model.named_parameters()}
+            # buffers = {n: p.detach() for n, p in self.model.named_buffers()}
+            # g_params = {n:0 for n, _ in self.model.named_parameters()}
+            
             for i in range(grad_acc_steps):
                 if e == 0 and i == 0:
                     print(self.train_data[0][0])
@@ -159,14 +167,21 @@ class ToyTSTrainer(ToyBaseTrainer):
                     print()
                 start = i * self.args.batch_size
                 end = (i+1) * self.args.batch_size
-                batch_alpha_e = alpha_e[start:end] if alpha is not None else None
+                batch_alpha_e = alpha_e[start:end]
+                
                 loss = self.model.compute_loss(self.train_data[0][start:end], self.train_data[1][start:end], alpha=batch_alpha_e)
-                train_losses.append(loss.item())
-                if alpha is None:
-                    loss = loss / grad_acc_steps
                 loss.backward()
+                
+                # g, loss = grad_and_value(self.model.compute_loss_func)(params, buffers, self.model, self.train_data[0][start:end], self.train_data[1][start:end], alpha=batch_alpha_e)
+                # for k in g_params.keys():
+                #     g_params[k] += g[k]
+                
+                train_losses.append(loss.item())
             
-            loss = np.mean(train_losses)
+            # for n, p in self.model.named_parameters():
+            #     p.data.add_(g_params[n], alpha=-self.args.lr)
+
+            loss = np.sum(train_losses)
 
             if self.args.clip_grad > 0:
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.clip_grad)
@@ -176,8 +191,8 @@ class ToyTSTrainer(ToyBaseTrainer):
             dev_losses, test_losses = [], []
             with torch.no_grad():
                 for i in range(dev_grad_acc_steps):
-                    start = i * self.args.batch_size
-                    end = (i+1) * self.args.batch_size
+                    start = i * self.args.eval_batch_size
+                    end = (i+1) * self.args.eval_batch_size
                     dev_loss = self.model.compute_loss(self.dev_data[0][start:end], self.dev_data[1][start:end])
                     test_loss = self.model.compute_loss(self.test_data[0][start:end], self.test_data[1][start:end])
                     dev_losses.append(dev_loss.item())

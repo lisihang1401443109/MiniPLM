@@ -52,9 +52,9 @@ class ToyTSTransformer(nn.Module):
     def compute_loss_func(params, buffers, model, input_ids, labels, alpha=None):
         loss_mask = (labels != -100).float()
         loss_fn = nn.CrossEntropyLoss(reduction="none")
-        logits = functional_call(model, (params, buffers), xn).logits
-        losses = loss_fn(logits.view(-1, logits.size(-1)), yn.view(-1))
-        losses = losses.view(yn.size(0), -1)
+        logits = functional_call(model, (params, buffers), input_ids).logits
+        losses = loss_fn(logits.view(-1, logits.size(-1)), labels.view(-1))
+        losses = losses.view(labels.size(0), -1)
         losses = torch.sum(losses * loss_mask, dim=-1) / torch.sum(loss_mask, dim=-1)
         if alpha is None:
             loss = torch.mean(losses)
@@ -66,9 +66,9 @@ class ToyTSTransformer(nn.Module):
     def compute_loss_func_single(params, buffers, model, input_ids, labels):
         loss_mask = (labels != -100).float()
         loss_fn = nn.CrossEntropyLoss(reduction="none")
-        logits = functional_call(model, (params, buffers), xn.unsqueeze(0)).logits
-        losses = loss_fn(logits.view(-1, logits.size(-1)), yn.view(-1))
-        losses = losses.view(yn.size(0), -1)
+        logits = functional_call(model, (params, buffers), input_ids.unsqueeze(0)).logits
+        losses = loss_fn(logits.view(-1, logits.size(-1)), labels.view(-1))
+        losses = losses.view(labels.size(0), -1)
         losses = torch.sum(losses * loss_mask, dim=-1) / torch.sum(loss_mask, dim=-1)
         loss = torch.mean(losses)
         return loss
@@ -77,7 +77,7 @@ class ToyTSTransformer(nn.Module):
         pointer = 0
         d = {}
         for n, p in self.named_parameters():
-            d[n] = nn.Parameter(vec[pointer:pointer+p.numel()].view(p.size()))
+            d[n] = nn.Parameter(vec[pointer:pointer+p.numel()].view(p.size()), requires_grad=False)
             pointer += p.numel()
 
         return d
