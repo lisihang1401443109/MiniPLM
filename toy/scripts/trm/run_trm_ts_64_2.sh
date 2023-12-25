@@ -20,8 +20,8 @@ OPTS+=" --type ${TYPE}"
 # model
 OPTS+=" --model-type trm"
 OPTS+=" --base-path ${BASE_PATH}"
-OPTS+=" --model-path ${BASE_PATH}/checkpoints/tiny_stories/tiny"
-OPTS+=" --ckpt-name tiny"
+OPTS+=" --model-path ${BASE_PATH}/checkpoints/tiny_stories/tiny-64-2"
+OPTS+=" --ckpt-name tiny-64-2"
 # data
 OPTS+=" --train-num 4000"
 OPTS+=" --dev-num 500"

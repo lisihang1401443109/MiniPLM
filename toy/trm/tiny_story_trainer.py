@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.optim import SGD
+from torch.optim import SGD, AdamW
 import numpy as np
 import os
 import sys
@@ -11,6 +11,7 @@ import time
 import json
 import math
 from torch.func import grad, vmap
+from utils import save_rank
 
 from toy.trm.tiny_story_model import ToyTSTransformer, ToyTokenizer
 from toy.trm.base_trainer import ToyBaseTrainer
@@ -25,7 +26,7 @@ class ToyTSTrainer(ToyBaseTrainer):
             "base_model_config": AutoConfig.from_pretrained(args.model_path)
         }
         self.tokenizer = ToyTokenizer(
-            args.model_path, "/mnt/yuxian/data/tinystories/all_data/all_tokens_mistral.pt")
+            args.model_path, os.path.join(args.data_dir, "vocab.pt"))
         print("vocab size: {}".format(self.tokenizer.vocab_size))
         self.max_length = args.max_length
         print("max length: {}".format(self.max_length))
@@ -44,6 +45,7 @@ class ToyTSTrainer(ToyBaseTrainer):
             self.model.load_state_dict(torch.load(model_init_path))
         
         self.optimizer = SGD(self.model.parameters(), lr=args.lr)
+        # self.optimizer = AdamW(self.model.parameters(), lr=args.lr)
     
         self.train_data, self.dev_data, self.test_data = self.get_data()
         self.train_data = self.reform_data(self.train_data)
@@ -115,7 +117,9 @@ class ToyTSTrainer(ToyBaseTrainer):
         return IF, IF_mean, IF_var, IF_std, IF_ratio
     
     def train(self, alpha=None, wandb_name="baseline", calc_IF=False):
-        
+        save_path = os.path.join(self.args.save, wandb_name)
+        os.makedirs(save_path, exist_ok=True)
+
         run = wandb.init(
             name=f"{wandb_name}",
             project="toy-trm",
@@ -129,16 +133,30 @@ class ToyTSTrainer(ToyBaseTrainer):
         all_dev_IF_mean, all_dev_IF_var, all_dev_IF_std, all_dev_IF_ratio = [], [], [], []
         all_test_IF_mean, all_test_IF_var, all_test_IF_std, all_test_IF_ratio = [], [], [], []
         all_dev_IF, all_test_IF = [], []
-        assert self.train_data[0].size(0) % self.args.batch_size == 0
-        assert self.dev_data[0].size(0) % self.args.batch_size == 0
+        
+        if self.args.batch_size == -1:
+            self.args.batch_size = self.train_data[0].size(0)
+        if self.args.eval_batch_size == -1:
+            self.args.eval_batch_size = self.dev_data[0].size(0)
+        
+        assert self.train_data[0].size(0) % self.args.batch_size == 0, (self.train_data[0].size(0), self.args.batch_size)
         grad_acc_steps = self.train_data[0].size(0) // self.args.batch_size
+        assert self.dev_data[0].size(0) % self.args.eval_batch_size == 0, (self.dev_data[0].size(0), self.args.eval_batch_size)
         dev_grad_acc_steps = self.dev_data[0].size(0) // self.args.batch_size
         
+        min_dev_loss = 1e8
+        min_dev_loss_epoch = -1
+        
         for e in range(self.args.epochs):
+            epoch_st = time.time()
             self.optimizer.zero_grad()
             alpha_e = alpha[e] if alpha is not None else None
             train_losses = []
             for i in range(grad_acc_steps):
+                if e == 0 and i == 0:
+                    print(self.train_data[0][0])
+                    print(self.tokenizer.decode(self.train_data[0][0].cpu().tolist()))
+                    print()
                 start = i * self.args.batch_size
                 end = (i+1) * self.args.batch_size
                 batch_alpha_e = alpha_e[start:end] if alpha is not None else None
@@ -170,6 +188,10 @@ class ToyTSTrainer(ToyBaseTrainer):
             all_dev_loss.append(dev_loss)
             all_test_loss.append(test_loss)
             
+            if dev_loss < min_dev_loss:
+                min_dev_loss = dev_loss
+                min_dev_loss_epoch = e
+                        
             if calc_IF:
                 dev_IF, dev_IF_mean, dev_IF_var, dev_IF_std, dev_IF_ratio = self.calc_IF(*self.train_data, *self.dev_data, alpha=alpha_e)
                 all_dev_IF_mean.append(dev_IF_mean.item())
@@ -203,17 +225,21 @@ class ToyTSTrainer(ToyBaseTrainer):
             wandb.log(wandb_log)
             
             if e % self.args.log_interval == 0:
-                log_str = "epoch {} | train loss {:.4f} | dev loss {:.4f} | test loss {:.4f} | gn: {:.4f}\n".format(
-                    e, loss.item(), dev_loss.item(), test_loss.item(), gn)
+                log_str = "epoch {} | train loss {:.4f} | dev loss {:.4f} | test loss {:.4f} | gn: {:.4f} | single epoch time: {}\n".format(
+                    e, loss.item(), dev_loss.item(), test_loss.item(), gn, time.time() - epoch_st)
                 if calc_IF:
                     log_str += "Dev IF | IF_mean: {:.4f} | IF_var: {:.4f} | IF_std: {:.4f} | IF_ratio: {:.4f}\n".format(
                         dev_IF_mean.item(), dev_IF_var.item(), dev_IF_std.item(), dev_IF_ratio.item())
                     log_str += "Test IF | IF_mean: {:.4f} | IF_var: {:.4f} | IF_std: {:.4f} | IF_ratio: {:.4f}\n".format(
                         test_IF_mean.item(), test_IF_var.item(), test_IF_std.item(), test_IF_ratio.item())
                 print(log_str)
+                save_rank(log_str, os.path.join(save_path, "log.txt"))
                 # print(self.dev_data[0][:20], self.dev_data[1][:20], dev_preds[:20])
         
-        print(time.time() - st)
+        print("all_time", time.time() - st)
+        log_str = "min dev loss epoch: {} | min dev loss: {:.4f} | test loss: {:.4f}\n".format(min_dev_loss_epoch, min_dev_loss, all_test_loss[min_dev_loss_epoch])
+        print(log_str)
+        save_rank(log_str, os.path.join(save_path, "log.txt"))
         # final_loss = self.model.compute_loss(*self.train_data)
         # final_dev_loss, = self.model.compute_loss(*self.dev_data)
         # final_test_loss, = self.model.compute_loss(*self.test_data)
@@ -221,8 +247,6 @@ class ToyTSTrainer(ToyBaseTrainer):
         # print("final | train loss {:.4f} | dev loss {:.4f} | test loss {:.4f}".format(
         #     final_loss.item(), final_dev_loss.item(), final_test_loss.item()))
         
-        save_path = os.path.join(self.args.save, wandb_name)
-        os.makedirs(save_path, exist_ok=True)
         torch.save((all_dev_loss, all_test_loss), os.path.join(save_path, "all_loss.pt"))
         if calc_IF:
             torch.save((all_dev_IF, all_dev_IF_mean, all_dev_IF_var, all_dev_IF_std, all_dev_IF_ratio), os.path.join(save_path, "all_dev_IF.pt"))

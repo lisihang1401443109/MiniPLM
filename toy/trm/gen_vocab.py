@@ -3,6 +3,7 @@ import json
 from tqdm import tqdm
 import torch
 from multiprocessing import Pool
+from collections import Counter
 
 
 class Encoder():
@@ -21,7 +22,7 @@ class Encoder():
         return tokens
 
 
-all_tokens = set()
+all_tokens = Counter()
 
 tokenizer_path = "/mnt/yuxian/checkpoints/mistral-7B"
 tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)

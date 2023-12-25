@@ -16,7 +16,7 @@ class ToyTokenizer():
 
     def encode(self, text):
         token_ids = self.base_tokenizer.encode(text, add_special_tokens=False)
-        new_token_ids = [self.old2new_vocab_map[t] for t in token_ids]
+        new_token_ids = [self.old2new_vocab_map.get(t, 0) for t in token_ids]
         return new_token_ids
 
     def decode(self, token_ids):
