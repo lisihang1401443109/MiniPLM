@@ -247,6 +247,7 @@ def add_toy_args(parser: argparse.ArgumentParser):
     group.add_argument("--outer-lr", type=float, default=0.0001)
     group.add_argument("--outer-epoch", type=int, default=40)
     group.add_argument("--opt-alpha-wm-steps", type=int, default=0)
+    group.add_argument("--grad-batch-size", type=int, default=0)
     
     return parser
 

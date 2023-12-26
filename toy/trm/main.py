@@ -5,7 +5,7 @@ import torch
 
 from tiny_story_trainer import ToyTSTrainer
 from addition_trainer import ToyAdditionTrainer
-from opt_alpha_trainer import OptAlphaTrainer
+from opt_alpha_trainer_fast import OptAlphaTrainer
 from eval_alpha_trainer import EvalAlphaTrainer
 from arguments import get_args
 

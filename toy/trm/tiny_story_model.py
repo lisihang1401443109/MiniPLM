@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torch.func import functional_call
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+PAD_TOKEN_ID = 1
 
 class ToyTokenizer():
     def __init__(self, base_path, vocab_path):
@@ -11,7 +12,7 @@ class ToyTokenizer():
         self.vocab = torch.load(vocab_path, map_location="cpu")
         self.old2new_vocab_map = {v: k for k, v in enumerate(self.vocab)}
         self.new2old_vocab_map = {k: v for k, v in enumerate(self.vocab)}
-        self.pad_token_id = 0
+        self.pad_token_id = PAD_TOKEN_ID
         self.vocab_size = len(self.vocab)
 
     def encode(self, text):
@@ -35,7 +36,7 @@ class ToyTSTransformer(nn.Module):
         return self.base_model(input_ids)
     
     def compute_loss(self, input_ids, labels, alpha=None):
-        loss_mask = (labels != -100).float()
+        loss_mask = (labels != PAD_TOKEN_ID).float()
         loss_fn = nn.CrossEntropyLoss(reduction="none")
         logits = self.forward(input_ids).logits
         losses = loss_fn(logits.view(-1, logits.size(-1)), labels.view(-1))
@@ -50,7 +51,7 @@ class ToyTSTransformer(nn.Module):
     
     @staticmethod
     def compute_loss_func(params, buffers, model, input_ids, labels, alpha=None):
-        loss_mask = (labels != -100).float()
+        loss_mask = (labels != PAD_TOKEN_ID).float()
         loss_fn = nn.CrossEntropyLoss(reduction="none")
         logits = functional_call(model, (params, buffers), input_ids).logits
         losses = loss_fn(logits.view(-1, logits.size(-1)), labels.view(-1))
@@ -64,9 +65,11 @@ class ToyTSTransformer(nn.Module):
     
     @staticmethod
     def compute_loss_func_single(params, buffers, model, input_ids, labels):
-        loss_mask = (labels != -100).float()
+        input_ids = input_ids.unsqueeze(0)
+        labels = labels.unsqueeze(0)
+        loss_mask = (labels != PAD_TOKEN_ID).float()
         loss_fn = nn.CrossEntropyLoss(reduction="none")
-        logits = functional_call(model, (params, buffers), input_ids.unsqueeze(0)).logits
+        logits = functional_call(model, (params, buffers), input_ids).logits
         losses = loss_fn(logits.view(-1, logits.size(-1)), labels.view(-1))
         losses = losses.view(labels.size(0), -1)
         losses = torch.sum(losses * loss_mask, dim=-1) / torch.sum(loss_mask, dim=-1)

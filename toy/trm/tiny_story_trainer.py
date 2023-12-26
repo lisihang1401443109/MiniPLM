@@ -77,7 +77,7 @@ class ToyTSTrainer(ToyBaseTrainer):
         assert data.size(1) == self.max_length + 1
         input_ids = data[:, :-1].clone().to(self.device)
         labels = data[:, 1:].clone().to(self.device)
-        labels[labels == self.tokenizer.pad_token_id] = -100
+        # labels[labels == self.tokenizer.pad_token_id] = -100
         return input_ids, labels
     
     def get_grad_norm(self):
@@ -116,6 +116,22 @@ class ToyTSTrainer(ToyBaseTrainer):
         
         return IF, IF_mean, IF_var, IF_std, IF_ratio
     
+    def evaluate(self):
+        dev_grad_acc_steps = self.dev_data[0].size(0) // self.args.eval_batch_size
+        dev_losses, test_losses = [], []
+        with torch.no_grad():
+            for i in range(dev_grad_acc_steps):
+                start = i * self.args.eval_batch_size
+                end = (i+1) * self.args.eval_batch_size
+                dev_loss = self.model.compute_loss(self.dev_data[0][start:end], self.dev_data[1][start:end])
+                test_loss = self.model.compute_loss(self.test_data[0][start:end], self.test_data[1][start:end])
+                dev_losses.append(dev_loss.item())
+                test_losses.append(test_loss.item())
+        dev_loss = np.mean(dev_losses)
+        test_loss = np.mean(test_losses)
+        
+        return dev_loss, test_loss
+
     def train(self, alpha=None, wandb_name="baseline", calc_IF=False):
         save_path = os.path.join(self.args.save, wandb_name)
         os.makedirs(save_path, exist_ok=True)
@@ -140,9 +156,7 @@ class ToyTSTrainer(ToyBaseTrainer):
             self.args.eval_batch_size = self.dev_data[0].size(0)
         
         assert self.train_data[0].size(0) % self.args.batch_size == 0, (self.train_data[0].size(0), self.args.batch_size)
-        grad_acc_steps = self.train_data[0].size(0) // self.args.batch_size
         assert self.dev_data[0].size(0) % self.args.eval_batch_size == 0, (self.dev_data[0].size(0), self.args.eval_batch_size)
-        dev_grad_acc_steps = self.dev_data[0].size(0) // self.args.eval_batch_size
         
         min_dev_loss = 1e8
         min_dev_loss_epoch = -1
@@ -150,12 +164,14 @@ class ToyTSTrainer(ToyBaseTrainer):
         if alpha is None:
             flat_alpha = torch.ones(self.train_data[0].size(0), device=self.device) / self.train_data[0].size(0)
         
+        grad_acc_steps = self.train_data[0].size(0) // self.args.batch_size
         for e in range(self.args.epochs):
             epoch_st = time.time()
             self.optimizer.zero_grad()
             alpha_e = alpha[e] if alpha is not None else flat_alpha
             train_losses = []
-            
+            dev_loss, test_loss = self.evaluate()
+
             # params = {n: p.detach() for n, p in self.model.named_parameters()}
             # buffers = {n: p.detach() for n, p in self.model.named_buffers()}
             # g_params = {n:0 for n, _ in self.model.named_parameters()}
@@ -188,17 +204,6 @@ class ToyTSTrainer(ToyBaseTrainer):
             
             gn = self.get_grad_norm()
             self.optimizer.step()
-            dev_losses, test_losses = [], []
-            with torch.no_grad():
-                for i in range(dev_grad_acc_steps):
-                    start = i * self.args.eval_batch_size
-                    end = (i+1) * self.args.eval_batch_size
-                    dev_loss = self.model.compute_loss(self.dev_data[0][start:end], self.dev_data[1][start:end])
-                    test_loss = self.model.compute_loss(self.test_data[0][start:end], self.test_data[1][start:end])
-                    dev_losses.append(dev_loss.item())
-                    test_losses.append(test_loss.item())
-                dev_loss = np.mean(dev_losses)
-                test_loss = np.mean(test_losses)
 
             all_dev_loss.append(dev_loss)
             all_test_loss.append(test_loss)
@@ -255,12 +260,9 @@ class ToyTSTrainer(ToyBaseTrainer):
         log_str = "min dev loss epoch: {} | min dev loss: {:.4f} | test loss: {:.4f}\n".format(min_dev_loss_epoch, min_dev_loss, all_test_loss[min_dev_loss_epoch])
         print(log_str)
         save_rank(log_str, os.path.join(save_path, "log.txt"))
-        # final_loss = self.model.compute_loss(*self.train_data)
-        # final_dev_loss, = self.model.compute_loss(*self.dev_data)
-        # final_test_loss, = self.model.compute_loss(*self.test_data)
+        final_dev_loss, final_test_loss = self.evaluate()
           
-        # print("final | train loss {:.4f} | dev loss {:.4f} | test loss {:.4f}".format(
-        #     final_loss.item(), final_dev_loss.item(), final_test_loss.item()))
+        print("final | dev loss {:.4f} | test loss {:.4f}".format(final_dev_loss.item(), final_test_loss.item()))
         
         torch.save((all_dev_loss, all_test_loss), os.path.join(save_path, "all_loss.pt"))
         if calc_IF:
