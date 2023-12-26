@@ -40,6 +40,26 @@ class GradLayerFunction(torch.autograd.Function):
         
         params = model.vector_to_params(theta)
         buffers = {n: b.detach() for n, b in model.named_buffers()}
+
+        ctx.save_for_backward(theta, xn, yn, dev_xn, dev_yn)
+        ctx.model = model
+        ctx.alpha = alpha
+        ctx.eta = eta
+        ctx.t = t
+        ctx.args = args
+        
+        # NOTE: compute dev loss at the beginning of each step
+        dev_grad_acc_steps = dev_xn.size(0) // args.eval_batch_size
+        losses = 0
+        for i in range(dev_grad_acc_steps):
+            dev_xn_batch = dev_xn[i*args.eval_batch_size:(i+1)*args.eval_batch_size]
+            dev_yn_batch = dev_yn[i*args.eval_batch_size:(i+1)*args.eval_batch_size]
+            loss = model.compute_loss_func(params, buffers, model, dev_xn_batch, dev_yn_batch)
+            losses += loss
+        dev_loss = losses / dev_grad_acc_steps
+        
+        if alpha is None:
+            return dev_loss, None
         
         grad_acc_steps = xn.size(0) // args.batch_size
         g_vec = 0
@@ -52,11 +72,6 @@ class GradLayerFunction(torch.autograd.Function):
             g_vec += model.params_to_vector(g)
         
         g_params = model.vector_to_params(g_vec)
-        ctx.save_for_backward(theta, alpha, xn, yn, dev_xn, dev_yn)
-        ctx.model = model
-        ctx.eta = eta
-        ctx.t = t
-        ctx.args = args
         
         g_vec_clipped, clip_coef = GradLayerFunction.clip_grad(g_vec, args.clip_grad)        
         g_params_clip = model.vector_to_params(g_vec_clipped)
@@ -65,51 +80,60 @@ class GradLayerFunction(torch.autograd.Function):
         ctx.clip_coef = clip_coef
         new_theta.add_(g_vec, alpha=-eta)
 
-        # NOTE: compute dev loss at the beginning of each step
-        dev_grad_acc_steps = dev_xn.size(0) // args.eval_batch_size
-        losses = 0
-        for i in range(dev_grad_acc_steps):
-            dev_xn_batch = dev_xn[i*args.eval_batch_size:(i+1)*args.eval_batch_size]
-            dev_yn_batch = dev_yn[i*args.eval_batch_size:(i+1)*args.eval_batch_size]
-            loss = model.compute_loss_func(params, buffers, model, dev_xn_batch, dev_yn_batch)
-            losses += loss
-        dev_loss = losses / dev_grad_acc_steps
-
-        return new_theta, dev_loss
+        return dev_loss, new_theta
 
     @staticmethod
-    def backward(ctx, grad_output, loss_grad_output):
-        print(ctx.t)
-        if ctx.t % 10 == 0:
+    def backward(ctx, loss_grad_output, grad_output):
+        # print(ctx.t)
+        if ctx.t % 100 == 0:
             print("Backward", ctx.t, ctx.eta)
 
-        theta, alpha, xn, yn, dev_xn, dev_yn = ctx.saved_tensors
+        theta, xn, yn, dev_xn, dev_yn = ctx.saved_tensors
+        alpha = ctx.alpha
         model = ctx.model
         eta = ctx.eta
         args = ctx.args
         
         params = model.vector_to_params(theta)
         buffers = {n: b.detach() for n, b in model.named_buffers()}
-        vmapped_grad_func = vmap(grad(model.compute_loss_func_single), in_dims=(None, None, None, 0, 0))
+        
+        # 1. \partial L_{dev} / \partial \theta_{t-1}
+        dev_grad_acc_steps = dev_xn.size(0) // args.eval_batch_size
+        g_dev_vec = 0
+        for i in range(dev_grad_acc_steps):
+            dev_xn_batch = dev_xn[i*args.eval_batch_size:(i+1)*args.eval_batch_size]
+            dev_yn_batch = dev_yn[i*args.eval_batch_size:(i+1)*args.eval_batch_size]
+            g_dev = grad(ctx.model.compute_loss_func)(params, buffers, model, dev_xn_batch, dev_yn_batch)
+            g_dev_vec += ctx.model.params_to_vector(g_dev)
+            del g_dev
+        g_dev_vec = g_dev_vec / dev_grad_acc_steps
+        g_dev_vec = g_dev_vec * loss_grad_output
+        
+        grad_theta = g_dev_vec
+        
+        if alpha is None:
+            # last step
+            return grad_theta, None, None, None, None, None, None, None, None, None
+        
+        # not last step
         grad_output_params = model.vector_to_params(grad_output)
         
-        # 1. \partial L / \partial \alpha_t
+        # 2. \partial L / \partial \alpha_t
+        vmapped_grad_func = vmap(grad(model.compute_loss_func_single), in_dims=(None, None, None, 0, 0))
         grad_acc_steps_sample = xn.size(0) // args.grad_batch_size
         IF_abs = torch.zeros_like(alpha)
         for i in range(grad_acc_steps_sample):
             xn_batch = xn[i*args.grad_batch_size:(i+1)*args.grad_batch_size]
             yn_batch = yn[i*args.grad_batch_size:(i+1)*args.grad_batch_size]
             vmapped_g = vmapped_grad_func(params, buffers, model, xn_batch, yn_batch)
-                
             for n, _ in model.named_parameters():
                 x1 = grad_output_params[n].view(-1)
                 x2 = vmapped_g[n].contiguous().view(vmapped_g[n].size(0), -1)
                 IF_abs[i*args.grad_batch_size:(i+1)*args.grad_batch_size] += x2 @ x1
         
         grad_alpha = -ctx.clip_coef * IF_abs * eta
-
-        # 2. \partial L / \partial \theta_{t-1}
-        # 2.1 >= t
+        
+        # 3. \partial L / \partial \theta_{t} @ \partial \theta_{t} / \partial \theta_{t-1}
         grad_acc_steps = xn.size(0) // args.batch_size
         def hvp_fwdrev(f, primals, tangents):
             def grad_wrapper(pr):
@@ -135,22 +159,8 @@ class GradLayerFunction(torch.autograd.Function):
         
         hvp_vec = model.params_to_vector(hvp)
         
-        grad_theta = grad_output - ctx.clip_coef * eta * hvp_vec
+        grad_theta.add_(grad_output - ctx.clip_coef * eta * hvp_vec)
 
-        # 2.2 t-1
-        dev_grad_acc_steps = dev_xn.size(0) // args.eval_batch_size
-        g_dev_vec = 0
-        for i in range(dev_grad_acc_steps):
-            dev_xn_batch = dev_xn[i*args.eval_batch_size:(i+1)*args.eval_batch_size]
-            dev_yn_batch = dev_yn[i*args.eval_batch_size:(i+1)*args.eval_batch_size]
-            g_dev = grad(ctx.model.compute_loss_func)(params, buffers, model, dev_xn_batch, dev_yn_batch)
-            g_dev_vec += ctx.model.params_to_vector(g_dev)
-            del g_dev
-        g_dev_vec = g_dev_vec / dev_grad_acc_steps
-        g_dev_vec = g_dev_vec * grad_output
-        
-        grad_theta += g_dev_vec
-        
         # TODO: more accurate way to compute the gradient of alpha with clip_coef
                 
         return grad_theta, grad_alpha, None, None, None, None, None, None, None, None
@@ -181,7 +191,7 @@ class AlphaModel(nn.Module):
         with torch.no_grad():
             for t in tqdm(range(self.n_wm_steps), desc=f"{mode} forward warming up"):
                 cur_eta = constant_schedule_with_warmup(eta, self.args.warmup_iters, t)
-                theta, loss = GradLayerFunction.apply(
+                loss, theta = GradLayerFunction.apply(
                     theta, self.alpha[t], model, xn, yn, dev_xn, dev_yn, cur_eta, t, self.args)
 
                 if t % 100 == 0:
@@ -193,16 +203,22 @@ class AlphaModel(nn.Module):
 
         for t in tqdm(range(self.n_wm_steps, self.n_steps), desc=f"{mode} forward"):
             cur_eta = constant_schedule_with_warmup(eta, self.args.warmup_iters, t)
-            theta, loss = GradLayerFunction.apply(theta, self.alpha[t], model, xn, yn, dev_xn, dev_yn, cur_eta, t, self.args)
+            loss, theta = GradLayerFunction.apply(
+                theta, self.alpha[t], model, xn, yn, dev_xn, dev_yn, cur_eta, t, self.args)
             
-            if t % 10 == 0:
-                print("Forward | t: {} | inner loss: {:.4f}".format(t, loss.item()))
+            # if t % 10 == 0:
+            #     print("Forward | t: {} | inner loss: {:.4f}".format(t, loss.item()))
             if t % 100 == 0:
                 # print("Forward | t: {} | inner loss: {:.4f}".format(t, loss.item()))
                 all_logging_losses.append(round(loss.item(), 4))
         
             all_losses.append(loss.item())
             area_loss += loss
+        
+        loss, _ = GradLayerFunction.apply(
+            theta, None, model, xn, yn, dev_xn, dev_yn, eta, self.n_steps, self.args)
+        area_loss += loss
+        all_losses.append(loss.item())
 
         area_loss = area_loss / self.n_steps
         return area_loss, all_losses, all_logging_losses
@@ -219,14 +235,14 @@ class AlphaModel(nn.Module):
 class OptAlphaTrainer():
     def __init__(self, args, device) -> None:
         
-        # self.base_trainer = LogisticTrainer(args, device)
-        if args.data_names == "addition":
-            base_trainer_cls = ToyAdditionTrainer
-        elif args.data_names == "tiny_story":
-            base_trainer_cls = ToyTSTrainer
-        else:
-            raise NotImplementedError
-        self.base_trainer = base_trainer_cls(args, device)
+        self.base_trainer = LogisticTrainer(args, device)
+        # if args.data_names == "addition":
+        #     base_trainer_cls = ToyAdditionTrainer
+        # elif args.data_names == "tiny_story":
+        #     base_trainer_cls = ToyTSTrainer
+        # else:
+        #     raise NotImplementedError
+        # self.base_trainer = base_trainer_cls(args, device)
         
         self.model = self.base_trainer.model
         self.train_data = self.base_trainer.train_data

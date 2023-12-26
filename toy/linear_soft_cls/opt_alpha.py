@@ -57,19 +57,23 @@ class OPTAlphaModel(nn.Module):
             eval_xn, eval_yn = self.dev_xn, self.dev_yn
         else:
             eval_xn, eval_yn = self.test_xn, self.test_yn
-            
+
         init_loss = self.inner_loss(eval_xn, eval_yn, theta)
         full_losses.append(init_loss.item())
         for t in tqdm(range(self.num_steps)):
+            i_loss = self.inner_loss(eval_xn, eval_yn, theta)
             grad_full = self.xn * (torch.sigmoid(self.xn @ theta) - self.yn)
             grad = torch.sum(self.alphas[t].unsqueeze(1) * grad_full, dim=0).unsqueeze(1)
             theta = theta - self.eta * grad
-            i_loss = self.inner_loss(eval_xn, eval_yn, theta)
             full_losses.append(i_loss.item())
             loss += i_loss
             if t % 100 == 0:
                 losses.append(round(i_loss.item(), 4))
 
+        i_loss = self.inner_loss(eval_xn, eval_yn, theta)
+        full_losses.append(i_loss.item())
+        loss += i_loss
+        
         log_str = f"{eval_mode} Losses: {losses} Final: {i_loss}"
         loss = loss / self.num_steps
 

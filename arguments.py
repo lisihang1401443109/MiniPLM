@@ -247,7 +247,7 @@ def add_toy_args(parser: argparse.ArgumentParser):
     group.add_argument("--outer-lr", type=float, default=0.0001)
     group.add_argument("--outer-epoch", type=int, default=40)
     group.add_argument("--opt-alpha-wm-steps", type=int, default=0)
-    group.add_argument("--grad-batch-size", type=int, default=0)
+    group.add_argument("--grad-batch-size", type=int, default=-1)
     
     return parser
 
@@ -413,6 +413,9 @@ def get_args():
                 suffix = f"r{args.ratio_1_2}"
             elif args.data_names == "tiny_story":
                 model_info = f"{args.ckpt_name}-ts"
+                suffix = ""
+            elif args.data_names == "linear":
+                model_info = f"d{args.input_dim}-{args.input_real_dim}-l{args.lam}"
                 suffix = ""
             if args.opt_alpha:
                 suffix += f"-opt-{args.outer_lr}-{args.opt_alpha_wm_steps}"
