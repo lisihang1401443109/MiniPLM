@@ -6,7 +6,7 @@ BASE_PATH=${1-"/home/MiniLLM"}
 TYPE="toy"
 # hp
 LR=0.1
-BATCH_SIZE=-1
+BATCH_SIZE=1024
 # runtime
 SAVE_PATH="${BASE_PATH}/results/${TYPE}"
 # seed
@@ -31,6 +31,8 @@ OPTS+=" --data-names linear"
 # hp
 OPTS+=" --lr ${LR}"
 OPTS+=" --batch-size ${BATCH_SIZE}"
+OPTS+=" --eval-batch-size 512"
+OPTS+=" --grad-batch-size 512"
 OPTS+=" --epochs 2000"
 OPTS+=" --log-interval 100"
 OPTS+=" --lam 0.0"

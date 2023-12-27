@@ -412,7 +412,7 @@ def get_args():
                 model_info = f"d{args.input_dim}"
                 suffix = f"r{args.ratio_1_2}"
             elif args.data_names == "tiny_story":
-                model_info = f"{args.ckpt_name}-ts"
+                model_info = f"{args.ckpt_name}-ts-{args.max_length}"
                 suffix = ""
             elif args.data_names == "linear":
                 model_info = f"d{args.input_dim}-{args.input_real_dim}-l{args.lam}"
@@ -427,7 +427,8 @@ def get_args():
             args.save,
             args.model_type,
             model_info,
-            (f"bs{args.batch_size}-lr{args.lr}-tn{args.train_num}-dn{args.dev_num}"),
+            (f"bs{args.batch_size}-lr{args.lr}-tn{args.train_num}-dn{args.dev_num}") + \
+                (f"-wm{args.warmup_iters}" if args.warmup_iters > 0 else ""),
             suffix,
             f"{args.seed}-{args.seed_data}-{args.seed_gd}",
         )

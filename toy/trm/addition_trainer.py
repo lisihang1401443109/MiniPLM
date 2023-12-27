@@ -54,7 +54,7 @@ class ToyAdditionTrainer(ToyBaseTrainer):
             self.data_dir, f"model_init_{self.args.input_dim}_{self.args.num_head}.pt")))
     
     def get_model(self):
-        return ToyTransformer(self.config).to(device)
+        return ToyTransformer(self.config).to(self.device)
     
     def get_label(self, x, y):
         return ((x + y) // 10) % 10

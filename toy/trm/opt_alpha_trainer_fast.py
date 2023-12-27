@@ -24,6 +24,12 @@ def proj_alpha(optimizer, args, kwargs):
         p.data = data_res
 
 
+max_grad = 0
+min_grad = 1e6
+max_grad_epoch = 0
+min_grad_epoch = 0
+
+
 class GradLayerFunction(torch.autograd.Function):   
     @staticmethod
     def clip_grad(theta, max_norm):
@@ -122,6 +128,9 @@ class GradLayerFunction(torch.autograd.Function):
         vmapped_grad_func = vmap(grad(model.compute_loss_func_single), in_dims=(None, None, None, 0, 0))
         grad_acc_steps_sample = xn.size(0) // args.grad_batch_size
         IF_abs = torch.zeros_like(alpha)
+        
+        max_sample_grad_norm = 0
+        
         for i in range(grad_acc_steps_sample):
             xn_batch = xn[i*args.grad_batch_size:(i+1)*args.grad_batch_size]
             yn_batch = yn[i*args.grad_batch_size:(i+1)*args.grad_batch_size]
@@ -129,6 +138,7 @@ class GradLayerFunction(torch.autograd.Function):
             for n, _ in model.named_parameters():
                 x1 = grad_output_params[n].view(-1)
                 x2 = vmapped_g[n].contiguous().view(vmapped_g[n].size(0), -1)
+                max_sample_grad_norm = max(max_sample_grad_norm, torch.norm(x2, dim=1).max().item())
                 IF_abs[i*args.grad_batch_size:(i+1)*args.grad_batch_size] += x2 @ x1
         
         grad_alpha = -ctx.clip_coef * IF_abs * eta
@@ -159,10 +169,23 @@ class GradLayerFunction(torch.autograd.Function):
         
         hvp_vec = model.params_to_vector(hvp)
         
-        grad_theta.add_(grad_output - ctx.clip_coef * eta * hvp_vec)
+        grad_theta = grad_theta + (grad_output - ctx.clip_coef * eta * hvp_vec)
 
         # TODO: more accurate way to compute the gradient of alpha with clip_coef
-                
+        global max_grad, min_grad, max_grad_epoch, min_grad_epoch
+        if torch.max(grad_alpha).item() > max_grad:
+            max_grad = torch.max(grad_alpha).item()
+            max_grad_epoch = ctx.t
+        if torch.min(grad_alpha).item() < min_grad:
+            min_grad = torch.min(grad_alpha).item()
+            min_grad_epoch = ctx.t
+
+        log_str = "{} {:.4e} grad out norm {:.4f} max sample grad norm {:.4f} dev vec norm {:.4f} max_grad {:.6f} min_grad {:.6f}".format(
+            ctx.t, ctx.eta,
+            torch.norm(grad_output).item(), max_sample_grad_norm, torch.norm(g_dev_vec).item(), torch.max(grad_alpha).item(), torch.min(grad_alpha).item()
+        )
+        save_rank(log_str, os.path.join(args.save, "grad_log.txt"))
+
         return grad_theta, grad_alpha, None, None, None, None, None, None, None, None
 
 
@@ -188,27 +211,18 @@ class AlphaModel(nn.Module):
         area_loss = 0
         st = time.time()
         
-        with torch.no_grad():
-            for t in tqdm(range(self.n_wm_steps), desc=f"{mode} forward warming up"):
-                cur_eta = constant_schedule_with_warmup(eta, self.args.warmup_iters, t)
+        inner_log_interval = 100
+        for t in tqdm(range(self.n_steps), desc=f"{mode} forward"):
+            cur_eta = constant_schedule_with_warmup(eta, self.args.warmup_iters, t)
+            if t < self.n_wm_steps:
+                with torch.no_grad():
+                    loss, theta = GradLayerFunction.apply(
+                        theta, self.alpha[t], model, xn, yn, dev_xn, dev_yn, cur_eta, t, self.args)
+            else:
                 loss, theta = GradLayerFunction.apply(
                     theta, self.alpha[t], model, xn, yn, dev_xn, dev_yn, cur_eta, t, self.args)
 
-                if t % 100 == 0:
-                    # print("Forward | t: {} | inner loss: {:.4f}".format(t, loss.item()))
-                    all_logging_losses.append(round(loss.item(), 4))
-            
-                all_losses.append(loss.item())
-                area_loss += loss
-
-        for t in tqdm(range(self.n_wm_steps, self.n_steps), desc=f"{mode} forward"):
-            cur_eta = constant_schedule_with_warmup(eta, self.args.warmup_iters, t)
-            loss, theta = GradLayerFunction.apply(
-                theta, self.alpha[t], model, xn, yn, dev_xn, dev_yn, cur_eta, t, self.args)
-            
-            # if t % 10 == 0:
-            #     print("Forward | t: {} | inner loss: {:.4f}".format(t, loss.item()))
-            if t % 100 == 0:
+            if t % inner_log_interval == 0:
                 # print("Forward | t: {} | inner loss: {:.4f}".format(t, loss.item()))
                 all_logging_losses.append(round(loss.item(), 4))
         
@@ -235,14 +249,16 @@ class AlphaModel(nn.Module):
 class OptAlphaTrainer():
     def __init__(self, args, device) -> None:
         
-        self.base_trainer = LogisticTrainer(args, device)
-        # if args.data_names == "addition":
-        #     base_trainer_cls = ToyAdditionTrainer
-        # elif args.data_names == "tiny_story":
-        #     base_trainer_cls = ToyTSTrainer
-        # else:
-        #     raise NotImplementedError
-        # self.base_trainer = base_trainer_cls(args, device)
+        if args.data_names == "addition":
+            base_trainer_cls = ToyAdditionTrainer
+        elif args.data_names == "tiny_story":
+            base_trainer_cls = ToyTSTrainer
+        elif args.data_names == "linear":
+            base_trainer_cls = LogisticTrainer
+        else:
+            raise NotImplementedError(args.data_names)
+
+        self.base_trainer = base_trainer_cls(args, device)
         
         self.model = self.base_trainer.model
         self.train_data = self.base_trainer.train_data
@@ -277,6 +293,7 @@ class OptAlphaTrainer():
         dev_xn, dev_yn = self.dev_data
         test_xn, test_yn = self.test_data
         for e in range(self.outer_epochs):
+            save_rank("Epoch {}".format(e), os.path.join(self.args.save, "grad_log.txt"))
             st = time.time()
             self.optimizer.zero_grad()
             area_loss, all_losses, all_logging_losses = self.alpha_model(
@@ -290,6 +307,10 @@ class OptAlphaTrainer():
             # self.evaluate(e, theta, xn, yn, test_xn, test_yn)
 
             area_loss.backward()
+            global max_grad, min_grad, max_grad_epoch, min_grad_epoch
+            print("max grad", max_grad, "min grad", min_grad, "max grad epoch", max_grad_epoch, "min grad epoch", min_grad_epoch)
+            max_grad = 0
+            min_grad = 1e6
             backward_elapsed = time.time() - st - forward_elapsed
             
             self.optimizer.step()

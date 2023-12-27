@@ -3,6 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.func import functional_call
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from model import ToyTransformer
+from dataclasses import dataclass
+
 
 PAD_TOKEN_ID = 1
 
@@ -26,14 +29,33 @@ class ToyTokenizer():
         return text
 
 
+@dataclass
+class ToyOutput():
+    logits: torch.FloatTensor
+
+
 class ToyTSTransformer(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.base_model_config = config["base_model_config"]
-        self.base_model = AutoModelForCausalLM.from_config(self.base_model_config)
+        if isinstance(config, str) and config == "toy":
+            config = {
+                "vocab_size": 4000,
+                "max_len": 64,
+                "hidden_size": 128,
+                "num_head": 8,
+            }
+            self.base_model_config = "toy"
+            self.base_model = ToyTransformer(config)
+        else:
+            self.base_model_config = config["base_model_config"]
+            self.base_model = AutoModelForCausalLM.from_config(self.base_model_config)
         
     def forward(self, input_ids):
-        return self.base_model(input_ids)
+        if self.base_model_config == "toy":
+            output = ToyOutput(logits=self.base_model(input_ids))
+            return output
+        else:
+            return self.base_model(input_ids)
     
     def compute_loss(self, input_ids, labels, alpha=None):
         loss_mask = (labels != PAD_TOKEN_ID).float()

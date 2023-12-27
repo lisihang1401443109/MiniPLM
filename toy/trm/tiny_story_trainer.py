@@ -16,15 +16,19 @@ from utils import save_rank
 from toy.trm.tiny_story_model import ToyTSTransformer, ToyTokenizer
 from toy.trm.base_trainer import ToyBaseTrainer
 from transformers import AutoConfig, AutoTokenizer
+from transformers import get_linear_schedule_with_warmup, get_constant_schedule_with_warmup
 
 
 class ToyTSTrainer(ToyBaseTrainer):
     def __init__(self, args, device) -> None:
         super(ToyTSTrainer, self).__init__(args, device)
         
-        self.config = {
-            "base_model_config": AutoConfig.from_pretrained(args.model_path)
-        }
+        if args.ckpt_name == "toy-trm":
+            self.config = "toy"
+        else:
+            self.config = {
+                "base_model_config": AutoConfig.from_pretrained(args.model_path)
+            }
         self.tokenizer = ToyTokenizer(
             args.model_path, os.path.join(args.data_dir, "vocab.pt"))
         print("vocab size: {}".format(self.tokenizer.vocab_size))
@@ -45,6 +49,7 @@ class ToyTSTrainer(ToyBaseTrainer):
             self.model.load_state_dict(torch.load(model_init_path))
         
         self.optimizer = SGD(self.model.parameters(), lr=args.lr)
+        self.lr_scheduler = get_constant_schedule_with_warmup(self.optimizer, num_warmup_steps=args.warmup_iters)
         # self.optimizer = AdamW(self.model.parameters(), lr=args.lr)
     
         self.train_data, self.dev_data, self.test_data = self.get_data()
@@ -204,6 +209,7 @@ class ToyTSTrainer(ToyBaseTrainer):
             
             gn = self.get_grad_norm()
             self.optimizer.step()
+            self.lr_scheduler.step()
 
             all_dev_loss.append(dev_loss)
             all_test_loss.append(test_loss)
@@ -245,8 +251,8 @@ class ToyTSTrainer(ToyBaseTrainer):
             wandb.log(wandb_log)
             
             if e % self.args.log_interval == 0:
-                log_str = "epoch {} | train loss {:.4f} | dev loss {:.4f} | test loss {:.4f} | gn: {:.4f} | single epoch time: {}\n".format(
-                    e, loss.item(), dev_loss.item(), test_loss.item(), gn, time.time() - epoch_st)
+                log_str = "epoch {} | train loss {:.4f} | dev loss {:.4f} | test loss {:.4f} | gn: {:.4f} | lr:{:.4e} | single epoch time: {}\n".format(
+                    e, loss.item(), dev_loss.item(), test_loss.item(), gn, self.lr_scheduler.get_last_lr()[0], time.time() - epoch_st)
                 if calc_IF:
                     log_str += "Dev IF | IF_mean: {:.4f} | IF_var: {:.4f} | IF_std: {:.4f} | IF_ratio: {:.4f}\n".format(
                         dev_IF_mean.item(), dev_IF_var.item(), dev_IF_std.item(), dev_IF_ratio.item())
