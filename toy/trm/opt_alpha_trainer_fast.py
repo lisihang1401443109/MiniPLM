@@ -100,6 +100,13 @@ class GradLayerFunction(torch.autograd.Function):
         eta = ctx.eta
         args = ctx.args
         
+        if grad_output is not None:
+            grad_out_norm = torch.norm(grad_output)
+            if args.clip_grad_out > 0:
+                grad_out_clip_coef = args.clip_grad_out / (grad_out_norm + 1e-6)
+                grad_out_clip_coef = torch.clamp(grad_out_clip_coef, max=1.0)
+                grad_output.mul_(grad_out_clip_coef)
+        
         params = model.vector_to_params(theta)
         buffers = {n: b.detach() for n, b in model.named_buffers()}
         
@@ -180,10 +187,12 @@ class GradLayerFunction(torch.autograd.Function):
             min_grad = torch.min(grad_alpha).item()
             min_grad_epoch = ctx.t
 
-        log_str = "{} {:.4e} grad out norm {:.4f} max sample grad norm {:.4f} dev vec norm {:.4f} max_grad {:.6f} min_grad {:.6f}".format(
+        log_str = "{} {:.4e} grad out norm {:.4f} max sample grad norm {:.4f} dev vec norm {:.4f} grad norm {:.4f} max_grad {:.6f} min_grad {:.6f}".format(
             ctx.t, ctx.eta,
-            torch.norm(grad_output).item(), max_sample_grad_norm, torch.norm(g_dev_vec).item(), torch.max(grad_alpha).item(), torch.min(grad_alpha).item()
+            torch.norm(grad_output).item(), max_sample_grad_norm, torch.norm(g_dev_vec).item(), 
+            torch.norm(grad_alpha).item(), torch.max(grad_alpha).item(), torch.min(grad_alpha).item()
         )
+        print(log_str)
         save_rank(log_str, os.path.join(args.save, "grad_log.txt"))
 
         return grad_theta, grad_alpha, None, None, None, None, None, None, None, None
