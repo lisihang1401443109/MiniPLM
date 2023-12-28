@@ -249,6 +249,7 @@ def add_toy_args(parser: argparse.ArgumentParser):
     group.add_argument("--opt-alpha-wm-steps", type=int, default=0)
     group.add_argument("--grad-batch-size", type=int, default=-1)
     group.add_argument("--clip-grad-out", type=int, default=-1)
+    group.add_argument("--avg-IF-calc-interval", type=int, default=None)
     
     return parser
 
@@ -418,6 +419,8 @@ def get_args():
             elif args.data_names == "linear":
                 model_info = f"d{args.input_dim}-{args.input_real_dim}-l{args.lam}"
                 suffix = ""
+            else:
+                raise NotImplementedError
             if args.opt_alpha:
                 suffix += f"-opt-{args.outer_lr}-{args.opt_alpha_wm_steps}"
             if args.eval_opt_alpha:

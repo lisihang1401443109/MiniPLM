@@ -11,10 +11,15 @@ from tqdm import tqdm
 from utils import print_rank, save_rank
 from transformers import get_linear_schedule_with_warmup, get_constant_schedule_with_warmup
 import torch.distributed as dist
+import torch.multiprocessing as mp
+from torch.multiprocessing import Pool
 
-
-def proj_alpha(optimizer, args, kwargs):
-    for p in tqdm(optimizer.param_groups[0]["params"], desc="Solving Projection", disable=(dist.get_rank() != 0)):
+class ProjSolver():
+    def __init__(self):
+        pass
+    
+    def solve(self, lid_p):
+        lid, p = lid_p
         data = p.data
         data_cpu = data.squeeze().cpu().numpy()
         data_proj = cp.Variable(data.size(0))
@@ -22,7 +27,26 @@ def proj_alpha(optimizer, args, kwargs):
         prob = cp.Problem(objective, [cp.sum(data_proj) == 1, data_proj >= 0])
         result = prob.solve()
         data_res = torch.tensor(data_proj.value).view(data.size()).to(data.device).to(data.dtype)
-        p.data = data_res
+        return lid, data_res
+
+
+def proj_alpha(optimizer, args, kwargs):
+    
+    all_alphas = torch.stack([torch.zeros_like(p.data) for p in optimizer.param_groups[0]["params"]], dim=0)
+    
+    if dist.get_rank() == 0:
+        solver = ProjSolver()
+
+        pool = Pool(processes=20)
+        solved_alpha = pool.map(solver.solve, enumerate(optimizer.param_groups[0]["params"]))
+        with tqdm(total=len(solved_alpha), desc="Proj Alpha") as pbar:
+            for lid, data_res in solved_alpha:
+                all_alphas[lid] = data_res
+                pbar.update(1)
+        
+    dist.broadcast(all_alphas, 0)
+    for lid, p in enumerate(optimizer.param_groups[0]["params"]):
+        p.data = all_alphas[lid]        
 
 
 max_grad = 0
@@ -235,7 +259,7 @@ class GradLayerFunction(torch.autograd.Function):
             torch.norm(grad_output).item(), max_sample_grad_norm, torch.norm(g_dev_vec).item(), 
             torch.norm(grad_alpha).item(), torch.max(grad_alpha).item(), torch.min(grad_alpha).item()
         )
-        print_rank(log_str)
+        # print_rank(log_str)
         save_rank(log_str, os.path.join(args.save, "grad_log.txt"))
 
         return grad_theta, grad_alpha, None, None, None, None, None, None, None, None

@@ -44,7 +44,6 @@ class ToyTSTrainer(ToyBaseTrainer):
             sum([p.nelement() for p in self.model.parameters()])), flush=True)
         
         if args.load_toy_data is not None:
-            print("OK")
             if not os.path.exists(model_init_path):
                 torch.save(self.model.state_dict(), model_init_path)
             else:
