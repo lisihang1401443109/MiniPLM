@@ -10,10 +10,11 @@ import time
 from tqdm import tqdm
 from utils import print_rank, save_rank
 from transformers import get_linear_schedule_with_warmup, get_constant_schedule_with_warmup
+import torch.distributed as dist
 
 
 def proj_alpha(optimizer, args, kwargs):
-    for p in tqdm(optimizer.param_groups[0]["params"], desc="Solving Projection"):
+    for p in tqdm(optimizer.param_groups[0]["params"], desc="Solving Projection", disable=(dist.get_rank() != 0)):
         data = p.data
         data_cpu = data.squeeze().cpu().numpy()
         data_proj = cp.Variable(data.size(0))
@@ -30,7 +31,7 @@ max_grad_epoch = 0
 min_grad_epoch = 0
 
 
-class GradLayerFunction(torch.autograd.Function):
+class GradLayerFunction(torch.autograd.Function):   
     @staticmethod
     def clip_grad(theta, max_norm):
         if max_norm < 0:
@@ -54,28 +55,37 @@ class GradLayerFunction(torch.autograd.Function):
         ctx.t = t
         ctx.args = args
         
+        r = dist.get_rank()
+        
         # NOTE: compute dev loss at the beginning of each step
-        dev_grad_acc_steps = dev_xn.size(0) // args.eval_batch_size
+        eval_bs = args.eval_batch_size
+        gl_eval_bs = dist.get_world_size() * eval_bs
+        dev_grad_acc_steps = dev_xn.size(0) // gl_eval_bs
         losses = 0
         for i in range(dev_grad_acc_steps):
-            dev_xn_batch = dev_xn[i*args.eval_batch_size:(i+1)*args.eval_batch_size]
-            dev_yn_batch = dev_yn[i*args.eval_batch_size:(i+1)*args.eval_batch_size]
+            dev_xn_batch = (dev_xn[i*gl_eval_bs:(i+1)*gl_eval_bs])[r*eval_bs:(r+1)*eval_bs]
+            dev_yn_batch = (dev_yn[i*gl_eval_bs:(i+1)*gl_eval_bs])[r*eval_bs:(r+1)*eval_bs]
             loss = model.compute_loss_func(params, buffers, model, dev_xn_batch, dev_yn_batch)
+            dist.all_reduce(loss, op=dist.ReduceOp.SUM)
+            loss = loss / dist.get_world_size()
             losses += loss
         dev_loss = losses / dev_grad_acc_steps
         
         if alpha is None:
             return dev_loss, None
         
-        grad_acc_steps = xn.size(0) // args.batch_size
+        bs = args.batch_size
+        gl_bs = dist.get_world_size() * bs
+        grad_acc_steps = xn.size(0) // gl_bs
         g_vec = 0
         for i in range(grad_acc_steps):
-            xn_batch = xn[i*args.batch_size:(i+1)*args.batch_size]
-            yn_batch = yn[i*args.batch_size:(i+1)*args.batch_size]
-            alpha_batch = alpha[i*args.batch_size:(i+1)*args.batch_size]
-            g, l = grad_and_value(model.compute_loss_func)(params, buffers, model, xn_batch, yn_batch, alpha=alpha_batch)
-
-            g_vec += model.params_to_vector(g)
+            xn_batch = (xn[i*gl_bs:(i+1)*gl_bs])[r*bs:(r+1)*bs]
+            yn_batch = (yn[i*gl_bs:(i+1)*gl_bs])[r*bs:(r+1)*bs]
+            alpha_batch = (alpha[i*gl_bs:(i+1)*gl_bs])[r*bs:(r+1)*bs]
+            g, _ = grad_and_value(model.compute_loss_func)(params, buffers, model, xn_batch, yn_batch, alpha=alpha_batch)
+            g_vec_b = model.params_to_vector(g)
+            dist.all_reduce(g_vec_b, op=dist.ReduceOp.SUM)
+            g_vec += g_vec_b
         
         g_params = model.vector_to_params(g_vec)
         
@@ -92,13 +102,15 @@ class GradLayerFunction(torch.autograd.Function):
     def backward(ctx, loss_grad_output, grad_output):
         # print(ctx.t)
         if ctx.t % 100 == 0:
-            print("Backward", ctx.t, ctx.eta)
+            print_rank("Backward", ctx.t, ctx.eta)
 
         theta, xn, yn, dev_xn, dev_yn = ctx.saved_tensors
         alpha = ctx.alpha
         model = ctx.model
         eta = ctx.eta
         args = ctx.args
+
+        r = dist.get_rank()
         
         if grad_output is not None:
             grad_out_norm = torch.norm(grad_output)
@@ -107,19 +119,32 @@ class GradLayerFunction(torch.autograd.Function):
                 grad_out_clip_coef = torch.clamp(grad_out_clip_coef, max=1.0)
                 grad_output.mul_(grad_out_clip_coef)
         
+        # print_rank(theta)
+        
         params = model.vector_to_params(theta)
         buffers = {n: b.detach() for n, b in model.named_buffers()}
         
         # 1. \partial L_{dev} / \partial \theta_{t-1}
-        dev_grad_acc_steps = dev_xn.size(0) // args.eval_batch_size
+        eval_bs = args.eval_batch_size
+        gl_eval_bs = dist.get_world_size() * eval_bs
+        dev_grad_acc_steps = dev_xn.size(0) // gl_eval_bs
         g_dev_vec = 0
         for i in range(dev_grad_acc_steps):
-            dev_xn_batch = dev_xn[i*args.eval_batch_size:(i+1)*args.eval_batch_size]
-            dev_yn_batch = dev_yn[i*args.eval_batch_size:(i+1)*args.eval_batch_size]
-            g_dev = grad(ctx.model.compute_loss_func)(params, buffers, model, dev_xn_batch, dev_yn_batch)
-            g_dev_vec += ctx.model.params_to_vector(g_dev)
+            dev_xn_batch = (dev_xn[i*gl_eval_bs:(i+1)*gl_eval_bs])[r*eval_bs:(r+1)*eval_bs]
+            dev_yn_batch = (dev_yn[i*gl_eval_bs:(i+1)*gl_eval_bs])[r*eval_bs:(r+1)*eval_bs]
+            # print_rank("dev_xn_batch", dev_xn_batch.size())
+            g_dev = grad(ctx.model.compute_loss_func)(params, buffers, model, dev_xn_batch, dev_yn_batch, None)
+            # print_rank(g_dev["base_model.model.layers.0.self_attn.q_proj.weight"])
+            # print_rank(g_dev["base_model.model.layers.0.self_attn.q_proj.weight"], rank=1)
+            g_dev_b = ctx.model.params_to_vector(g_dev)
+            # print_rank("g_dev_b", g_dev_b)
+            # print_rank("g_dev_b", g_dev_b, rank=1)
+            dist.all_reduce(g_dev_b, op=dist.ReduceOp.SUM)
+            g_dev_vec += g_dev_b
             del g_dev
-        g_dev_vec = g_dev_vec / dev_grad_acc_steps
+        g_dev_vec = g_dev_vec / (dev_grad_acc_steps * dist.get_world_size())
+        # print_rank("g_dev", g_dev_vec)
+        
         g_dev_vec = g_dev_vec * loss_grad_output
         
         grad_theta = g_dev_vec
@@ -128,37 +153,50 @@ class GradLayerFunction(torch.autograd.Function):
             # last step
             return grad_theta, None, None, None, None, None, None, None, None, None
         
+        # print_rank("grad_out", grad_output)
+        
+        # print_rank("g_dev", g_dev_vec)
+        
         # not last step
         grad_output_params = model.vector_to_params(grad_output)
         
         # 2. \partial L / \partial \alpha_t
         vmapped_grad_func = vmap(grad(model.compute_loss_func_single), in_dims=(None, None, None, 0, 0))
-        grad_acc_steps_sample = xn.size(0) // args.grad_batch_size
+        grad_bs = args.grad_batch_size
+        gl_grad_bs = dist.get_world_size() * grad_bs
+        grad_acc_steps_sample = xn.size(0) // gl_grad_bs
         IF_abs = torch.zeros_like(alpha)
         
         max_sample_grad_norm = 0
         
         for i in range(grad_acc_steps_sample):
-            xn_batch = xn[i*args.grad_batch_size:(i+1)*args.grad_batch_size]
-            yn_batch = yn[i*args.grad_batch_size:(i+1)*args.grad_batch_size]
+            xn_batch = (xn[i*gl_grad_bs:(i+1)*gl_grad_bs])[r*grad_bs:(r+1)*grad_bs]
+            yn_batch = (yn[i*gl_grad_bs:(i+1)*gl_grad_bs])[r*grad_bs:(r+1)*grad_bs]
             vmapped_g = vmapped_grad_func(params, buffers, model, xn_batch, yn_batch)
             for n, _ in model.named_parameters():
                 x1 = grad_output_params[n].view(-1)
                 x2 = vmapped_g[n].contiguous().view(vmapped_g[n].size(0), -1)
                 max_sample_grad_norm = max(max_sample_grad_norm, torch.norm(x2, dim=1).max().item())
-                IF_abs[i*args.grad_batch_size:(i+1)*args.grad_batch_size] += x2 @ x1
+                (IF_abs[i*gl_grad_bs:(i+1)*gl_grad_bs])[r*grad_bs:(r+1)*grad_bs] += x2 @ x1
+        
+        dist.all_reduce(IF_abs, op=dist.ReduceOp.SUM)
+        max_sample_grad_norm = torch.tensor(max_sample_grad_norm).to(IF_abs.device)
+        dist.all_reduce(max_sample_grad_norm, op=dist.ReduceOp.MAX)
+        max_sample_grad_norm = max_sample_grad_norm.item()
         
         grad_alpha = -ctx.clip_coef * IF_abs * eta
         
         # 3. \partial L / \partial \theta_{t} @ \partial \theta_{t} / \partial \theta_{t-1}
-        grad_acc_steps = xn.size(0) // args.batch_size
+        bs = args.batch_size
+        gl_bs = dist.get_world_size() * bs
+        grad_acc_steps = xn.size(0) // gl_bs
         def hvp_fwdrev(f, primals, tangents):
             def grad_wrapper(pr):
                 g = {n: 0 for n in params}
                 for i in range(grad_acc_steps):
-                    xn_batch = xn[i*args.batch_size:(i+1)*args.batch_size]
-                    yn_batch = yn[i*args.batch_size:(i+1)*args.batch_size]
-                    alpha_batch = alpha[i*args.batch_size:(i+1)*args.batch_size]
+                    xn_batch = (xn[i*gl_bs:(i+1)*gl_bs])[r*bs:(r+1)*bs]
+                    yn_batch = (yn[i*gl_bs:(i+1)*gl_bs])[r*bs:(r+1)*bs]
+                    alpha_batch = (alpha[i*gl_bs:(i+1)*gl_bs])[r*bs:(r+1)*bs]
                     _g = grad(f)(pr, buffers, model, xn_batch, yn_batch, alpha=alpha_batch)
                     for n in g:
                         g[n] += _g[n]
@@ -176,6 +214,11 @@ class GradLayerFunction(torch.autograd.Function):
         
         hvp_vec = model.params_to_vector(hvp)
         
+        dist.all_reduce(hvp_vec, op=dist.ReduceOp.SUM)
+        
+        # print_rank("hvp", hvp_vec)
+        # exit(0)
+        
         grad_theta = grad_theta + (grad_output - ctx.clip_coef * eta * hvp_vec)
 
         # TODO: more accurate way to compute the gradient of alpha with clip_coef
@@ -192,7 +235,7 @@ class GradLayerFunction(torch.autograd.Function):
             torch.norm(grad_output).item(), max_sample_grad_norm, torch.norm(g_dev_vec).item(), 
             torch.norm(grad_alpha).item(), torch.max(grad_alpha).item(), torch.min(grad_alpha).item()
         )
-        print(log_str)
+        print_rank(log_str)
         save_rank(log_str, os.path.join(args.save, "grad_log.txt"))
 
         return grad_theta, grad_alpha, None, None, None, None, None, None, None, None
@@ -221,7 +264,7 @@ class AlphaModel(nn.Module):
         st = time.time()
         
         inner_log_interval = 10
-        for t in tqdm(range(self.n_steps), desc=f"{mode} forward"):
+        for t in tqdm(range(self.n_steps), desc=f"{mode} forward", disable=(dist.get_rank() != 0)):
             cur_eta = constant_schedule_with_warmup(eta, self.args.warmup_iters, t)
             if t < self.n_wm_steps:
                 with torch.no_grad():
@@ -283,9 +326,12 @@ class OptAlphaTrainer():
         if self.args.grad_batch_size == -1:
             self.args.grad_batch_size = self.train_data[0].size(0)
 
-        assert self.train_data[0].size(0) % self.args.batch_size == 0, (self.train_data[0].size(0), self.args.batch_size)
-        assert self.dev_data[0].size(0) % self.args.eval_batch_size == 0, (self.dev_data[0].size(0), self.args.eval_batch_size)
-        assert self.train_data[0].size(0) % self.args.grad_batch_size == 0, (self.train_data[0].size(0), self.args.grad_batch_size)
+        gl_bs = dist.get_world_size() * self.args.batch_size
+        assert self.train_data[0].size(0) % gl_bs == 0, (self.train_data[0].size(0), self.args.batch_size, dist.get_world_size())
+        gl_eval_bs = dist.get_world_size() * self.args.eval_batch_size
+        assert self.dev_data[0].size(0) % gl_eval_bs == 0, (self.dev_data[0].size(0), self.args.eval_batch_size, dist.get_world_size())
+        gl_grad_bs = dist.get_world_size() * self.args.grad_batch_size
+        assert self.train_data[0].size(0) % gl_grad_bs == 0, (self.train_data[0].size(0), self.args.grad_batch_size, dist.get_world_size())
         
         self.outer_epochs = args.outer_epochs
         self.outer_lr = args.outer_lr
@@ -312,12 +358,12 @@ class OptAlphaTrainer():
             log_str = "epoch {} | dev area loss {:.4f}\n".format(e, area_loss.item())
             log_str += "All Dev Losses: {}".format(all_logging_losses)
             self.print_and_save(log_str)
-            
+
             # self.evaluate(e, theta, xn, yn, test_xn, test_yn)
 
             area_loss.backward()
             global max_grad, min_grad, max_grad_epoch, min_grad_epoch
-            print("max grad", max_grad, "min grad", min_grad, "max grad epoch", max_grad_epoch, "min grad epoch", min_grad_epoch)
+            print_rank("max grad", max_grad, "min grad", min_grad, "max grad epoch", max_grad_epoch, "min grad epoch", min_grad_epoch)
             max_grad = 0
             min_grad = 1e6
             backward_elapsed = time.time() - st - forward_elapsed

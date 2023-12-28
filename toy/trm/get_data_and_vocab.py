@@ -14,9 +14,9 @@ model_path = "/mnt/yuxian/checkpoints/mistral-7B/"
 load_dir = "/mnt/yuxian/data/tinystories/all_data/"
 max_length = 64
 
-test_num = 500
-dev_num = 500
-train_num = 4000
+test_num = 512
+dev_num = 512
+train_num = 4096
 max_vocab_size = 4000
 
 seed = 42

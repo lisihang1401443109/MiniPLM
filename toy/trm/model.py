@@ -45,17 +45,18 @@ class ToyTransformer(nn.Module):
         input_embed = self.word_embed(input_ids)
         pos_ids = torch.arange(input_ids.size(1)).unsqueeze(0).to(input_ids.device)
         pos_embed = self.pos_embed(pos_ids)
-        input_embed = input_embed + pos_embed
+        hidden_states = input_embed + pos_embed
+        residual = hidden_states
         
         # Self-Attention
-        q = self.w_q(input_embed)
-        k = self.w_k(input_embed)
-        v = self.w_v(input_embed)
+        q = self.w_q(hidden_states)
+        k = self.w_k(hidden_states)
+        v = self.w_v(hidden_states)
         
         q = self.split_heads(q)
         k = self.split_heads(k)
         v = self.split_heads(v)
-        
+
         attn = torch.matmul(q, k.transpose(-1, -2)) / (self.hidden_size ** 0.5)
         attn = torch.masked_fill(attn, self.casual_mask == 0, torch.finfo(torch.float32).min)
         attn = F.softmax(attn, dim=-1, dtype=torch.float32)
@@ -63,22 +64,23 @@ class ToyTransformer(nn.Module):
         
         attn_output = self.merge_heads(attn_output)
         
-        attn_output = self.w_o(attn_output)
+        hidden_states = self.w_o(attn_output)
         
-        attn_output = attn_output + input_embed
+        hidden_states = residual + hidden_states
         
         # Dense
-        x = self.activation(attn_output)
-        
+        residual = hidden_states
+        x = hidden_states
         x = self.mlp_1(x)
         x = self.activation(x)
         x = self.mlp_2(x)
         
-        dense_output = x + attn_output
+        hidden_states = residual + x
         
-        output = self.lm_head(dense_output)
+        output = self.lm_head(hidden_states)
         
         return output
+
 
     def compute_loss(self, input_ids, labels, alpha=None):
         loss_fn = nn.CrossEntropyLoss(reduction="none")

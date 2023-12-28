@@ -5,7 +5,7 @@ import torch
 
 from tiny_story_trainer import ToyTSTrainer
 from addition_trainer import ToyAdditionTrainer
-from opt_alpha_trainer_fast import OptAlphaTrainer
+from opt_alpha_trainer_dp import OptAlphaTrainer
 from eval_alpha_trainer import EvalAlphaTrainer
 from arguments import get_args
 
@@ -13,13 +13,11 @@ from arguments import get_args
 from utils import print_args, initialize, save_rank
 
 torch.backends.cudnn.enabled = False
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
 
 
 def main():
     args = get_args()
-    initialize(args, do_distributed=False)
+    initialize(args, do_distributed=True)
 
     print(args.save)
     

@@ -11,7 +11,7 @@ import time
 import json
 import math
 from torch.func import grad, vmap, grad_and_value, functional_call
-from utils import save_rank
+from utils import save_rank, print_rank
 
 from toy.trm.tiny_story_model import ToyTSTransformer, ToyTokenizer
 from toy.trm.base_trainer import ToyBaseTrainer
@@ -23,7 +23,7 @@ class ToyTSTrainer(ToyBaseTrainer):
     def __init__(self, args, device) -> None:
         super(ToyTSTrainer, self).__init__(args, device)
         
-        if args.ckpt_name == "toy-trm":
+        if args.ckpt_name in ["toy-trm", "toy-trm-ln", "toy-trm-rope", "toy-trm-silu", "toy-trm-silu-2"]:
             self.config = "toy"
         else:
             self.config = {
@@ -31,22 +31,24 @@ class ToyTSTrainer(ToyBaseTrainer):
             }
         self.tokenizer = ToyTokenizer(
             args.model_path, os.path.join(args.data_dir, "vocab.pt"))
-        print("vocab size: {}".format(self.tokenizer.vocab_size))
+        print_rank("vocab size: {}".format(self.tokenizer.vocab_size))
         self.max_length = args.max_length
-        print("max length: {}".format(self.max_length))
+        print_rank("max length: {}".format(self.max_length))
 
         self.model_init_dir = os.path.join(args.base_path, "processed_data", "toy-ts", "model_init")
         os.makedirs(self.model_init_dir, exist_ok=True)
         model_init_path = os.path.join(self.model_init_dir, f"{args.ckpt_name}.pt")
         
         self.model = self.get_model()
-        print(' > number of parameters: {}'.format(
+        print_rank(' > number of parameters: {}'.format(
             sum([p.nelement() for p in self.model.parameters()])), flush=True)
         
-        if args.load_toy_data is None or not os.path.exists(model_init_path):
-            torch.save(self.model.state_dict(), model_init_path)
-        else:
-            self.model.load_state_dict(torch.load(model_init_path))
+        if args.load_toy_data is not None:
+            print("OK")
+            if not os.path.exists(model_init_path):
+                torch.save(self.model.state_dict(), model_init_path)
+            else:
+                self.model.load_state_dict(torch.load(model_init_path))
         
         self.optimizer = SGD(self.model.parameters(), lr=args.lr)
         self.lr_scheduler = get_constant_schedule_with_warmup(self.optimizer, num_warmup_steps=args.warmup_iters)
@@ -57,7 +59,7 @@ class ToyTSTrainer(ToyBaseTrainer):
         self.dev_data = self.reform_data(self.dev_data)
         self.test_data = self.reform_data(self.test_data)
     
-        print("train data size: {} | dev data size: {} | test data size: {}".format(
+        print_rank("train data size: {} | dev data size: {} | test data size: {}".format(
             (self.train_data[0].size(), self.train_data[1].size()), 
             (self.dev_data[0].size(), self.dev_data[1].size()), 
             (self.test_data[0].size(), self.test_data[1].size())))
