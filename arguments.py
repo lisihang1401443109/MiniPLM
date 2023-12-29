@@ -431,7 +431,7 @@ def get_args():
             args.save,
             args.model_type,
             model_info,
-            (f"bs{args.batch_size}-lr{args.lr}-tn{args.train_num}-dn{args.dev_num}") + \
+            (f"bs{args.batch_size}-lr{args.lr}-tn{args.train_num}-dn{args.dev_num}-e{args.epochs}") + \
                 (f"-wm{args.warmup_iters}" if args.warmup_iters > 0 else ""),
             suffix,
             f"{args.seed}-{args.seed_data}-{args.seed_gd}",

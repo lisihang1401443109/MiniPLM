@@ -18,15 +18,14 @@ class ProjSolver():
     def __init__(self):
         pass
     
-    def solve(self, lid_p):
-        lid, p = lid_p
-        data = p.data
-        data_cpu = data.squeeze().cpu().numpy()
+    def solve(self, lid_data):
+        lid, data = lid_data
+        data_cpu = data.squeeze().numpy()
         data_proj = cp.Variable(data.size(0))
         objective = cp.Minimize(cp.sum_squares(data_cpu - data_proj))
         prob = cp.Problem(objective, [cp.sum(data_proj) == 1, data_proj >= 0])
         result = prob.solve()
-        data_res = torch.tensor(data_proj.value).view(data.size()).to(data.device).to(data.dtype)
+        data_res = torch.tensor(data_proj.value).view(data.size()).to(data.dtype)
         return lid, data_res
 
 
@@ -38,10 +37,11 @@ def proj_alpha(optimizer, args, kwargs):
         solver = ProjSolver()
 
         pool = Pool(processes=20)
-        solved_alpha = pool.map(solver.solve, enumerate(optimizer.param_groups[0]["params"]))
-        with tqdm(total=len(solved_alpha), desc="Proj Alpha") as pbar:
+        all_data = [p.data.cpu() for p in optimizer.param_groups[0]["params"]]
+        solved_alpha = pool.map(solver.solve, enumerate(all_data))
+        with tqdm(total=len(all_alphas), desc="Proj Alpha") as pbar:
             for lid, data_res in solved_alpha:
-                all_alphas[lid] = data_res
+                all_alphas[lid] = data_res.to(all_alphas.device)
                 pbar.update(1)
         
     dist.broadcast(all_alphas, 0)
@@ -260,7 +260,8 @@ class GradLayerFunction(torch.autograd.Function):
             torch.norm(grad_alpha).item(), torch.max(grad_alpha).item(), torch.min(grad_alpha).item()
         )
         # print_rank(log_str)
-        save_rank(log_str, os.path.join(args.save, "grad_log.txt"))
+        if ctx.t % 100 == 0:
+            save_rank(log_str, os.path.join(args.save, "grad_log.txt"))
 
         return grad_theta, grad_alpha, None, None, None, None, None, None, None, None
 

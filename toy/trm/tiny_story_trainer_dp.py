@@ -199,6 +199,8 @@ class ToyTSTrainer(ToyBaseTrainer):
             self.avg_mean_IF_dev = (self.acmlt_grad_dev_vec / self.args.avg_IF_calc_interval) @ delta_theta
             self.avg_mean_IF_test = (self.acmlt_grad_test_vec / self.args.avg_IF_calc_interval) @ delta_theta
             self.prev_param_vec = curr_param_vec
+            self.acmlt_grad_dev_vec = 0
+            self.acmlt_grad_test_vec = 0
             
         return self.avg_mean_IF_dev, self.avg_mean_IF_test
 
