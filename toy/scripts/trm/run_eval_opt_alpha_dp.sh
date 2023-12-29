@@ -42,13 +42,16 @@ OPTS+=" --data-dir ${BASE_PATH}/processed_data/toy-ts/mistral/small_64_4096_512_
 OPTS+=" --load-toy-data 1"
 # OPTS+=" --load-alpha ${BASE_PATH}/results/toy/trm/d128/bs-1-lr0.05-tn4000-dn500/r1.3-opt-0.0001-0_linear/30-20-7"
 # OPTS+=" --load-alpha ${BASE_PATH}/results/toy/trm/d128/bs-1-lr0.05-tn4000-dn500/r1.3-opt-0.0005-700_linear/30-20-7"
-OPTS+=" --load-alpha ${BASE_PATH}/results/toy/trm/toy-trm-ts-64/bs512-lr0.1-tn4096-dn512/-opt-0.1-0/10-20-7"
+# OPTS+=" --load-alpha ${BASE_PATH}/results/toy/trm/toy-trm-ts-64/bs512-lr0.1-tn4096-dn512/-opt-0.1-0/10-20-7"
+# OPTS+=" --load-alpha ${BASE_PATH}/results/toy/trm/toy-trm-ts-64/bs512-lr0.1-tn4096-dn512-e2000/-opt-0.2-0/10-20-7"
+OPTS+=" --load-alpha ${BASE_PATH}/results/toy/trm/toy-trm-ts-64/bs512-lr0.1-tn4096-dn512-e2000/-opt-0.1-0/10-20-7"
+
 # hp
 OPTS+=" --lr ${LR}"
 OPTS+=" --batch-size ${BATCH_SIZE}"
 OPTS+=" --eval-batch-size 64"
 OPTS+=" --grad-batch-size 512"
-OPTS+=" --epochs 1000"
+OPTS+=" --epochs 2000"
 OPTS+=" --log-interval 10"
 OPTS+=" --clip-grad -1"
 OPTS+=" --max-length 64"

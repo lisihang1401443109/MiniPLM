@@ -12,5 +12,6 @@ rsync -avzP ./* node-${id}:~/sps/ \
     --exclude "*.pyc" \
     --exclude "azcopy" \
     --exclude "send.sh" \
+    --exclude "wandb" \
     --omit-dir-times
 done

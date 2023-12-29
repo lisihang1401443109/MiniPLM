@@ -30,10 +30,10 @@ class EvalAlphaTrainer():
         self.base_trainer = base_trainer_cls(args, device)
         
     def train(self):
-        self.base_trainer.train(wandb_name="baseline", calc_IF=True)
-        self.base_trainer.reload_model()
-        for alpha_epoch in [2, 10, 20, 30, 39]:
+        # self.base_trainer.train(wandb_name="baseline", calc_IF=True)
+        # self.base_trainer.reload_model()
+        for alpha_epoch in range(11, 40):
             alpha = torch.load(os.path.join(self.args.load_alpha, f"epoch_{alpha_epoch}", "opt_alpha.pt"))
             alpha = alpha.to(self.device)
-            self.base_trainer.train(alpha=alpha, wandb_name="opt_alpha/{}".format(alpha_epoch), calc_IF=True)
+            self.base_trainer.train(alpha=alpha, wandb_name="opt_alpha_0.1/{}".format(alpha_epoch), calc_IF=True)
             self.base_trainer.reload_model()
