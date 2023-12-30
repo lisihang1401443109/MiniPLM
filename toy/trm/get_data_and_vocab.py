@@ -16,8 +16,8 @@ max_length = 64
 
 test_num = 512
 dev_num = 512
-train_num = 4096
-max_vocab_size = 4000
+train_num = 16384
+max_vocab_size = 5000
 
 seed = 42
 

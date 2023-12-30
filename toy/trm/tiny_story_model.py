@@ -35,15 +35,26 @@ class ToyOutput():
 
 
 class ToyTSTransformer(nn.Module):
-    def __init__(self, config):
+    def __init__(self, args, config):
         super().__init__()
-        if isinstance(config, str) and config == "toy":
+        if config["toy"]:
+            base_config = config["base_model_config"]
             config = {
-                "vocab_size": 4000,
-                "max_len": 64,
-                "hidden_size": 128,
-                "num_head": 8,
+                "vocab_size": base_config.vocab_size,
+                "max_len": base_config.max_position_embeddings,
+                "hidden_size": base_config.hidden_size,
+                "num_head": base_config.num_attention_heads,
             }
+            if args.embed_proj:
+                config.update({
+                    "embed_size": 64,
+                    "embed_proj": True,
+                })
+            else:
+                config.update({
+                    "embed_size": base_config.hidden_size,
+                    "embed_proj": False,
+                })
             self.base_model_config = "toy"
             self.base_model = ToyTransformer(config)
         else:

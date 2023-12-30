@@ -128,10 +128,24 @@ import numpy as np
 # g_vec_500 = torch.load("/home/lidong1/yuxian/sps-toy/toy/g_vec_500_1000.pt", map_location="cpu")
 # g_vec_1000 = torch.load("/home/lidong1/yuxian/sps-toy/toy/g_vec_1000_1000.pt", map_location="cpu")
 
-g_vec_500 = torch.load("/home/lidong1/yuxian/sps-toy/toy/g_vec_500.pt", map_location="cpu")
-g_vec_1000 = torch.load("/home/lidong1/yuxian/sps-toy/toy/g_vec_1000.pt", map_location="cpu")
+# g_vec_500 = torch.load("/home/lidong1/yuxian/sps-toy/toy/g_vec_500.pt", map_location="cpu")
+# g_vec_1000 = torch.load("/home/lidong1/yuxian/sps-toy/toy/g_vec_1000.pt", map_location="cpu")
 
-print(g_vec_500)
-print(g_vec_1000)
+# print(g_vec_500)
+# print(g_vec_1000)
 
-print(torch.sum(torch.abs(g_vec_500 - g_vec_1000)).item())
+# print(torch.sum(torch.abs(g_vec_500 - g_vec_1000)).item())
+
+
+init = torch.load("/home/aiscuser/sps/processed_data/toy-ts/model_init/toy-trm.pt", map_location="cpu")
+
+wq = init["base_model.w_q.weight"]
+embed = init["base_model.word_embed.weight"]
+
+plt.hist(embed.flatten().tolist(), bins=1000)
+
+plt.savefig("test_init.png")
+
+print(torch.max(embed), torch.min(embed))
+
+print(torch.std(embed).item())

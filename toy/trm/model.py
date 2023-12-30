@@ -1,7 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 from torch.func import functional_call 
+import torch.distributed as dist
 
 
 class ToyTransformer(nn.Module):
@@ -27,10 +29,30 @@ class ToyTransformer(nn.Module):
         self.mlp_1 = nn.Linear(self.hidden_size, 4 * self.hidden_size, bias=False)
         self.mlp_2 = nn.Linear(4 * self.hidden_size, self.hidden_size, bias=False)
         
-        self.word_embed = nn.Embedding(config["vocab_size"], self.hidden_size)
-        self.pos_embed = nn.Embedding(config["max_len"], self.hidden_size)
-        self.lm_head = nn.Linear(self.hidden_size, config["vocab_size"], bias=False)
+        self.embed_size = config["embed_size"]
+        self.word_embed = nn.Embedding(config["vocab_size"], self.embed_size)
+        self.pos_embed = nn.Embedding(config["max_len"], self.embed_size)
+        self.embed_proj = config["embed_proj"]
+        if config["embed_proj"]:
+            self.embed_hidden_proj = nn.Linear(self.embed_size, self.hidden_size, bias=False)
+            self.hidden_embed_proj = nn.Linear(self.hidden_size, self.embed_size, bias=False)
+        self.lm_head = nn.Linear(self.embed_size, config["vocab_size"], bias=False)
+        
+        # self.init_weights()
     
+    def init_weights(self):
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.normal_(module.weight, mean=0, std=1.0)
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0.0)
+            elif isinstance(module, nn.Embedding):
+                nn.init.normal_(module.weight, mean=0.0, std=1.0)
+                if module.padding_idx is not None:
+                    nn.init.constant_(module.weight[module.padding_idx], 0.0)
+            else:
+                pass
+        
     def split_heads(self, x):
         x = x.view(x.size(0), x.size(1), self.num_head, self.head_dim)
         x = x.transpose(1, 2)
@@ -46,6 +68,10 @@ class ToyTransformer(nn.Module):
         pos_ids = torch.arange(input_ids.size(1)).unsqueeze(0).to(input_ids.device)
         pos_embed = self.pos_embed(pos_ids)
         hidden_states = input_embed + pos_embed
+        
+        if self.embed_proj:
+            hidden_states = self.embed_hidden_proj(hidden_states)
+        
         residual = hidden_states
         
         # Self-Attention
@@ -76,6 +102,9 @@ class ToyTransformer(nn.Module):
         x = self.mlp_2(x)
         
         hidden_states = residual + x
+        
+        if self.embed_proj:
+            hidden_states = self.hidden_embed_proj(hidden_states)
         
         output = self.lm_head(hidden_states)
         

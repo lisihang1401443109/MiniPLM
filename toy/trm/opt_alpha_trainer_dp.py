@@ -1,6 +1,6 @@
 from addition_trainer import ToyAdditionTrainer
 from logistic_trainer import LogisticTrainer
-from tiny_story_trainer import ToyTSTrainer
+from tiny_story_trainer_dp import ToyTSTrainer
 from torch.func import functional_call, grad, vmap, hessian, grad_and_value, jvp, vjp
 import torch
 import torch.nn as nn
@@ -171,6 +171,8 @@ class GradLayerFunction(torch.autograd.Function):
         
         g_dev_vec = g_dev_vec * loss_grad_output
         
+        # print_rank("g_dev", g_dev_vec)
+        
         grad_theta = g_dev_vec
         
         if alpha is None:
@@ -260,6 +262,7 @@ class GradLayerFunction(torch.autograd.Function):
             torch.norm(grad_alpha).item(), torch.max(grad_alpha).item(), torch.min(grad_alpha).item()
         )
         # print_rank(log_str)
+        # exit(0)
         if ctx.t % 100 == 0:
             save_rank(log_str, os.path.join(args.save, "grad_log.txt"))
 

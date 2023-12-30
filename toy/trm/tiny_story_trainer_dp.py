@@ -24,12 +24,11 @@ class ToyTSTrainer(ToyBaseTrainer):
     def __init__(self, args, device) -> None:
         super(ToyTSTrainer, self).__init__(args, device)
         
-        if args.ckpt_name in ["toy-trm", "toy-trm-ln", "toy-trm-rope", "toy-trm-silu", "toy-trm-silu-2"]:
-            self.config = "toy"
-        else:
-            self.config = {
-                "base_model_config": AutoConfig.from_pretrained(args.model_path)
-            }
+        self.config = {
+            "base_model_config": AutoConfig.from_pretrained(args.model_path),
+            "toy": "toy-trm" in args.ckpt_name
+        }
+        
         self.tokenizer = ToyTokenizer(
             args.model_path, os.path.join(args.data_dir, "vocab.pt"))
         print_rank("vocab size: {}".format(self.tokenizer.vocab_size))
@@ -46,9 +45,11 @@ class ToyTSTrainer(ToyBaseTrainer):
         
         if args.load_toy_data is not None:
             if not os.path.exists(model_init_path):
-                torch.save(self.model.state_dict(), model_init_path)
-            else:
-                self.model.load_state_dict(torch.load(model_init_path))
+                if dist.get_rank() == 0:
+                    torch.save(self.model.state_dict(), model_init_path)
+
+            dist.barrier()
+            self.model.load_state_dict(torch.load(model_init_path, map_location="cpu"))
         
         self.optimizer = SGD(self.model.parameters(), lr=args.lr)
         self.lr_scheduler = get_constant_schedule_with_warmup(self.optimizer, num_warmup_steps=args.warmup_iters)
@@ -75,7 +76,10 @@ class ToyTSTrainer(ToyBaseTrainer):
         self.model.load_state_dict(torch.load(os.path.join(self.model_init_dir, f"{self.args.ckpt_name}.pt")))
     
     def get_model(self):
-        return ToyTSTransformer(self.config).to(self.device)
+        model = ToyTSTransformer(self.args, self.config).to(self.device)
+        for p in model.parameters():
+            dist.broadcast(p, 0)
+        return model
         
     def get_data(self):
         all_data_splits = {}

@@ -250,6 +250,7 @@ def add_toy_args(parser: argparse.ArgumentParser):
     group.add_argument("--grad-batch-size", type=int, default=-1)
     group.add_argument("--clip-grad-out", type=int, default=-1)
     group.add_argument("--avg-IF-calc-interval", type=int, default=None)
+    group.add_argument("--embed-proj", action="store_true")
     
     return parser
 
