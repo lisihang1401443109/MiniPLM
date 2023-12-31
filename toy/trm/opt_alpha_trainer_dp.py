@@ -72,14 +72,24 @@ class GradLayerFunction(torch.autograd.Function):
         params = model.vector_to_params(theta)
         buffers = {n: b.detach() for n, b in model.named_buffers()}
 
-        ctx.save_for_backward(theta, xn, yn, dev_xn, dev_yn)
+        r = dist.get_rank()
+        
+        ctx.save_for_backward(xn, yn, dev_xn, dev_yn)
+        if args.toy_zero2:
+            if t % dist.get_world_size() == r:
+                ctx.theta = theta
+            else:
+                ctx.theta = None
+            ctx.theta_size = theta.size()
+        else:
+            ctx.theta = theta
+
         ctx.model = model
         ctx.alpha = alpha
         ctx.eta = eta
         ctx.t = t
         ctx.args = args
         
-        r = dist.get_rank()
         
         # NOTE: compute dev loss at the beginning of each step
         eval_bs = args.eval_batch_size
@@ -128,13 +138,22 @@ class GradLayerFunction(torch.autograd.Function):
         if ctx.t % 100 == 0:
             print_rank("Backward", ctx.t, ctx.eta)
 
-        theta, xn, yn, dev_xn, dev_yn = ctx.saved_tensors
+        xn, yn, dev_xn, dev_yn = ctx.saved_tensors
         alpha = ctx.alpha
         model = ctx.model
         eta = ctx.eta
         args = ctx.args
 
         r = dist.get_rank()
+        
+        if args.toy_zero2:
+            if ctx.t % dist.get_world_size() == r:
+                theta = ctx.theta
+            else:
+                theta = torch.zeros(ctx.theta_size, device=xn.device)
+            dist.broadcast(theta, ctx.t % dist.get_world_size())
+        else:
+            theta = ctx.theta
         
         if grad_output is not None:
             grad_out_norm = torch.norm(grad_output)
@@ -168,7 +187,7 @@ class GradLayerFunction(torch.autograd.Function):
             del g_dev
         g_dev_vec = g_dev_vec / (dev_grad_acc_steps * dist.get_world_size())
         # print_rank("g_dev", g_dev_vec)
-        
+
         g_dev_vec = g_dev_vec * loss_grad_output
         
         # print_rank("g_dev", g_dev_vec)
