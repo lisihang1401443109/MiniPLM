@@ -17,7 +17,7 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
 TYPE="toy"
 # hp
 LR=0.1
-BATCH_SIZE=2048
+BATCH_SIZE=512
 # runtime
 SAVE_PATH="${BASE_PATH}/results/${TYPE}"
 # seed
@@ -46,7 +46,7 @@ OPTS+=" --lr ${LR}"
 OPTS+=" --batch-size ${BATCH_SIZE}"
 OPTS+=" --eval-batch-size 64"
 OPTS+=" --grad-batch-size 512"
-OPTS+=" --epochs 1000"
+OPTS+=" --epochs 3000"
 OPTS+=" --log-interval 10"
 OPTS+=" --outer-lr 0.1"
 OPTS+=" --outer-epochs 40"

@@ -83,9 +83,13 @@ class ToyTSTrainer(ToyBaseTrainer):
         
     def get_data(self):
         all_data_splits = {}
-        for split in ["train", "dev", "test"]:
+        for split in ["dev", "test"]:
             data = torch.load(os.path.join(self.args.data_dir, f"{split}.pt"))
             all_data_splits[split] = data
+        if self.args.add_noise is not None:
+            all_data_splits["train"] = torch.load(os.path.join(self.args.data_dir, f"noise_train_{self.args.add_noise}.pt"))
+        else:
+            all_data_splits["train"] = torch.load(os.path.join(self.args.data_dir, "train.pt"))
         all_data_splits["train"] = all_data_splits["train"][:self.args.train_num]
         all_data_splits["dev"] = all_data_splits["dev"][:self.args.dev_num]
         all_data_splits["test"] = all_data_splits["test"][:self.args.dev_num]
