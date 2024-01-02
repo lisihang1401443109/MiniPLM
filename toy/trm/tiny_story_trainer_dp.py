@@ -13,6 +13,7 @@ import math
 from torch.func import grad, vmap, grad_and_value, functional_call
 from utils import save_rank, print_rank, all_gather
 import torch.distributed as dist
+from collections import defaultdict
 
 from toy.trm.tiny_story_model import ToyTSTransformer, ToyTokenizer
 from toy.trm.base_trainer import ToyBaseTrainer
@@ -61,11 +62,16 @@ class ToyTSTrainer(ToyBaseTrainer):
         self.test_data = self.reform_data(self.test_data)
 
         # calc avg mean IF
-        self.prev_param_vec = 0
+        self.prev_param_vec = self.model.params_to_vector({n: p.detach() for n, p in self.model.named_parameters()})
         self.acmlt_grad_dev_vec = 0
         self.acmlt_grad_test_vec = 0
         self.avg_mean_IF_dev = torch.zeros(1, device=self.device)
         self.avg_mean_IF_test = torch.zeros(1, device=self.device)
+
+        if args.num_samp_grads is not None:
+            self.sample_grads = None
+            self.avg_IF_devs = torch.zeros(self.args.num_samp_grads, device=self.device)
+            self.avg_IF_tests = torch.zeros(self.args.num_samp_grads, device=self.device)
 
         print_rank("train data size: {} | dev data size: {} | test data size: {}".format(
             (self.train_data[0].size(), self.train_data[1].size()), 
@@ -212,6 +218,78 @@ class ToyTSTrainer(ToyBaseTrainer):
             
         return self.avg_mean_IF_dev, self.avg_mean_IF_test
 
+    def calc_avg_IFs2(self, e, xn, yn, alpha):
+        params = {n: p.detach() for n, p in self.model.named_parameters()}
+        buffers = {n: p.detach() for n, p in self.model.named_buffers()}
+
+        r = dist.get_rank()
+
+        grad_train_single_func = grad(self.model.compute_loss_func_single)
+        grad_train_func = vmap(grad_train_single_func, in_dims=(None, None, None, 0, 0))
+
+        grad_bs = self.args.grad_batch_size
+        gl_grad_bs = dist.get_world_size() * grad_bs
+        grad_acc_steps = self.args.num_samp_grads // gl_grad_bs
+        
+        if self.sample_grads is None:
+            self.sample_grads = [defaultdict(float) for _ in range(grad_acc_steps)]
+        
+        for i in range(grad_acc_steps):
+            xn_batch = xn[i*gl_grad_bs:(i+1)*gl_grad_bs][r*grad_bs:(r+1)*grad_bs]
+            yn_batch = yn[i*gl_grad_bs:(i+1)*gl_grad_bs][r*grad_bs:(r+1)*grad_bs]
+            grad_train = grad_train_func(params, buffers, self.model, xn_batch, yn_batch)
+    
+            for n, _ in self.model.named_parameters():
+                x2 = grad_train[n].contiguous().view(grad_train[n].size(0), -1)
+                self.sample_grads[i][n] += x2
+
+        # tot_grads = {}
+        # for n, _ in self.model.named_parameters():
+        #     tot_grads[n] = torch.sum(self.sample_grads[n] * alpha[:self.args.num_samp_grads][r*grad_bs:(r+1)*grad_bs].unsqueeze(-1).unsqueeze(-1), dim=0)
+        #     dist.all_reduce(tot_grads[n], op=dist.ReduceOp.SUM)
+
+        # print_rank(tot_grads["base_model.w_q.weight"])
+
+    def calc_avg_IFs(self, e, dev_xn, dev_yn, test_xn, test_yn, alpha):
+        r = dist.get_rank()
+        
+        grad_dev_vec = self.calc_grad_eval(dev_xn, dev_yn)
+        grad_test_vec = self.calc_grad_eval(test_xn, test_yn)
+        self.acmlt_grad_dev_vec += grad_dev_vec
+        self.acmlt_grad_test_vec += grad_test_vec
+
+        grad_bs = self.args.grad_batch_size
+        gl_grad_bs = dist.get_world_size() * grad_bs
+        grad_acc_steps = self.args.num_samp_grads // gl_grad_bs
+
+        if (e+1) % self.args.avg_IF_calc_interval == 0:
+            curr_param_vec = self.model.params_to_vector({n: p.detach() for n, p in self.model.named_parameters()})
+            delta_theta = -(curr_param_vec - self.prev_param_vec)
+            
+            tmp_grad_dev_vec = self.acmlt_grad_dev_vec / self.args.avg_IF_calc_interval
+            tmp_grad_test_vec = self.acmlt_grad_test_vec / self.args.avg_IF_calc_interval
+            self.avg_mean_IF_dev = tmp_grad_dev_vec @ delta_theta
+            self.avg_mean_IF_test = tmp_grad_test_vec @ delta_theta
+            self.prev_param_vec = curr_param_vec
+            
+            tmp_grad_dev = self.model.vector_to_params(tmp_grad_dev_vec)
+            tmp_grad_test = self.model.vector_to_params(tmp_grad_test_vec)
+            self.avg_IF_devs.zero_()
+            self.avg_IF_tests.zero_()
+            for i in range(grad_acc_steps):
+                for n, _ in self.model.named_parameters():
+                    self.avg_IF_devs[i*gl_grad_bs:(i+1)*gl_grad_bs][r*grad_bs:(r+1)*grad_bs] += self.sample_grads[i][n] @ tmp_grad_dev[n].view(-1)
+                    self.avg_IF_tests[i*gl_grad_bs:(i+1)*gl_grad_bs][r*grad_bs:(r+1)*grad_bs] += self.sample_grads[i][n] @ tmp_grad_test[n].view(-1)
+            self.sample_grads = None
+
+            dist.all_reduce(self.avg_IF_devs, op=dist.ReduceOp.SUM)
+            dist.all_reduce(self.avg_IF_tests, op=dist.ReduceOp.SUM)
+            
+            self.acmlt_grad_dev_vec = 0
+            self.acmlt_grad_test_vec = 0
+            
+        return self.avg_IF_devs, self.avg_IF_tests, self.avg_mean_IF_dev, self.avg_mean_IF_test
+
     def train(self, alpha=None, wandb_name="baseline", calc_IF=False):
         save_path = os.path.join(self.args.save, wandb_name)
         os.makedirs(save_path, exist_ok=True)
@@ -232,6 +310,13 @@ class ToyTSTrainer(ToyBaseTrainer):
         all_dev_IF, all_test_IF = [], []
         all_avg_mean_IF_dev, all_avg_mean_IF_test = [], []
         all_avg_IF_ratio_dev, all_avg_IF_ratio_test = [], []
+        
+        all_avg_2_IFs_dev = {
+            "IFs": [], "mean_IF": [], "std_IF": [], "ratio_IF": []
+        }
+        all_avg_2_IFs_test = {
+            "IFs": [], "mean_IF": [], "std_IF": [], "ratio_IF": []
+        }
         
         if self.args.batch_size == -1:
             self.args.batch_size = self.train_data[0].size(0)
@@ -298,6 +383,8 @@ class ToyTSTrainer(ToyBaseTrainer):
             if self.args.clip_grad > 0:
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.clip_grad)
             
+            # self.calc_avg_IFs2(e, *self.train_data, alpha_e)
+            
             gn = self.get_grad_norm()
             self.optimizer.step()
             self.lr_scheduler.step()
@@ -325,6 +412,7 @@ class ToyTSTrainer(ToyBaseTrainer):
                 all_test_IF.append(test_IF)
                 
                 avg_mean_IF_dev, avg_mean_IF_test = self.calc_avg_mean_IF(e, *self.dev_data, *self.test_data)
+                # avg_IF_devs, avg_IF_tests, avg_mean_IF_dev, avg_mean_IF_test = self.calc_avg_IFs(e, *self.dev_data, *self.test_data, alpha_e)
 
                 avg_IF_ratio_dev = avg_mean_IF_dev / (dev_IF_std + 1e-8)
                 avg_IF_ratio_test = avg_mean_IF_test / (test_IF_std + 1e-8)
@@ -333,6 +421,31 @@ class ToyTSTrainer(ToyBaseTrainer):
                 all_avg_mean_IF_test.append(avg_mean_IF_test.item())    
                 all_avg_IF_ratio_dev.append(avg_IF_ratio_dev.item())
                 all_avg_IF_ratio_test.append(avg_IF_ratio_test.item())
+                
+                # avg2_mean_IF_dev = torch.sum(alpha_e[:self.args.num_samp_grads] * avg_IF_devs, dim=0)
+                # avg2_mean_IF_test = torch.sum(alpha_e[:self.args.num_samp_grads] * avg_IF_tests, dim=0)
+                
+                # # print_rank(avg2_mean_IF_dev)
+                # # print_rank(torch.mean(avg2_mean_IF_dev))
+                
+                
+                # # avg2_std_IF_dev = torch.std(avg_IF_devs, dim=0)
+                # # avg2_std_IF_test = torch.std(avg_IF_tests, dim=0)
+                # n = self.train_data[0].size(0)
+                # avg2_std_IF_dev = torch.sqrt(n / (n-1) * torch.sum((alpha_e[:self.args.num_samp_grads] ** 2) * ((avg_IF_devs - avg2_mean_IF_dev)**2), dim=0))
+                # avg2_std_IF_test = torch.sqrt(n / (n-1) * torch.sum((alpha_e[:self.args.num_samp_grads] ** 2) * ((avg_IF_tests - avg2_mean_IF_test)**2), dim=0))
+                # avg2_IF_ratio_dev = avg2_mean_IF_dev / (avg2_std_IF_dev + 1e-8)
+                # avg2_IF_ratio_test = avg2_mean_IF_test / (avg2_std_IF_test + 1e-8)
+                
+                # all_avg_2_IFs_dev["IFs"].append(avg_IF_devs)
+                # all_avg_2_IFs_dev["mean_IF"].append(avg2_mean_IF_dev)
+                # all_avg_2_IFs_dev["std_IF"].append(avg2_std_IF_dev)
+                # all_avg_2_IFs_dev["ratio_IF"].append(avg2_IF_ratio_dev)
+                
+                # all_avg_2_IFs_test["IFs"].append(avg_IF_tests)
+                # all_avg_2_IFs_test["mean_IF"].append(avg2_mean_IF_test)
+                # all_avg_2_IFs_test["std_IF"].append(avg2_std_IF_test)
+                # all_avg_2_IFs_test["ratio_IF"].append(avg2_IF_ratio_test)
             
             if dist.get_rank() == 0:
                 wandb_log = {
@@ -350,6 +463,9 @@ class ToyTSTrainer(ToyBaseTrainer):
                         "dev_IF_ratio": dev_IF_ratio.item(),
                         "dev_avg_mean_IF": avg_mean_IF_dev.item(),
                         "dev_avg_IF_ratio": avg_IF_ratio_dev.item(),
+                        # "dev_avg2_mean_IF": avg2_mean_IF_dev.item(),
+                        # "dev_avg2_std_IF": avg2_std_IF_dev.item(),
+                        # "dev_avg2_IF_ratio": avg2_IF_ratio_dev.item(),
                     })
                 
                 wandb.log(wandb_log)
@@ -360,8 +476,12 @@ class ToyTSTrainer(ToyBaseTrainer):
                     if calc_IF:
                         log_str += "Dev IF | IF_mean: {:.4f} | avg_IF_mean: {:.4f} | IF_var: {:.4f} | IF_std: {:.4f} | IF_ratio: {:.4f} | avg_IF_ratio: {:.4f}\n".format(
                             dev_IF_mean.item(), avg_mean_IF_dev.item(), dev_IF_var.item(), dev_IF_std.item(), dev_IF_ratio.item(), avg_IF_ratio_dev.item())
+                        # log_str += " | avg2_IF_mean: {:.4f} | avg2_IF_std: {:.4f} | avg2_IF_ratio: {:.4f}\n".format(
+                        #     avg2_mean_IF_dev.item(), avg2_std_IF_dev.item(), avg2_IF_ratio_dev.item())
                         log_str += "Test IF | IF_mean: {:.4f} | avg_IF_mean: {:.4f} | IF_var: {:.4f} | IF_std: {:.4f} | IF_ratio: {:.4f}| avg_IF_ratio: {:.4f}\n".format(
                             test_IF_mean.item(), avg_mean_IF_test.item(), test_IF_var.item(), test_IF_std.item(), test_IF_ratio.item(), avg_IF_ratio_test.item())
+                        # log_str += " | avg2_IF_mean: {:.4f} | avg2_IF_std: {:.4f} | avg2_IF_ratio: {:.4f}\n".format(
+                        #     avg2_mean_IF_test.item(), avg2_std_IF_test.item(), avg2_IF_ratio_test.item())
                     print(log_str)
                     save_rank(log_str, os.path.join(save_path, "log.txt"))
                     # print(self.dev_data[0][:20], self.dev_data[1][:20], dev_preds[:20])

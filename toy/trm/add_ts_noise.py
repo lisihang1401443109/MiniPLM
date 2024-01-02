@@ -10,8 +10,8 @@ seed = 42
 random.seed(seed)
 torch.manual_seed(seed)
 
-noise_fraction = 0.5
-N = 20
+noise_fraction = 0.6
+N = 30
 max_length = 64
 rept_times = 10000
 

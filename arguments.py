@@ -253,6 +253,8 @@ def add_toy_args(parser: argparse.ArgumentParser):
     group.add_argument("--embed-proj", action="store_true")
     group.add_argument("--add-noise", type=str, default=None)
     group.add_argument("--toy-zero2", action="store_true")
+    group.add_argument("--num-samp-grads", type=int, default=None)
+    group.add_argument("--alpha-epochs", type=str, default=None)
     
     return parser
 

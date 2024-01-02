@@ -17,7 +17,7 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
 TYPE="toy"
 # hp
 LR=0.1
-BATCH_SIZE=512
+BATCH_SIZE=1024
 # runtime
 SAVE_PATH="${BASE_PATH}/results/${TYPE}"
 # seed
@@ -57,7 +57,7 @@ OPTS+=" --max-length 64"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"
 OPTS+=" --opt-alpha"
-# OPTS+=" --toy-zero2"
+OPTS+=" --toy-zero2"
 # seed
 OPTS+=" --seed ${SEED}"
 OPTS+=" --seed-data ${SEED_DATA}"

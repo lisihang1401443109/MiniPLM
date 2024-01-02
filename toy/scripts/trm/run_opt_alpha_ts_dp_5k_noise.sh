@@ -55,9 +55,11 @@ OPTS+=" --max-length 64"
 # OPTS+=" --warmup-iters 100"
 # OPTS+=" --opt-alpha-wm-steps 50"
 OPTS+=" --add-noise 0.8_30"
+OPTS+=" --toy-zero2"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"
 OPTS+=" --opt-alpha"
+OPTS+=" --toy-zero2"
 # seed
 OPTS+=" --seed ${SEED}"
 OPTS+=" --seed-data ${SEED_DATA}"

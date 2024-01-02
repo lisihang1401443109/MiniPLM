@@ -57,6 +57,7 @@ OPTS+=" --max-length 64"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"
 OPTS+=" --opt-alpha"
+OPTS+=" --toy-zero2"
 # seed
 OPTS+=" --seed ${SEED}"
 OPTS+=" --seed-data ${SEED_DATA}"

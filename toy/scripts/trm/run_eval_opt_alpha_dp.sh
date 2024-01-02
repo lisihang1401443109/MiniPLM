@@ -56,6 +56,7 @@ OPTS+=" --log-interval 10"
 OPTS+=" --clip-grad -1"
 OPTS+=" --max-length 64"
 OPTS+=" --avg-IF-calc-interval 2"
+OPTS+=" --num-samp-grad 4096"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"
 OPTS+=" --eval-opt-alpha"
