@@ -18,7 +18,12 @@ from collections import defaultdict
 from toy.trm.tiny_story_model import ToyTSTransformer, ToyTokenizer
 from toy.trm.base_trainer import ToyBaseTrainer
 from transformers import AutoConfig, AutoTokenizer
-from transformers import get_linear_schedule_with_warmup, get_constant_schedule_with_warmup
+from transformers import (
+    get_linear_schedule_with_warmup,
+    get_constant_schedule_with_warmup,
+    get_cosine_schedule_with_warmup)
+
+from torch.optim.lr_scheduler import LinearLR
 
 
 class ToyTSTrainer(ToyBaseTrainer):
@@ -54,6 +59,9 @@ class ToyTSTrainer(ToyBaseTrainer):
         
         self.optimizer = SGD(self.model.parameters(), lr=args.lr)
         self.lr_scheduler = get_constant_schedule_with_warmup(self.optimizer, num_warmup_steps=args.warmup_iters)
+        # self.lr_scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=args.warmup_iters, num_training_steps=args.epochs)
+        # self.lr_scheduler = get_cosine_schedule_with_warmup(self.optimizer, num_warmup_steps=args.warmup_iters, num_training_steps=args.epochs)
+        # self.lr_scheduler = LinearLR(self.optimizer, start_factor=1.0, end_factor=0.1, total_iters=args.epochs)
         # self.optimizer = AdamW(self.model.parameters(), lr=args.lr)
     
         self.train_data, self.dev_data, self.test_data = self.get_data()

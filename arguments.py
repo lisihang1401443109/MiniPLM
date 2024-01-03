@@ -257,6 +257,7 @@ def add_toy_args(parser: argparse.ArgumentParser):
     group.add_argument("--alpha-epochs", type=str, default=None)
     group.add_argument("--alpha-reg", type=float, default=None)
     group.add_argument("--alpha-reg2", type=float, default=None)
+    group.add_argument("--wandb-name", type=str, default=None)
     
     return parser
 
@@ -444,8 +445,7 @@ def get_args():
             args.save,
             args.model_type,
             model_info,
-            (f"bs{args.batch_size}-lr{args.lr}-tn{args.train_num}-dn{args.dev_num}-e{args.epochs}") + \
-                (f"-wm{args.warmup_iters}" if args.warmup_iters > 0 else ""),
+            (f"bs{args.batch_size}-lr{args.lr}-tn{args.train_num}-dn{args.dev_num}-e{args.epochs}"),
             suffix,
             f"{args.seed}-{args.seed_data}-{args.seed_gd}",
         )

@@ -45,7 +45,10 @@ def main():
             raise NotImplementedError
     
     trainer = trainer_cls(args, device)
-    trainer.train()
+    if args.wandb_name is not None:
+        trainer.train(wandb_name=args.wandb_name)
+    else:
+        trainer.train()
     
 if __name__ == "__main__":
     main()

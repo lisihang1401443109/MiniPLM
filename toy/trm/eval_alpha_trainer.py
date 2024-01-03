@@ -30,7 +30,7 @@ class EvalAlphaTrainer():
         
         self.base_trainer = base_trainer_cls(args, device)
         
-    def train(self):
+    def train(self, wandb_name=None):
         alpha_epochs = self.args.alpha_epochs.split(",")
         l = alpha_epochs[0]
         alpha_epochs = alpha_epochs[1:]

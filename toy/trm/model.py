@@ -6,6 +6,19 @@ from torch.func import functional_call
 import torch.distributed as dist
 
 
+class RMSLayerNorm(nn.Module):
+    def __init__(self, hidden_size, eps=1e-8):
+        super(RMSLayerNorm, self).__init__()
+        self.eps = eps
+        self.weight = nn.Parameter(torch.ones(hidden_size))
+        self.bias = nn.Parameter(torch.zeros(hidden_size))
+    
+    def forward(self, x):
+        rms = torch.sqrt(torch.mean(x ** 2, dim=-1, keepdim=True))
+        x = x / (rms + self.eps)
+        return self.weight * x + self.bias
+
+
 class ToyTransformer(nn.Module):
     def __init__(self, config):
         super(ToyTransformer, self).__init__()
@@ -38,6 +51,9 @@ class ToyTransformer(nn.Module):
             self.hidden_embed_proj = nn.Linear(self.hidden_size, self.embed_size, bias=False)
         self.lm_head = nn.Linear(self.embed_size, config["vocab_size"], bias=False)
         
+        self.ln_1 = RMSLayerNorm(self.hidden_size)
+        self.ln_2 = RMSLayerNorm(self.hidden_size)
+        self.ln_end = RMSLayerNorm(self.hidden_size)
         # self.init_weights()
     
     def init_weights(self):
@@ -74,6 +90,8 @@ class ToyTransformer(nn.Module):
         
         residual = hidden_states
         
+        hidden_states = self.ln_1(hidden_states)
+        
         # Self-Attention
         q = self.w_q(hidden_states)
         k = self.w_k(hidden_states)
@@ -96,6 +114,9 @@ class ToyTransformer(nn.Module):
         
         # Dense
         residual = hidden_states
+        
+        hidden_states = self.ln_2(hidden_states)
+        
         x = hidden_states
         x = self.mlp_1(x)
         x = self.activation(x)
@@ -105,6 +126,8 @@ class ToyTransformer(nn.Module):
         
         if self.embed_proj:
             hidden_states = self.hidden_embed_proj(hidden_states)
+        
+        hidden_states = self.ln_end(hidden_states)
         
         output = self.lm_head(hidden_states)
         

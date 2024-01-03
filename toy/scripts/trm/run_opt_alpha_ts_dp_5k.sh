@@ -32,7 +32,7 @@ OPTS+=" --type ${TYPE}"
 OPTS+=" --model-type trm"
 OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --model-path ${BASE_PATH}/checkpoints/tiny_stories/tiny-128-5k"
-OPTS+=" --ckpt-name toy-trm-5k"
+OPTS+=" --ckpt-name toy-trm-5k-ln"
 # OPTS+=" --ckpt-name tiny-128-4k"
 # data
 OPTS+=" --train-num 16384"

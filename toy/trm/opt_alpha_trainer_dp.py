@@ -405,7 +405,7 @@ class OptAlphaTrainer():
         # self.scheduler = get_constant_schedule_with_warmup(self.optimizer, 0)
         self.scheduler = get_linear_schedule_with_warmup(self.optimizer, 0, self.outer_epochs)
     
-    def train(self):
+    def train(self, wandb_name=None):
         params = {n: p.detach() for n, p in self.model.named_parameters()}
         theta = self.model.params_to_vector(params)
         xn, yn = self.train_data
