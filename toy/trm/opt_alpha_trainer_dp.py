@@ -67,7 +67,7 @@ class GradLayerFunction(torch.autograd.Function):
         return theta, clip_coef_clamped
      
     @staticmethod
-    def forward(ctx, theta, alpha, model, xn, yn, dev_xn, dev_yn, eta, t, args):
+    def forward(ctx, theta, alpha, pn_alpha, model, xn, yn, dev_xn, dev_yn, eta, t, args):
         
         params = model.vector_to_params(theta)
         buffers = {n: b.detach() for n, b in model.named_buffers()}
@@ -86,6 +86,7 @@ class GradLayerFunction(torch.autograd.Function):
 
         ctx.model = model
         ctx.alpha = alpha
+        ctx.pn_alpha = pn_alpha
         ctx.eta = eta
         ctx.t = t
         ctx.args = args
@@ -143,6 +144,7 @@ class GradLayerFunction(torch.autograd.Function):
         model = ctx.model
         eta = ctx.eta
         args = ctx.args
+        prev_alpha, next_alpha = ctx.pn_alpha
 
         r = dist.get_rank()
         
@@ -196,7 +198,7 @@ class GradLayerFunction(torch.autograd.Function):
         
         if alpha is None:
             # last step
-            return grad_theta, None, None, None, None, None, None, None, None, None
+            return grad_theta, None, None, None, None, None, None, None, None, None, None
         
         # print_rank("grad_out", grad_output)
         
@@ -230,6 +232,18 @@ class GradLayerFunction(torch.autograd.Function):
         max_sample_grad_norm = max_sample_grad_norm.item()
         
         grad_alpha = -ctx.clip_coef * IF_abs * eta
+        
+        if args.alpha_reg is not None:
+            if prev_alpha is not None:
+                grad_alpha += args.alpha_reg * torch.sgn(alpha - prev_alpha)
+            if next_alpha is not None:
+                grad_alpha += args.alpha_reg * torch.sgn(alpha - next_alpha)
+        
+        if args.alpha_reg2 is not None:
+            if prev_alpha is not None:
+                grad_alpha += args.alpha_reg2 * (alpha - prev_alpha)
+            if next_alpha is not None:
+                grad_alpha += args.alpha_reg2 * (alpha - next_alpha)
         
         # 3. \partial L / \partial \theta_{t} @ \partial \theta_{t} / \partial \theta_{t-1}
         bs = args.batch_size
@@ -285,7 +299,7 @@ class GradLayerFunction(torch.autograd.Function):
         if ctx.t % 100 == 0:
             save_rank(log_str, os.path.join(args.save, "grad_log.txt"))
 
-        return grad_theta, grad_alpha, None, None, None, None, None, None, None, None
+        return grad_theta, grad_alpha, None, None, None, None, None, None, None, None, None
 
 
 def constant_schedule_with_warmup(lr, n_wm_steps, t):
@@ -313,13 +327,16 @@ class AlphaModel(nn.Module):
         inner_log_interval = 10
         for t in tqdm(range(self.n_steps), desc=f"{mode} forward", disable=(dist.get_rank() != 0)):
             cur_eta = constant_schedule_with_warmup(eta, self.args.warmup_iters, t)
+            prev_alpha = self.alpha[t-1] if t > 0 else None
+            next_alpha = self.alpha[t+1] if t < self.n_steps - 1 else None
+            pn_alpha = (prev_alpha, next_alpha)
             if t < self.n_wm_steps:
                 with torch.no_grad():
                     loss, theta = GradLayerFunction.apply(
-                        theta, self.alpha[t], model, xn, yn, dev_xn, dev_yn, cur_eta, t, self.args)
+                        theta, self.alpha[t], pn_alpha, model, xn, yn, dev_xn, dev_yn, cur_eta, t, self.args)
             else:
                 loss, theta = GradLayerFunction.apply(
-                    theta, self.alpha[t], model, xn, yn, dev_xn, dev_yn, cur_eta, t, self.args)
+                    theta, self.alpha[t], pn_alpha, model, xn, yn, dev_xn, dev_yn, cur_eta, t, self.args)
 
             if t % inner_log_interval == 0:
                 # print("Forward | t: {} | inner loss: {:.4f}".format(t, loss.item()))
@@ -329,7 +346,7 @@ class AlphaModel(nn.Module):
             area_loss += loss
         
         loss, _ = GradLayerFunction.apply(
-            theta, None, model, xn, yn, dev_xn, dev_yn, eta, self.n_steps, self.args)
+            theta, None, pn_alpha, model, xn, yn, dev_xn, dev_yn, eta, self.n_steps, self.args)
         area_loss += loss
         all_losses.append(loss.item())
 

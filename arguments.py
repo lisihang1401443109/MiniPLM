@@ -255,6 +255,8 @@ def add_toy_args(parser: argparse.ArgumentParser):
     group.add_argument("--toy-zero2", action="store_true")
     group.add_argument("--num-samp-grads", type=int, default=None)
     group.add_argument("--alpha-epochs", type=str, default=None)
+    group.add_argument("--alpha-reg", type=float, default=None)
+    group.add_argument("--alpha-reg2", type=float, default=None)
     
     return parser
 
@@ -430,6 +432,10 @@ def get_args():
                 raise NotImplementedError
             if args.opt_alpha:
                 suffix += f"-opt-{args.outer_lr}-{args.opt_alpha_wm_steps}"
+                if args.alpha_reg is not None:
+                    suffix += f"-reg{args.alpha_reg}"
+                if args.alpha_reg2 is not None:
+                    suffix += f"-reg2{args.alpha_reg2}"
             if args.eval_opt_alpha:
                 suffix += "-eval_opt"
         

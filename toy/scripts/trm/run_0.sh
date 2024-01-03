@@ -1,0 +1,1 @@
+bash scripts/trm/run_opt_alpha_ts_dp_5k_noise.sh /home/aiscuser/sps/ 2030 8 --outer-lr 0.05 --alpha-reg2 0.01 --outer-epochs 1
