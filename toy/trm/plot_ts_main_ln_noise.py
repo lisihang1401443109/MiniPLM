@@ -18,7 +18,15 @@ paths = [
     (os.path.join(base_path, "opt_alpha_0.1/4"), "opt_alpha_4"),
     (os.path.join(base_path, "opt_alpha_0.1/5"), "opt_alpha_5"),
     (os.path.join(base_path, "opt_alpha_0.1/6"), "opt_alpha_5"),
-    # (os.path.join(base_path, "opt_alpha_0.1/5"), "opt_alpha_5"),
+    (os.path.join(base_path, "opt_alpha_0.1/7"), "opt_alpha_5"),
+    (os.path.join(base_path, "opt_alpha_0.4/0"), "opt_alpha_5"),
+    (os.path.join(base_path, "opt_alpha_0.4/1"), "opt_alpha_5"),
+    (os.path.join(base_path, "opt_alpha_0.4/2"), "opt_alpha_5"),
+    (os.path.join(base_path, "opt_alpha_0.4/3"), "opt_alpha_5"),
+    (os.path.join(base_path, "opt_alpha_0.4/4"), "opt_alpha_5"),
+    (os.path.join(base_path, "opt_alpha_0.4/5"), "opt_alpha_5"),
+    (os.path.join(base_path, "opt_alpha_0.4/10"), "opt_alpha_5"),
+    (os.path.join(base_path, "opt_alpha_0.4/15"), "opt_alpha_5"),
     
 ]
 
