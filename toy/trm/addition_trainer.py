@@ -14,9 +14,9 @@ from toy.trm.model import ToyTransformer
 from toy.trm.base_trainer import ToyBaseTrainer
 
 
-class ToyAdditionTrainer(ToyBaseTrainer):
+class ToyAddTrainer(ToyBaseTrainer):
     def __init__(self, args, device) -> None:
-        super(ToyAdditionTrainer, self).__init__(args, device)
+        super(ToyAddTrainer, self).__init__(args, device)
         
         self.config = {
             "vocab_size": 12,

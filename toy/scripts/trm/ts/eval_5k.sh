@@ -39,7 +39,15 @@ OPTS+=" --dev-num 512"
 OPTS+=" --test-num 512"
 OPTS+=" --data-names tiny_story"
 OPTS+=" --data-dir ${BASE_PATH}/processed_data/toy-ts/mistral/small_64_16384_512_2"
-# OPTS+=" --load-toy-data 1"
+OPTS+=" --load-toy-data 1"
+# OPTS+=" --load-alpha ${BASE_PATH}/results/toy/trm/d128/bs-1-lr0.05-tn4000-dn500/r1.3-opt-0.0001-0_linear/30-20-7"
+# OPTS+=" --load-alpha ${BASE_PATH}/results/toy/trm/d128/bs-1-lr0.05-tn4000-dn500/r1.3-opt-0.0005-700_linear/30-20-7"
+# OPTS+=" --load-alpha ${BASE_PATH}/results/toy/trm/toy-trm-ts-64/bs512-lr0.1-tn4096-dn512/-opt-0.1-0/10-20-7"
+# OPTS+=" --load-alpha ${BASE_PATH}/results/toy/trm/toy-trm-ts-64/bs512-lr0.1-tn4096-dn512-e2000/-opt-0.2-0/10-20-7"
+# OPTS+=" --load-alpha ${BASE_PATH}/results/toy/trm/toy-trm-ts-64/bs512-lr0.1-tn4096-dn512-e2000/-opt-0.1-0/10-20-7"
+# OPTS+=" --load-alpha ${BASE_PATH}/results/toy/trm/toy-trm-5k-ts-64/bs512-lr0.1-tn16384-dn512-e3000/-opt-0.6-0/10-20-7"
+# OPTS+=" --load-alpha ${BASE_PATH}/results/toy/trm/toy-trm-5k-ts-64/bs512-lr0.1-tn16384-dn512-e3000/-opt-0.1-0/10-20-7"
+OPTS+=" --load-alpha ${BASE_PATH}/results/toy/trm/toy-trm-5k-ln-ts-64/bs512-lr0.1-tn16384-dn512-e3000/-opt-0.1-0/10-20-7"
 # hp
 OPTS+=" --lr ${LR}"
 OPTS+=" --batch-size ${BATCH_SIZE}"
@@ -49,9 +57,11 @@ OPTS+=" --epochs 3000"
 OPTS+=" --log-interval 10"
 OPTS+=" --clip-grad -1"
 OPTS+=" --max-length 64"
-OPTS+=" --num-samp-grad 4096"
+OPTS+=" --avg-IF-calc-interval 2"
+# OPTS+=" --num-samp-grad 16384"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"
+OPTS+=" --eval-opt-alpha"
 # seed
 OPTS+=" --seed ${SEED}"
 OPTS+=" --seed-data ${SEED_DATA}"
@@ -62,7 +72,7 @@ export NCCL_DEBUG=""
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
 export OMP_NUM_THREADS=16
-CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/toy/trm/main_dp.py ${OPTS} $@"
+CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/toy/trm/main.py ${OPTS} $@"
 
 echo ${CMD}
 echo "PYTHONPATH=${PYTHONPATH}"

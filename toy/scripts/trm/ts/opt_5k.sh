@@ -17,7 +17,7 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
 TYPE="toy"
 # hp
 LR=0.1
-BATCH_SIZE=1024
+BATCH_SIZE=512
 # runtime
 SAVE_PATH="${BASE_PATH}/results/${TYPE}"
 # seed
@@ -32,7 +32,7 @@ OPTS+=" --type ${TYPE}"
 OPTS+=" --model-type trm"
 OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --model-path ${BASE_PATH}/checkpoints/tiny_stories/tiny-128-5k"
-OPTS+=" --ckpt-name toy-trm-5k"
+OPTS+=" --ckpt-name toy-trm-5k-ln"
 # OPTS+=" --ckpt-name tiny-128-4k"
 # data
 OPTS+=" --train-num 16384"
@@ -46,10 +46,10 @@ OPTS+=" --lr ${LR}"
 OPTS+=" --batch-size ${BATCH_SIZE}"
 OPTS+=" --eval-batch-size 64"
 OPTS+=" --grad-batch-size 512"
-OPTS+=" --epochs 4000"
+OPTS+=" --epochs 3000"
 OPTS+=" --log-interval 10"
 OPTS+=" --outer-lr 0.1"
-OPTS+=" --outer-epochs 40"
+OPTS+=" --outer-epochs 20"
 OPTS+=" --clip-grad -1"
 OPTS+=" --max-length 64"
 # OPTS+=" --warmup-iters 100"
@@ -71,8 +71,8 @@ export NCCL_DEBUG=""
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
 export OMP_NUM_THREADS=16
-# CMD="deepspeed ${DISTRIBUTED_ARGS} ${BASE_PATH}/toy/trm/main_dp.py ${OPTS} $@"
-CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/toy/trm/main_dp.py ${OPTS} $@"
+# CMD="deepspeed ${DISTRIBUTED_ARGS} ${BASE_PATH}/toy/trm/main.py ${OPTS} $@"
+CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/toy/trm/main.py ${OPTS} $@"
 
 echo ${CMD}
 echo "PYTHONPATH=${PYTHONPATH}"

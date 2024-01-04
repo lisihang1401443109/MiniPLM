@@ -39,17 +39,17 @@ OPTS+=" --dev-num 512"
 OPTS+=" --test-num 512"
 OPTS+=" --data-names tiny_story"
 OPTS+=" --data-dir ${BASE_PATH}/processed_data/toy-ts/mistral/small_64_16384_512_2"
-OPTS+=" --load-toy-data 1"
+# OPTS+=" --load-toy-data 1"
 # hp
 OPTS+=" --lr ${LR}"
 OPTS+=" --batch-size ${BATCH_SIZE}"
 OPTS+=" --eval-batch-size 64"
-OPTS+=" --grad-batch-size 128"
+OPTS+=" --grad-batch-size 512"
 OPTS+=" --epochs 3000"
 OPTS+=" --log-interval 10"
 OPTS+=" --clip-grad -1"
 OPTS+=" --max-length 64"
-OPTS+=" --add-noise 0.8_30"
+OPTS+=" --num-samp-grad 4096"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"
 # seed
@@ -62,7 +62,7 @@ export NCCL_DEBUG=""
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
 export OMP_NUM_THREADS=16
-CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/toy/trm/main_dp.py ${OPTS} $@"
+CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/toy/trm/main.py ${OPTS} $@"
 
 echo ${CMD}
 echo "PYTHONPATH=${PYTHONPATH}"

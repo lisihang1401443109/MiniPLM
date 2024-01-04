@@ -9,8 +9,8 @@ import wandb
 import random
 import time
 
-from addition_trainer import ToyAdditionTrainer
-from tiny_story_trainer_dp import ToyTSTrainer
+from addition_trainer import ToyAddTrainer
+from tiny_story_trainer import ToyTSTrainer
 from logistic_trainer import LogisticTrainer
 
 
@@ -20,7 +20,7 @@ class EvalAlphaTrainer():
         self.device = device
         
         if args.data_names == "addition":
-            base_trainer_cls = ToyAdditionTrainer
+            base_trainer_cls = ToyAddTrainer
         elif args.data_names == "tiny_story":
             base_trainer_cls = ToyTSTrainer
         elif args.data_names == "linear":
