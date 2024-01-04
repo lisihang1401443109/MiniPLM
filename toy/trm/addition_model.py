@@ -7,6 +7,21 @@ from model import ToyTransformer
 from dataclasses import dataclass
 
 
+class ToyTokenizer():
+    def __init__(self):
+        self.vocab_size = 12
+    
+    def encode(self, text):
+        pass
+
+    def decode(self, token_ids):
+        if isinstance(token_ids, list):
+            return str(token_ids[0]) + str(token_ids[1]) + "+" + \
+                str(token_ids[3]) + str(token_ids[4]) + "="
+        else:
+            return str(token_ids)
+
+
 @dataclass
 class ToyOutput():
     logits: torch.FloatTensor
@@ -16,23 +31,14 @@ class ToyAddTransformer(nn.Module):
     def __init__(self, args, config):
         super().__init__()
         if config["toy"]:
-            base_config = config["base_model_config"]
             config = {
-                "vocab_size": base_config.vocab_size,
-                "max_len": base_config.max_position_embeddings,
-                "hidden_size": base_config.hidden_size,
-                "num_head": base_config.num_attention_heads,
+                "vocab_size": 12,
+                "max_len": 6,
+                "hidden_size": 128,
+                "num_head": 8,
+                "embed_size": 128,
+                "embed_proj": False,
             }
-            if args.embed_proj:
-                config.update({
-                    "embed_size": 64,
-                    "embed_proj": True,
-                })
-            else:
-                config.update({
-                    "embed_size": base_config.hidden_size,
-                    "embed_proj": False,
-                })
             self.base_model_config = "toy"
             self.base_model = ToyTransformer(config)
         else:
@@ -56,10 +62,10 @@ class ToyAddTransformer(nn.Module):
         else:
             loss = torch.sum(alpha * losses)
         
-        preds = torch.argmax(logits, dim=-1)
-        acc = torch.sum(preds == labels).item() / labels.size(0)
+        # preds = torch.argmax(logits, dim=-1)
+        # acc = torch.sum(preds == labels).item() / labels.size(0)
         
-        return loss, acc, preds
+        return loss #, acc, preds
 
     @staticmethod
     def compute_loss_func(params, buffers, model, xn, yn, alpha=None):

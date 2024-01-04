@@ -6,11 +6,11 @@ BASE_PATH=${1-"/home/MiniLLM"}
 TYPE="toy"
 # hp
 LR=0.05
-BATCH_SIZE=-1
+BATCH_SIZE=512
 # runtime
 SAVE_PATH="${BASE_PATH}/results/${TYPE}"
 # seed
-SEED=30
+SEED=10
 SEED_DATA=20
 
 
@@ -22,9 +22,9 @@ OPTS+=" --model-type trm"
 OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --input-dim 128"
 # data
-OPTS+=" --train-num 4000"
-OPTS+=" --dev-num 500"
-OPTS+=" --test-num 500"
+OPTS+=" --train-num 4096"
+OPTS+=" --dev-num 512"
+OPTS+=" --test-num 512"
 OPTS+=" --ratio-1-2 1.3"
 OPTS+=" --load-toy-data 1"
 OPTS+=" --data-names addition"

@@ -13,7 +13,7 @@ from utils import save_rank, print_rank, all_gather
 import torch.distributed as dist
 
 from toy.trm.model import ToyTransformer
-from transformers import AutoConfig, AutoTokenizer
+from transformers import AutoTokenizer
 from transformers import (
     get_linear_schedule_with_warmup,
     get_constant_schedule_with_warmup,
@@ -27,11 +27,6 @@ class ToyBaseTrainer():
         self.args = args
         self.device = device
         self.exp_name = args.save.strip("/").replace(args.base_path.strip("/"), "").replace("_", "").replace("/", "_").strip("_")
-
-        self.config = {
-            "base_model_config": AutoConfig.from_pretrained(args.model_path),
-            "toy": "toy-trm" in args.ckpt_name
-        }
         
         self.tokenizer = self.get_tokenizer()
         print_rank("vocab size: {}".format(self.tokenizer.vocab_size))
@@ -77,7 +72,18 @@ class ToyBaseTrainer():
         raise NotImplementedError
 
     def get_data(self):
-        raise NotImplementedError
+        all_data_splits = {}
+        for split in ["dev", "test"]:
+            data = torch.load(os.path.join(self.args.data_dir, f"{split}.pt"))
+            all_data_splits[split] = data
+        if self.args.add_noise is not None:
+            all_data_splits["train"] = torch.load(os.path.join(self.args.data_dir, f"noise_train_{self.args.add_noise}.pt"))
+        else:
+            all_data_splits["train"] = torch.load(os.path.join(self.args.data_dir, "train.pt"))
+        all_data_splits["train"] = all_data_splits["train"][:self.args.train_num]
+        all_data_splits["dev"] = all_data_splits["dev"][:self.args.dev_num]
+        all_data_splits["test"] = all_data_splits["test"][:self.args.dev_num]
+        return all_data_splits["train"], all_data_splits["dev"], all_data_splits["test"]
     
     def get_grad_norm(self):
         total_norm = 0
@@ -183,7 +189,7 @@ class ToyBaseTrainer():
                 group=self.exp_name,
                 config=self.args,
                 reinit=True,
-                tags=[self.args.time_stamp],)
+                tags=[self.args.time_stamp, self.args.data_names])
         
         st = time.time()
         all_dev_loss, all_test_loss = [], []

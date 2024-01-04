@@ -419,7 +419,7 @@ def get_args():
         elif args.model_type in ["trm"]:
             # model_info = f"d{args.input_dim}-h{args.num_head}"
             if args.data_names == "addition":
-                model_info = f"d{args.input_dim}"
+                model_info = f"{args.ckpt_name}-add"
                 suffix = f"r{args.ratio_1_2}"
             elif args.data_names == "tiny_story":
                 model_info = f"{args.ckpt_name}-ts-{args.max_length}"
