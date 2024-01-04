@@ -419,16 +419,16 @@ class ToyTSTrainer(ToyBaseTrainer):
                 all_test_IF_ratio.append(test_IF_ratio.item())
                 all_test_IF.append(test_IF)
                 
-                avg_mean_IF_dev, avg_mean_IF_test = self.calc_avg_mean_IF(e, *self.dev_data, *self.test_data)
+                # avg_mean_IF_dev, avg_mean_IF_test = self.calc_avg_mean_IF(e, *self.dev_data, *self.test_data)
                 # avg_IF_devs, avg_IF_tests, avg_mean_IF_dev, avg_mean_IF_test = self.calc_avg_IFs(e, *self.dev_data, *self.test_data, alpha_e)
 
-                avg_IF_ratio_dev = avg_mean_IF_dev / (dev_IF_std + 1e-8)
-                avg_IF_ratio_test = avg_mean_IF_test / (test_IF_std + 1e-8)
+                # avg_IF_ratio_dev = avg_mean_IF_dev / (dev_IF_std + 1e-8)
+                # avg_IF_ratio_test = avg_mean_IF_test / (test_IF_std + 1e-8)
                 
-                all_avg_mean_IF_dev.append(avg_mean_IF_dev.item())
-                all_avg_mean_IF_test.append(avg_mean_IF_test.item())    
-                all_avg_IF_ratio_dev.append(avg_IF_ratio_dev.item())
-                all_avg_IF_ratio_test.append(avg_IF_ratio_test.item())
+                # all_avg_mean_IF_dev.append(avg_mean_IF_dev.item())
+                # all_avg_mean_IF_test.append(avg_mean_IF_test.item())    
+                # all_avg_IF_ratio_dev.append(avg_IF_ratio_dev.item())
+                # all_avg_IF_ratio_test.append(avg_IF_ratio_test.item())
                 
                 # avg2_mean_IF_dev = torch.sum(alpha_e[:self.args.num_samp_grads] * avg_IF_devs, dim=0)
                 # avg2_mean_IF_test = torch.sum(alpha_e[:self.args.num_samp_grads] * avg_IF_tests, dim=0)
@@ -469,8 +469,8 @@ class ToyTSTrainer(ToyBaseTrainer):
                         "dev_IF_var": dev_IF_var.item(),
                         "dev_IF_std": dev_IF_std.item(),
                         "dev_IF_ratio": dev_IF_ratio.item(),
-                        "dev_avg_mean_IF": avg_mean_IF_dev.item(),
-                        "dev_avg_IF_ratio": avg_IF_ratio_dev.item(),
+                        # "dev_avg_mean_IF": avg_mean_IF_dev.item(),
+                        # "dev_avg_IF_ratio": avg_IF_ratio_dev.item(),
                         # "dev_avg2_mean_IF": avg2_mean_IF_dev.item(),
                         # "dev_avg2_std_IF": avg2_std_IF_dev.item(),
                         # "dev_avg2_IF_ratio": avg2_IF_ratio_dev.item(),
@@ -482,12 +482,12 @@ class ToyTSTrainer(ToyBaseTrainer):
                     log_str = "epoch {} | train loss {:.4f} | dev loss {:.4f} | test loss {:.4f} | gn: {:.4f} | lr:{:.4e} | single epoch time: {}\n".format(
                         e, loss.item(), dev_loss.item(), test_loss.item(), gn, self.lr_scheduler.get_last_lr()[0], time.time() - epoch_st)
                     if calc_IF:
-                        log_str += "Dev IF | IF_mean: {:.4f} | avg_IF_mean: {:.4f} | IF_var: {:.4f} | IF_std: {:.4f} | IF_ratio: {:.4f} | avg_IF_ratio: {:.4f}\n".format(
-                            dev_IF_mean.item(), avg_mean_IF_dev.item(), dev_IF_var.item(), dev_IF_std.item(), dev_IF_ratio.item(), avg_IF_ratio_dev.item())
+                        log_str += "Dev IF | IF_mean: {:.4f} | IF_var: {:.4f} | IF_std: {:.4f} | IF_ratio: {:.4f}\n".format(
+                            dev_IF_mean.item(), dev_IF_var.item(), dev_IF_std.item(), dev_IF_ratio.item())
                         # log_str += " | avg2_IF_mean: {:.4f} | avg2_IF_std: {:.4f} | avg2_IF_ratio: {:.4f}\n".format(
                         #     avg2_mean_IF_dev.item(), avg2_std_IF_dev.item(), avg2_IF_ratio_dev.item())
-                        log_str += "Test IF | IF_mean: {:.4f} | avg_IF_mean: {:.4f} | IF_var: {:.4f} | IF_std: {:.4f} | IF_ratio: {:.4f}| avg_IF_ratio: {:.4f}\n".format(
-                            test_IF_mean.item(), avg_mean_IF_test.item(), test_IF_var.item(), test_IF_std.item(), test_IF_ratio.item(), avg_IF_ratio_test.item())
+                        log_str += "Test IF | IF_mean: {:.4f} | IF_var: {:.4f} | IF_std: {:.4f} | IF_ratio: {:.4f}\n".format(
+                            test_IF_mean.item(), test_IF_var.item(), test_IF_std.item(), test_IF_ratio.item())
                         # log_str += " | avg2_IF_mean: {:.4f} | avg2_IF_std: {:.4f} | avg2_IF_ratio: {:.4f}\n".format(
                         #     avg2_mean_IF_test.item(), avg2_std_IF_test.item(), avg2_IF_ratio_test.item())
                     print(log_str)
@@ -507,9 +507,9 @@ class ToyTSTrainer(ToyBaseTrainer):
             
             torch.save((all_dev_loss, all_test_loss), os.path.join(save_path, "all_loss.pt"))
             if calc_IF:
-                torch.save((all_dev_IF, all_dev_IF_mean, all_avg_mean_IF_dev, all_dev_IF_var, all_dev_IF_std, all_dev_IF_ratio, all_avg_IF_ratio_dev), 
+                torch.save((all_dev_IF, all_dev_IF_mean, [], all_dev_IF_var, all_dev_IF_std, all_dev_IF_ratio), 
                            os.path.join(save_path, "all_dev_IF.pt"))
-                torch.save((all_test_IF, all_test_IF_mean, all_avg_mean_IF_test, all_test_IF_var, all_test_IF_std, all_test_IF_ratio, all_avg_IF_ratio_test), 
+                torch.save((all_test_IF, all_test_IF_mean, [], all_test_IF_var, all_test_IF_std, all_test_IF_ratio), 
                            os.path.join(save_path, "all_test_IF.pt"))
             
             run.finish()

@@ -31,8 +31,8 @@ OPTS+=" --type ${TYPE}"
 # model
 OPTS+=" --model-type trm"
 OPTS+=" --base-path ${BASE_PATH}"
-OPTS+=" --model-path ${BASE_PATH}/checkpoints/tiny_stories/tiny-256-5k"
-OPTS+=" --ckpt-name toy-trm-256-5k"
+OPTS+=" --model-path ${BASE_PATH}/checkpoints/tiny_stories/tiny-128-5k"
+OPTS+=" --ckpt-name toy-trm-5k-ln"
 # data
 OPTS+=" --train-num 16384"
 OPTS+=" --dev-num 512"
@@ -49,7 +49,7 @@ OPTS+=" --epochs 3000"
 OPTS+=" --log-interval 10"
 OPTS+=" --clip-grad -1"
 OPTS+=" --max-length 64"
-OPTS+=" --add-noise 0.6_30_10000"
+OPTS+=" --add-noise 0.8_30"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"
 # seed
