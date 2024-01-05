@@ -19,6 +19,10 @@ paths = [
     (os.path.join(base_path, "opt_alpha_0.1/5"), "opt_alpha_5"),
     (os.path.join(base_path, "opt_alpha_0.1/6"), "opt_alpha_5"),
     (os.path.join(base_path, "opt_alpha_0.1/7"), "opt_alpha_5"),
+    (os.path.join(base_path, "opt_alpha_0.2/0"), "opt_alpha_5"),
+    (os.path.join(base_path, "opt_alpha_0.2/5"), "opt_alpha_5"),
+    (os.path.join(base_path, "opt_alpha_0.2/10"), "opt_alpha_5"),
+    (os.path.join(base_path, "opt_alpha_0.2/15"), "opt_alpha_5"),
     (os.path.join(base_path, "opt_alpha_0.4/0"), "opt_alpha_5"),
     (os.path.join(base_path, "opt_alpha_0.4/1"), "opt_alpha_5"),
     (os.path.join(base_path, "opt_alpha_0.4/2"), "opt_alpha_5"),
@@ -30,7 +34,7 @@ paths = [
     
 ]
 
-plot, ax = plt.subplots(1, 1, figsize=(12, 8))
+plot, ax = plt.subplots(1, 1, figsize=(6, 4))
 
 
 step_min = 0
@@ -45,7 +49,7 @@ for path in paths:
     all_loss = torch.load(os.path.join(path[0], f"all_loss.pt"), map_location="cpu")
     loss = all_loss[0] if split == "dev" else all_loss[1]
     IFs = torch.load(os.path.join(path[0], f"all_{split}_IF.pt"), map_location="cpu")
-    IF_ratio = IFs[5]
+    IF_ratio = IFs[4]
     area = sum(loss)
     IF_ratio = IF_ratio[step_min:step_max]
     loss = loss[step_min:step_max]
@@ -76,7 +80,7 @@ for loss, IF_ratio, area_color in zip(all_losses, all_IF_ratios, all_colors):
     sorted_loss, sorted_IF_ratio = zip(*[(d, w) for d, w in zip(sorted_loss, sorted_IF_ratio)])
     
     # sorted_loss = gaussian_filter1d(sorted_loss, sigma=1)
-    # sorted_IF_ratio = gaussian_filter1d(sorted_IF_ratio, sigma=1)
+    sorted_IF_ratio = gaussian_filter1d(sorted_IF_ratio, sigma=5)
     
     # sorted_IF_ratio = 1 / np.array(sorted_IF_ratio)
     # 根据 area 的值确定颜色
