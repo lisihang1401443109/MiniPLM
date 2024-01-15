@@ -23,7 +23,7 @@ class EvalAlphaTrainer():
             base_trainer_cls = ToyAddTrainer
         elif args.data_names == "toy-ts":
             base_trainer_cls = ToyTSTrainer
-        elif args.data_names == "toiy-linear":
+        elif args.data_names == "toy-linear":
             base_trainer_cls = LogisticTrainer
         else:
             raise NotImplementedError(args.data_names)

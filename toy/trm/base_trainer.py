@@ -99,67 +99,69 @@ class ToyBaseTrainer():
         return total_norm
 
     def calc_grad_eval(self, eval_xn, eval_yn):
-        params = {n: p.detach() for n, p in self.model.named_parameters()}
-        buffers = {n: p.detach() for n, p in self.model.named_buffers()}
-        
-        r = dist.get_rank()
-        grad_eval_func = grad(self.model.compute_loss_func)
-        
-        eval_bs = self.args.eval_batch_size
-        gl_eval_bs = dist.get_world_size() * eval_bs
-        eval_grad_acc_steps = eval_xn.size(0) // gl_eval_bs
-        grad_eval_vec = 0
-        for i in range(eval_grad_acc_steps):
-            eval_xn_batch = eval_xn[i*gl_eval_bs:(i+1)*gl_eval_bs][r*eval_bs:(r+1)*eval_bs]
-            eval_yn_batch = eval_yn[i*gl_eval_bs:(i+1)*gl_eval_bs][r*eval_bs:(r+1)*eval_bs]
-            grad_eval_batch = grad_eval_func(params, buffers, self.model, eval_xn_batch, eval_yn_batch)
-            grad_eval_vec += self.model.params_to_vector(grad_eval_batch)
-        
-        dist.all_reduce(grad_eval_vec, op=dist.ReduceOp.SUM)
-        grad_eval_vec /= (eval_grad_acc_steps * dist.get_world_size())
+        with torch.no_grad():
+            params = {n: p.detach() for n, p in self.model.named_parameters()}
+            buffers = {n: p.detach() for n, p in self.model.named_buffers()}
+            
+            r = dist.get_rank()
+            grad_eval_func = grad(self.model.compute_loss_func)
+            
+            eval_bs = self.args.eval_batch_size
+            gl_eval_bs = dist.get_world_size() * eval_bs
+            eval_grad_acc_steps = eval_xn.size(0) // gl_eval_bs
+            grad_eval_vec = 0
+            for i in range(eval_grad_acc_steps):
+                eval_xn_batch = eval_xn[i*gl_eval_bs:(i+1)*gl_eval_bs][r*eval_bs:(r+1)*eval_bs]
+                eval_yn_batch = eval_yn[i*gl_eval_bs:(i+1)*gl_eval_bs][r*eval_bs:(r+1)*eval_bs]
+                grad_eval_batch = grad_eval_func(params, buffers, self.model, eval_xn_batch, eval_yn_batch)
+                grad_eval_vec += self.model.params_to_vector(grad_eval_batch)
+            
+            dist.all_reduce(grad_eval_vec, op=dist.ReduceOp.SUM)
+            grad_eval_vec /= (eval_grad_acc_steps * dist.get_world_size())
         
         return grad_eval_vec
 
     def calc_IF(self, xn, yn, eval_xn, eval_yn, alpha=None):
-        params = {n: p.detach() for n, p in self.model.named_parameters()}
-        buffers = {n: p.detach() for n, p in self.model.named_buffers()}
-        
-        r = dist.get_rank()
-        
-        grad_eval_vec = self.calc_grad_eval(eval_xn, eval_yn)
-        grad_eval = self.model.vector_to_params(grad_eval_vec)
-        
-        grad_train_single_func = grad(self.model.compute_loss_func_single)
-        grad_train_func = vmap(grad_train_single_func, in_dims=(None, None, None, 0, 0))
-        
-        grad_bs = self.args.grad_batch_size
-        gl_grad_bs = dist.get_world_size() * grad_bs
-        grad_acc_steps = xn.size(0) // gl_grad_bs
-        
-        grad_train_vec = 0
-        IF = torch.zeros(xn.size(0), device=self.device)
-
-        for i in range(grad_acc_steps):
-            xn_batch = xn[i*gl_grad_bs:(i+1)*gl_grad_bs][r*grad_bs:(r+1)*grad_bs]
-            yn_batch = yn[i*gl_grad_bs:(i+1)*gl_grad_bs][r*grad_bs:(r+1)*grad_bs]
-            grad_train = grad_train_func(params, buffers, self.model, xn_batch, yn_batch)
-        
-            for n, _ in self.model.named_parameters():
-                x1 = grad_eval[n].view(-1)
-                x2 = grad_train[n].contiguous().view(grad_train[n].size(0), -1)
-                IF[i*gl_grad_bs:(i+1)*gl_grad_bs][r*grad_bs:(r+1)*grad_bs] += x2 @ x1
-        
-        dist.all_reduce(IF, op=dist.ReduceOp.SUM)
+        with torch.no_grad():
+            params = {n: p.detach() for n, p in self.model.named_parameters()}
+            buffers = {n: p.detach() for n, p in self.model.named_buffers()}
             
-        if alpha is None:
-            IF_mean = torch.mean(IF, dim=0)
-        else:
-            IF_mean = torch.sum(alpha * IF, dim=0)
-        
-        IF_var = torch.var(IF, dim=0)
-        IF_std = torch.std(IF, dim=0)
-        IF_ratio = IF_mean / (IF_std + 1e-8)
-        
+            r = dist.get_rank()
+            
+            grad_eval_vec = self.calc_grad_eval(eval_xn, eval_yn)
+            grad_eval = self.model.vector_to_params(grad_eval_vec)
+            
+            grad_train_single_func = grad(self.model.compute_loss_func_single)
+            grad_train_func = vmap(grad_train_single_func, in_dims=(None, None, None, 0, 0))
+            
+            grad_bs = self.args.grad_batch_size
+            gl_grad_bs = dist.get_world_size() * grad_bs
+            grad_acc_steps = xn.size(0) // gl_grad_bs
+            
+            grad_train_vec = 0
+            IF = torch.zeros(xn.size(0), device=self.device)
+
+            for i in range(grad_acc_steps):
+                xn_batch = xn[i*gl_grad_bs:(i+1)*gl_grad_bs][r*grad_bs:(r+1)*grad_bs]
+                yn_batch = yn[i*gl_grad_bs:(i+1)*gl_grad_bs][r*grad_bs:(r+1)*grad_bs]
+                grad_train = grad_train_func(params, buffers, self.model, xn_batch, yn_batch)
+            
+                for n, _ in self.model.named_parameters():
+                    x1 = grad_eval[n].view(-1)
+                    x2 = grad_train[n].contiguous().view(grad_train[n].size(0), -1)
+                    IF[i*gl_grad_bs:(i+1)*gl_grad_bs][r*grad_bs:(r+1)*grad_bs] += x2 @ x1
+            
+            dist.all_reduce(IF, op=dist.ReduceOp.SUM)
+                
+            if alpha is None:
+                IF_mean = torch.mean(IF, dim=0)
+            else:
+                IF_mean = torch.sum(alpha * IF, dim=0)
+            
+            IF_var = torch.var(IF, dim=0)
+            IF_std = torch.std(IF, dim=0)
+            IF_ratio = IF_mean / (IF_std + 1e-8)
+            
         return IF, IF_mean, IF_var, IF_std, IF_ratio
 
     def evaluate(self, eval_data):
@@ -258,7 +260,7 @@ class ToyBaseTrainer():
                 #     g_params[k] += g[k]
                 
                 train_losses.append(loss.item())
-                train_losses_per_inst.extend(losses)
+                train_losses_per_inst.append(losses)
             
             for param in self.model.parameters():
                 torch.distributed.all_reduce(param.grad.data, op=torch.distributed.ReduceOp.SUM)
@@ -267,6 +269,7 @@ class ToyBaseTrainer():
             #     p.data.add_(g_params[n], alpha=-self.args.lr)
 
             loss = np.sum(train_losses)
+            train_losses_per_inst = torch.cat(train_losses_per_inst, dim=0)
 
             if self.args.clip_grad > 0:
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.clip_grad)
@@ -339,7 +342,7 @@ class ToyBaseTrainer():
             print("final | dev loss {:.4f} | test loss {:.4f}".format(final_dev_loss.item(), final_test_loss.item()))
             
             torch.save((all_dev_loss, all_test_loss), os.path.join(save_path, "all_loss.pt"))
-            torch.save((all_train_losses_per_inst), os.path.join(save_path, "all_train_losses_per_inst.pt"))
+            torch.save(torch.stack(all_train_losses_per_inst, dim=0), os.path.join(save_path, "all_train_losses_per_inst.pt"))
             if calc_IF:
                 torch.save((all_dev_IF, all_dev_IF_mean, all_dev_IF_var, all_dev_IF_std, all_dev_IF_ratio), 
                            os.path.join(save_path, "all_dev_IF.pt"))
@@ -347,4 +350,6 @@ class ToyBaseTrainer():
                            os.path.join(save_path, "all_test_IF.pt"))
             
             run.finish()
+        
+        dist.barrier()
             
