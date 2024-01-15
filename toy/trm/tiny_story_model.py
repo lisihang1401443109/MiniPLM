@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.func import functional_call
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from model import ToyTransformer
+from .model import ToyTransformer
 from dataclasses import dataclass
 
 
@@ -80,7 +80,7 @@ class ToyTSTransformer(nn.Module):
         else:
             loss = torch.sum(alpha * losses)
 
-        return loss
+        return loss, losses
     
     @staticmethod
     def compute_loss_func(params, buffers, model, input_ids, labels, alpha=None):

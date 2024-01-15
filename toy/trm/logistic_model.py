@@ -23,7 +23,7 @@ class LogisticModel(nn.Module):
         else:
             loss = torch.mean(losses)
         
-        return loss
+        return loss, losses
     
     @staticmethod
     def compute_loss_func(params, buffers, model, x, y, alpha=None):

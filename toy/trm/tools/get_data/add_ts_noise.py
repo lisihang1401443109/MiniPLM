@@ -1,26 +1,31 @@
 import torch
 import random
 import os
+import sys
+base_path = sys.argv[1]
+sys.path.append(base_path)
+
 from copy import deepcopy
 from tqdm import tqdm
-from tiny_story_model import ToyTokenizer
+from toy.trm.tiny_story_model import ToyTokenizer
 
 seed = 42
 
 random.seed(seed)
 torch.manual_seed(seed)
 
-noise_fraction = 0.6
+noise_fraction = 0.8
 N = 30
 max_length = 64
-rept_times = 10000
+rept_times = 0
 
-base_path = "/home/aiscuser/sps/processed_data/toy-ts/mistral/small_64_16384_512_2"
+# base_data_path = "/home/aiscuser/sps/processed_data/toy-ts/mistral/small_64_16384_512_2"
+base_data_path = "/home/aiscuser/sps/processed_data/toy-ts/mistral/small_64_32768_512_2"
 model_path = "/mnt/yuxian/checkpoints/mistral-7B/"
-vocab = torch.load(os.path.join(base_path, "vocab.pt"))
-torch.load(os.path.join(base_path, "train.pt"))
+vocab = torch.load(os.path.join(base_data_path, "vocab.pt"))
+torch.load(os.path.join(base_data_path, "train.pt"))
 
-tokenizer = ToyTokenizer(model_path, os.path.join(base_path, "vocab.pt"))
+tokenizer = ToyTokenizer(model_path, os.path.join(base_data_path, "vocab.pt"))
 
 def repeat(x):
     idx = random.randint(0, len(x)-1)
@@ -47,7 +52,7 @@ def repeat_sample(data):
     return data
 
 
-train_data = torch.load(os.path.join(base_path, "train.pt")).tolist()
+train_data = torch.load(os.path.join(base_data_path, "train.pt")).tolist()
 
 noise_data = train_data[:int(len(train_data)*noise_fraction)]
 
@@ -72,6 +77,6 @@ new_train_data = repeat_sample(new_train_data)
 
 new_train_data = torch.tensor(new_train_data)
 
-save_path = os.path.join(base_path, f"noise_train_{noise_fraction}_{N}_{rept_times}.pt")
+save_path = os.path.join(base_data_path, f"noise_train_{noise_fraction}_{N}_{rept_times}.pt")
 
 torch.save(new_train_data, save_path)

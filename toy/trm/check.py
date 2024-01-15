@@ -137,15 +137,31 @@ import numpy as np
 # print(torch.sum(torch.abs(g_vec_500 - g_vec_1000)).item())
 
 
-init = torch.load("/home/aiscuser/sps/processed_data/toy-ts/model_init/toy-trm.pt", map_location="cpu")
+# init = torch.load("/home/aiscuser/sps/processed_data/toy-ts/model_init/toy-trm.pt", map_location="cpu")
 
-wq = init["base_model.w_q.weight"]
-embed = init["base_model.word_embed.weight"]
+# wq = init["base_model.w_q.weight"]
+# embed = init["base_model.word_embed.weight"]
 
-plt.hist(embed.flatten().tolist(), bins=1000)
+# plt.hist(embed.flatten().tolist(), bins=1000)
 
-plt.savefig("test_init.png")
+# plt.savefig("test_init.png")
 
-print(torch.max(embed), torch.min(embed))
+# print(torch.max(embed), torch.min(embed))
 
-print(torch.std(embed).item())
+# print(torch.std(embed).item())
+
+base_path = "/home/aiscuser/sps/processed_data/toy-linear/128/0.5-3.0-1.0-4096-10-20-1/"
+
+d = torch.load(os.path.join(base_path, "data.pt"), map_location="cpu")
+
+train_x, train_y, dev_x, dev_y, test_x, test_y, theta_init = d
+
+torch.save((train_x, train_y), os.path.join(base_path, "train.pt"))
+torch.save((dev_x, dev_y), os.path.join(base_path, "dev.pt"))
+torch.save((test_x, test_y), os.path.join(base_path, "test.pt"))
+
+print(theta_init.size())
+
+sd = {"linear.weight": theta_init.view(1, 128)}
+
+torch.save(sd, os.path.join("/home/aiscuser/sps/processed_data/toy-linear/model_init/linear-128.pt"))

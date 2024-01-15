@@ -38,7 +38,7 @@ OPTS+=" --ckpt-name toy-trm-5k-ln"
 OPTS+=" --train-num 16384"
 OPTS+=" --dev-num 512"
 OPTS+=" --test-num 512"
-OPTS+=" --data-names tiny_story"
+OPTS+=" --data-names toy-ts"
 OPTS+=" --data-dir ${BASE_PATH}/processed_data/toy-ts/mistral/small_64_16384_512_2"
 OPTS+=" --load-toy-data 1"
 # hp

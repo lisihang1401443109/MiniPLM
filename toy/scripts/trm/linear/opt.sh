@@ -29,32 +29,39 @@ OPTS=""
 # type
 OPTS+=" --type ${TYPE}"
 # model
-OPTS+=" --model-type trm"
+OPTS+=" --model-type linear"
 OPTS+=" --base-path ${BASE_PATH}"
-OPTS+=" --model-path ${BASE_PATH}/checkpoints/tiny_stories/tiny-128-5k"
-OPTS+=" --ckpt-name toy-trm-5k-ln"
+OPTS+=" --input-dim 128"
+OPTS+=" --ckpt-name linear-128"
 # data
-OPTS+=" --train-num 16384"
+OPTS+=" --train-num 4096"
 OPTS+=" --dev-num 512"
 OPTS+=" --test-num 512"
-OPTS+=" --data-names toy-ts"
-OPTS+=" --data-dir ${BASE_PATH}/processed_data/toy-ts/mistral/small_64_16384_512_2"
+OPTS+=" --data-names toy-linear"
+OPTS+=" --data-dir ${BASE_PATH}/processed_data/toy-linear/128/0.5-3.0-1.0-4096-10-20-1"
 OPTS+=" --load-toy-data 1"
+OPTS+=" --add-noise 0.5-3.0-1.0"
 # hp
 OPTS+=" --lr ${LR}"
 OPTS+=" --batch-size ${BATCH_SIZE}"
 OPTS+=" --eval-batch-size 64"
 OPTS+=" --grad-batch-size 512"
-OPTS+=" --epochs 3000"
+OPTS+=" --epochs 2000"
 OPTS+=" --log-interval 10"
+OPTS+=" --outer-lr 0.001"
+OPTS+=" --outer-epochs 1000"
 OPTS+=" --clip-grad -1"
-OPTS+=" --max-length 64"
-OPTS+=" --num-samp-grad 4096"
+OPTS+=" --max-length -1"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"
+OPTS+=" --opt-alpha"
+OPTS+=" --toy-zero2"
 # seed
 OPTS+=" --seed ${SEED}"
 OPTS+=" --seed-data ${SEED_DATA}"
+# deepspeed
+OPTS+=" --deepspeed"
+OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
 
 
 export NCCL_DEBUG=""
@@ -62,6 +69,7 @@ export NCCL_DEBUG=""
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
 export OMP_NUM_THREADS=16
+# CMD="deepspeed ${DISTRIBUTED_ARGS} ${BASE_PATH}/toy/trm/main.py ${OPTS} $@"
 CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/toy/trm/main.py ${OPTS} $@"
 
 echo ${CMD}

@@ -29,11 +29,12 @@ class ToyBaseTrainer():
         self.exp_name = args.save.strip("/").replace(args.base_path.strip("/"), "").replace("_", "").replace("/", "_").strip("_")
         
         self.tokenizer = self.get_tokenizer()
-        print_rank("vocab size: {}".format(self.tokenizer.vocab_size))
+        if self.tokenizer is not None:
+            print_rank("vocab size: {}".format(self.tokenizer.vocab_size))
         self.max_length = args.max_length
         print_rank("max length: {}".format(self.max_length))
 
-        self.model_init_dir = os.path.join(args.base_path, "processed_data", "toy-ts", "model_init")
+        self.model_init_dir = os.path.join(args.base_path, "processed_data", args.data_names, "model_init")
         os.makedirs(self.model_init_dir, exist_ok=True)
         model_init_path = os.path.join(self.model_init_dir, f"{args.ckpt_name}.pt")
         
@@ -71,13 +72,16 @@ class ToyBaseTrainer():
     def get_model(self):
         raise NotImplementedError
 
+    def reform_data(self):
+        raise NotImplementedError
+
     def get_data(self):
         all_data_splits = {}
         for split in ["dev", "test"]:
             data = torch.load(os.path.join(self.args.data_dir, f"{split}.pt"))
             all_data_splits[split] = data
         if self.args.add_noise is not None:
-            all_data_splits["train"] = torch.load(os.path.join(self.args.data_dir, f"noise_train_{self.args.add_noise}.pt"))
+            all_data_splits["train"] = torch.load(os.path.join(self.args.data_dir, f"noise_train_{self.args.add_noise}_0.pt"))
         else:
             all_data_splits["train"] = torch.load(os.path.join(self.args.data_dir, "train.pt"))
         all_data_splits["train"] = all_data_splits["train"][:self.args.train_num]
@@ -169,7 +173,7 @@ class ToyBaseTrainer():
             for i in range(grad_acc_steps):
                 input_batch = eval_data[0][i*gl_eval_bs:(i+1)*gl_eval_bs][r*eval_bs:(r+1)*eval_bs]
                 label_batch = eval_data[1][i*gl_eval_bs:(i+1)*gl_eval_bs][r*eval_bs:(r+1)*eval_bs]                
-                loss = self.model.compute_loss(input_batch, label_batch)
+                loss, _ = self.model.compute_loss(input_batch, label_batch)
                 losses.append(loss.item())
 
         loss = torch.tensor(np.sum(losses)).to(self.device)
@@ -196,6 +200,7 @@ class ToyBaseTrainer():
         all_dev_IF_mean, all_dev_IF_var, all_dev_IF_std, all_dev_IF_ratio = [], [], [], []
         all_test_IF_mean, all_test_IF_var, all_test_IF_std, all_test_IF_ratio = [], [], [], []
         all_dev_IF, all_test_IF = [], []
+        all_train_losses_per_inst = []
         
         if self.args.batch_size == -1:
             self.args.batch_size = self.train_data[0].size(0)
@@ -222,7 +227,7 @@ class ToyBaseTrainer():
             epoch_st = time.time()
             self.optimizer.zero_grad()
             alpha_e = alpha[e] if alpha is not None else flat_alpha
-            train_losses = []
+            train_losses, train_losses_per_inst = [], []
             dev_loss = self.evaluate(self.dev_data)
             test_loss = self.evaluate(self.test_data)
 
@@ -233,23 +238,27 @@ class ToyBaseTrainer():
             for i in range(grad_acc_steps):
                 if e == 0 and i == 0:
                     print_rank(self.train_data[0][0])
-                    print_rank(self.tokenizer.decode(self.train_data[0][0].cpu().tolist()))
+                    if self.tokenizer is not None:
+                        print_rank(self.tokenizer.decode(self.train_data[0][0].cpu().tolist()))
                     print_rank()
                 
                 train_input_batch = self.train_data[0][i*gl_bs:(i+1)*gl_bs][r*bs:(r+1)*bs]
                 train_label_batch = self.train_data[1][i*gl_bs:(i+1)*gl_bs][r*bs:(r+1)*bs]
                 alpha_e_batch = alpha_e[i*gl_bs:(i+1)*gl_bs][r*bs:(r+1)*bs]
                 
-                loss = self.model.compute_loss(train_input_batch, train_label_batch, alpha=alpha_e_batch)
+                loss, losses = self.model.compute_loss(train_input_batch, train_label_batch, alpha=alpha_e_batch)
+                
                 loss.backward()
                 
                 dist.all_reduce(loss, op=dist.ReduceOp.SUM)
+                losses = all_gather(losses)
                 
                 # g, loss = grad_and_value(self.model.compute_loss_func)(params, buffers, self.model, self.train_data[0][start:end], self.train_data[1][start:end], alpha=batch_alpha_e)
                 # for k in g_params.keys():
                 #     g_params[k] += g[k]
                 
                 train_losses.append(loss.item())
+                train_losses_per_inst.extend(losses)
             
             for param in self.model.parameters():
                 torch.distributed.all_reduce(param.grad.data, op=torch.distributed.ReduceOp.SUM)
@@ -268,6 +277,7 @@ class ToyBaseTrainer():
 
             all_dev_loss.append(dev_loss)
             all_test_loss.append(test_loss)
+            all_train_losses_per_inst.append(train_losses_per_inst)
             
             if dev_loss < min_dev_loss:
                 min_dev_loss = dev_loss
@@ -329,6 +339,7 @@ class ToyBaseTrainer():
             print("final | dev loss {:.4f} | test loss {:.4f}".format(final_dev_loss.item(), final_test_loss.item()))
             
             torch.save((all_dev_loss, all_test_loss), os.path.join(save_path, "all_loss.pt"))
+            torch.save((all_train_losses_per_inst), os.path.join(save_path, "all_train_losses_per_inst.pt"))
             if calc_IF:
                 torch.save((all_dev_IF, all_dev_IF_mean, all_dev_IF_var, all_dev_IF_std, all_dev_IF_ratio), 
                            os.path.join(save_path, "all_dev_IF.pt"))
