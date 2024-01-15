@@ -67,34 +67,31 @@ for i, path in enumerate(paths):
     fit_log_loss = log_loss[min_steps:]
     fit_log_steps = log_steps[min_steps:]
 
-    plt.scatter(steps[min_steps:], loss[min_steps:], s=5, color="cyan" if i == 0 else "coral", label="Constant Policy" if i == 0 else "(Near) Optimal Policy")
-    # plt.scatter(steps, loss, s=5, color="cyan" if i == 0 else "coral", label="Constant Policy" if i == 0 else "(Near) Optimal Policy")
+    # plt.scatter(log_steps, log_loss, s=1, alpha=0.05)
+    plt.scatter(steps, loss, s=5, color="cyan" if i == 0 else "coral", label="Constant Policy" if i == 0 else "(Near) Optimal Policy")
 
     popt, pcov = curve_fit(f, fit_log_steps, fit_log_loss)
 
     # print(popt, pcov)
     a = popt[0]
     b = popt[1]
+    # b = popt[1]
 
     r_2 = compute_r_square(fit_log_steps, fit_log_loss, f, popt)
 
     print("R^2:", r_2)
 
-    # label_str = r"$\ln(L^{\text{tg}})=" + f"{a:.3f}" + r"\ln(t)+" + f"{b:.2f}" + r", r^2=" + f"{r_2:.3f}$"
-    label_str = r"$L^{\text{tg}}=\frac{" + f"{np.exp(-b):.3f}" + r"}{t^{" + f"{-a:.3f}" + r"}}, r^2=" + f"{r_2:.3f}" + r"$"
-    ax.plot(steps[min_steps:], np.exp(f(log_steps[min_steps:], *popt)), "--", label=label_str, linewidth=1.5, color="blue" if i == 0 else "darkred")
-    # ax.plot(steps, np.exp(f(log_steps, *popt)), linestyle="dashed", label=label_str, linewidth=1.5, color="blue" if i == 0 else "darkred")
+    # ax.plot(log_steps, f(log_steps, *popt), "--", label=f"y={a:.3f}x'+{b:.3f}, R^2={r_2:.3f}", linewidth=0.8)
+    label_str = r"$L^{\text{tg}}=\left(\frac{" + f"{np.exp(-b):.3f}" + r"}{t^{" + f"{-a:.3f}" + r"}}\right)$"
+    ax.plot(steps, np.exp(f(log_steps, *popt)), linestyle="dashed", label=label_str, linewidth=1.5, color="blue" if i == 0 else "darkred")
 
 # plt.xticks(log_steps, steps)
-ax.set_xlabel(r"$\text{Training Steps} \ t$", fontsize=14)
+ax.set_xlabel(r"$\text{Training Steps} t$", fontsize=14)
 ax.set_ylabel(r"$L^{\text{tg}}$", fontsize=14)
-# ax.set_xlabel(r"$\ln(t)$", fontsize=14)
-# ax.set_ylabel(r"$\ln(L^{\text{tg}})$", fontsize=14)
-ax.set_xscale("log")
+# ax.set_xscale("log")
 ax.set_yscale("log")
-# plt.gca().yaxis.set_major_formatter(mpl.ticker.ScalarFormatter())
-ax.set_xticks([200, 400, 1000, 1500, 3000], [200, 400, 1000, 1500, 3000])
-ax.set_yticks([3.5, 4.0, 4.5, 5.0], [3.5, 4.0, 4.5, 5.0])
+plt.gca().yaxis.set_major_formatter(mpl.ticker.ScalarFormatter())
+# ax.set_xticks([200, 400, 1000, 1500, 3000], [200, 400, 1000, 1500, 3000])
 ax.tick_params(axis='both', which='both', labelsize=14)
-plt.legend(fontsize=10)
-plt.savefig(os.path.join(base_path, f"{split}_loss_b{bias}_ms{min_steps}.pdf"), bbox_inches="tight")
+plt.legend(fontsize=14)
+plt.savefig(os.path.join(base_path, f"{split}_loss_b{bias}_ms{min_steps}_full.pdf"), bbox_inches="tight")
