@@ -5,6 +5,7 @@ import torch
 
 from tiny_story_trainer import ToyTSTrainer
 from addition_trainer import ToyAddTrainer
+from logistic_trainer import LogisticTrainer
 from opt_alpha_trainer import OptAlphaTrainer
 from eval_alpha_trainer import EvalAlphaTrainer
 from arguments import get_args
@@ -35,10 +36,12 @@ def main():
     elif args.eval_opt_alpha:
         trainer_cls = EvalAlphaTrainer
     else:
-        if args.data_names == "addition":
+        if args.data_names == "toy-add":
             trainer_cls = ToyAddTrainer
-        elif args.data_names == "tiny_story":
+        elif args.data_names == "toy-ts":
             trainer_cls = ToyTSTrainer
+        elif args.data_names == "toy-linear":
+            trainer_cls = LogisticTrainer
         else:
             raise NotImplementedError
     

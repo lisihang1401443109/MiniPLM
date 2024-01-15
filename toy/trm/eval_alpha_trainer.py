@@ -19,11 +19,11 @@ class EvalAlphaTrainer():
         self.args = args
         self.device = device
         
-        if args.data_names == "addition":
+        if args.data_names == "toy-add":
             base_trainer_cls = ToyAddTrainer
-        elif args.data_names == "tiny_story":
+        elif args.data_names == "toy-ts":
             base_trainer_cls = ToyTSTrainer
-        elif args.data_names == "linear":
+        elif args.data_names == "toiy-linear":
             base_trainer_cls = LogisticTrainer
         else:
             raise NotImplementedError(args.data_names)

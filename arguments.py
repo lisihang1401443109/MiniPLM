@@ -383,52 +383,54 @@ def get_args():
         if args.warmup_iters > 0:
             assert args.scheduler_name is not None
     elif args.type == "toy":
-        if args.model_type in ["linear", "linear_fa", "linear_da"]:
-            model_info = f"d{args.input_dim}-{args.input_real_dim}-l{args.lam}"
-            suffix = ""
-            if args.model_type == "linear_fa":
-                suffix += (f"oe{args.outer_epochs}-lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}")
-            elif args.model_type == "linear_da":
-                suffix += (f"lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}-aui{args.alpha_update_interval}")
-        elif args.model_type in ["linear_cls", "linear_cls_da", "linear_soft_cls", "linear_soft_cls_da"]:
-            model_info = f"d{args.input_dim}-{args.input_real_dim}-l{args.lam}"
-            suffix = ""
-            if args.model_type in ["linear_cls_da", "linear_soft_cls_da"]:
-                if args.load_toy_data is not None:
-                    args.dev_mu, args.train_sigma, args.dev_sigma, args.train_num, args.seed, args.seed_data, args.seed_gd = \
-                        args.load_toy_data.split("-")
-                    args.dev_mu = float(args.dev_mu)
-                    args.train_sigma = float(args.train_sigma)
-                    args.dev_sigma = float(args.dev_sigma)
-                    args.train_num = int(args.train_num)
-                    args.seed = int(args.seed)
-                    args.seed_data = int(args.seed_data)
-                    args.seed_gd = int(args.seed_gd)
-                suffix += (f"lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-dmu{args.dev_mu}-dsig{args.dev_sigma}-aui{args.alpha_update_interval}")
-                suffix += ("-aproj" if args.approx_proj else "-proj")
-        elif args.model_type in ["linear_dnn", "linear_dnn_fa"]:
-            model_info = f"d{args.input_dim}-l{args.lam}-h{args.dnn_hidden_dim}"
-            suffix = ""
-            if args.model_type == "linear_dnn_fa":
-                suffix += (f"oe{args.outer_epochs}-lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}")
-        elif args.model_type in ["dnn_dnn", "dnn_dnn_fa"]:
-            model_info = f"d{args.input_dim}-gh{args.gd_dnn_hidden_dim}-l{args.lam}-h{args.dnn_hidden_dim}"
-            suffix = ""
-            if args.model_type == "dnn_dnn_fa":
-                suffix += (f"oe{args.outer_epochs}-lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}")
-        elif args.model_type in ["trm"]:
+        # if args.model_type in ["linear", "linear_fa", "linear_da"]:
+        #     model_info = f"d{args.input_dim}-{args.input_real_dim}-l{args.lam}"
+        #     suffix = ""
+        #     if args.model_type == "linear_fa":
+        #         suffix += (f"oe{args.outer_epochs}-lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}")
+        #     elif args.model_type == "linear_da":
+        #         suffix += (f"lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}-aui{args.alpha_update_interval}")
+        # elif args.model_type in ["linear_cls", "linear_cls_da", "linear_soft_cls", "linear_soft_cls_da"]:
+        #     model_info = f"d{args.input_dim}-{args.input_real_dim}-l{args.lam}"
+        #     suffix = ""
+        #     if args.model_type in ["linear_cls_da", "linear_soft_cls_da"]:
+        #         if args.load_toy_data is not None:
+        #             args.dev_mu, args.train_sigma, args.dev_sigma, args.train_num, args.seed, args.seed_data, args.seed_gd = \
+        #                 args.load_toy_data.split("-")
+        #             args.dev_mu = float(args.dev_mu)
+        #             args.train_sigma = float(args.train_sigma)
+        #             args.dev_sigma = float(args.dev_sigma)
+        #             args.train_num = int(args.train_num)
+        #             args.seed = int(args.seed)
+        #             args.seed_data = int(args.seed_data)
+        #             args.seed_gd = int(args.seed_gd)
+        #         suffix += (f"lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-dmu{args.dev_mu}-dsig{args.dev_sigma}-aui{args.alpha_update_interval}")
+        #         suffix += ("-aproj" if args.approx_proj else "-proj")
+        # elif args.model_type in ["linear_dnn", "linear_dnn_fa"]:
+        #     model_info = f"d{args.input_dim}-l{args.lam}-h{args.dnn_hidden_dim}"
+        #     suffix = ""
+        #     if args.model_type == "linear_dnn_fa":
+        #         suffix += (f"oe{args.outer_epochs}-lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}")
+        # elif args.model_type in ["dnn_dnn", "dnn_dnn_fa"]:
+        #     model_info = f"d{args.input_dim}-gh{args.gd_dnn_hidden_dim}-l{args.lam}-h{args.dnn_hidden_dim}"
+        #     suffix = ""
+        #     if args.model_type == "dnn_dnn_fa":
+        #         suffix += (f"oe{args.outer_epochs}-lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}")
+        if args.model_type in ["trm", "linear"]:
             # model_info = f"d{args.input_dim}-h{args.num_head}"
-            if args.data_names == "addition":
+            if args.data_names == "toy-add":
                 model_info = f"{args.ckpt_name}-add"
                 suffix = f"r{args.ratio_1_2}"
-            elif args.data_names == "tiny_story":
+            elif args.data_names == "toy-ts":
                 model_info = f"{args.ckpt_name}-ts-{args.max_length}"
                 suffix = ""
                 if args.add_noise is not None:
                     suffix += f"-{args.add_noise}"
-            elif args.data_names == "linear":
-                model_info = f"d{args.input_dim}-{args.input_real_dim}-l{args.lam}"
+            elif args.data_names == "toy-linear":
+                model_info = f"d{args.input_dim}"
                 suffix = ""
+                if args.add_noise is not None:
+                    suffix += f"-{args.add_noise}"
             else:
                 raise NotImplementedError
             if args.opt_alpha:

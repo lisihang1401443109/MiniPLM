@@ -80,7 +80,7 @@ class ToyTSTransformer(nn.Module):
         else:
             loss = torch.sum(alpha * losses)
 
-        return loss
+        return loss, losses
     
     @staticmethod
     def compute_loss_func(params, buffers, model, input_ids, labels, alpha=None):
