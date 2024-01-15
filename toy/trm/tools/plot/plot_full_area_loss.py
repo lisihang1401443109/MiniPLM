@@ -2,8 +2,8 @@ import os
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
 from scipy.ndimage import gaussian_filter1d
-from scipy.optimize import curve_fit
 from tqdm import tqdm
 
 
@@ -11,10 +11,6 @@ base_path = "/home/lidong1/yuxian/sps-toy/results/toy/trm/toy-trm-5k-ln-ts-64/bs
 alpha_base_path = "/home/lidong1/yuxian/sps-toy/results/toy/trm/toy-trm-5k-ln-ts-64/bs512-lr0.1-tn16384-dn512-e3000"
 
 split = "test"
-
-paths = [
-    (os.path.join(base_path, "baseline"), "baseline"),
-]
 
 paths = [
     (os.path.join(base_path, "baseline"), "baseline"),
@@ -42,12 +38,19 @@ paths = [
     (os.path.join(base_path, "opt_alpha_0.4/5"), "opt_alpha_5"),
     (os.path.join(base_path, "opt_alpha_0.4/10"), "opt_alpha_5"),
     (os.path.join(base_path, "opt_alpha_0.4/15"), "opt_alpha_5"),
+    
 ]
 
+plot, ax = plt.subplots(1, 1, figsize=(6, 3))
+
+
 step_min = 0
-step_max = 2590
+step_max = 3000
 vocab_size = 5000
-all_IF_ratio, all_loss = [], []
+tot_info = 3000
+all_losses, all_IF_ratios, all_areas = [], [], []
+
+cm = plt.colormaps['coolwarm']
 
 for path in tqdm(paths):
     path = path[0]
@@ -58,8 +61,8 @@ for path in tqdm(paths):
     else:
         alpha_path = os.path.join(alpha_base_path, f"-0.8_30-opt-{alpha_lr}-0/10-20-7/epoch_{alpha_epoch}/opt_alpha.pt")
         alpha = torch.load(alpha_path, map_location="cpu")
-    dev_test_loss = torch.load(os.path.join(path, f"all_loss.pt"), map_location="cpu")
-    loss = dev_test_loss[0] if split == "dev" else dev_test_loss[1]
+    all_loss = torch.load(os.path.join(path, f"all_loss.pt"), map_location="cpu")
+    loss = all_loss[0] if split == "dev" else all_loss[1]
     IFs = torch.load(os.path.join(path, f"all_{split}_IF.pt"), map_location="cpu")
         
     IF = IFs[0]
@@ -77,78 +80,55 @@ for path in tqdm(paths):
             IF_mean = torch.sum(alpha_epoch * IF_epoch)
             IF_std = torch.sqrt(1/(torch.sum((alpha_epoch > 0).float())-1) * torch.sum((alpha_epoch > 0).float() * (IF_epoch - IF_mean) ** 2))
             IF_ratio.append(IF_mean / (IF_std + 1e-8))
-
-    loss = loss[step_min:step_max]
-    IF_ratio = IF_ratio[step_min:step_max]
-    all_loss.append(loss)
-    all_IF_ratio.append(IF_ratio)
     
-loss_threshold = all_loss[0][-1]
-# loss_threshold = 0
+    # IF_ratio = IFs[4]
+    area = sum(loss)
+    IF_ratio = IF_ratio[step_min:step_max]
+    loss = loss[step_min:step_max]
+    all_losses.append(loss)
+    all_IF_ratios.append(IF_ratio)
+    all_areas.append(area)
 
-all_mean_ratio, all_cp = [], []
+# all_losses = [gaussian_filter1d(loss, sigma=1) for loss in all_losses]
+# all_IF_ratios = [gaussian_filter1d(IF_ratio, sigma=100) for IF_ratio in all_IF_ratios]
 
-max_IF_mean_step = len(all_IF_ratio[0])
-for (k, loss), IF_ratio in zip(enumerate(all_loss), all_IF_ratio):
-    if k > 0:
-        for i in range(len(loss)-1, -1, -1):
-            if loss[i] > loss_threshold:
-                max_IF_mean_step = i
-                break
-    print(max_IF_mean_step)
-    IF_ratio = IF_ratio[:max_IF_mean_step]
-    # loss = loss[:max_IF_mean_step]
-    mean_ratio = np.mean(IF_ratio)
-    all_mean_ratio.append(mean_ratio)
-    cp = np.log(vocab_size) * len(loss) / np.sum(loss)
-    all_cp.append(cp)
+all_losses = np.array(all_losses)
+all_IF_ratios = np.array(all_IF_ratios)
 
-idxs = list(range(len(all_cp)))
+all_areas_repeat = np.repeat(np.expand_dims(all_areas, axis=1), all_losses.shape[1], axis=1)
 
-all_mean_ratio = np.array(all_mean_ratio)
-all_cp = np.array(all_cp)
+all_areas = np.array(all_areas)
+print(all_areas)
+all_cp_rate = tot_info * np.log(vocab_size) / all_areas
+print(all_cp_rate)
+all_cp_rate_norm = all_cp_rate - min(all_cp_rate)
+all_cp_rate_norm = all_cp_rate_norm / max(all_cp_rate_norm)
+all_colors = cm(all_cp_rate_norm)
 
-all_cp[-1] -= 0.02
-all_cp[-2] -= 0.01
+for loss, IF_ratio, area_color in zip(all_losses, all_IF_ratios, all_colors):
+    sorted_loss, sorted_IF_ratio = zip(*sorted(zip(loss, IF_ratio), reverse=True))
+    # remove < 0.01 values in sorted_IF_ratios and corresponding values in sorted_dev_loss
+    sorted_loss, sorted_IF_ratio = zip(*[(d, w) for d, w in zip(sorted_loss, sorted_IF_ratio)])
+    
+    # sorted_loss = gaussian_filter1d(sorted_loss, sigma=1)
+    sorted_IF_ratio = gaussian_filter1d(sorted_IF_ratio, sigma=5)
+    
+    # sorted_IF_ratio = 1 / np.array(sorted_IF_ratio)
+    # 根据 area 的值确定颜色
+    ax.plot(sorted_loss, sorted_IF_ratio, c=area_color)
 
-
-def f(x, a, b, c):
-    return a * np.exp(b * x) + c
-
-popt_init = [-0.5, -1, 2.3]
-# popt = popt_init
-popt, pcov = curve_fit(f, all_mean_ratio, all_cp, popt_init)
-
-# X = np.linspace(np.min(all_mean_ratio), np.max(all_mean_ratio), 100)
-X = np.linspace(np.min(all_cp), (all_cp[-2] + all_cp[-1])/2, 100)
-
-
-plot, ax = plt.subplots(1, 1, figsize=(3, 6))
-
-
-a1 = -1 / popt[1]
-b1 = -popt[0]
-c1 = popt[2]
-
-def f2(x, a, b, c):
-    return a * np.log(b/(c-x))
-
-ax.vlines(c1, 0.2, 1.3, color="gray", linestyle="--")
-
-# label_str = r"$\operatorname{CR}=" + "{:.1f}".format(popt[0]) + "e^{" + "{:.1f}".format(popt[1]) + "\ \overline{\operatorname{SNR}}}" + " + {:.1f}$".format(popt[2])
-label_str = r"$\operatorname{CR}=\log \left(\frac{" + f"{b1:.2f}" + \
-            r"}{" + f"{c1:.2f}" + \
-            r"-\overline{{SNR}}}\right)^{" + f"{a1:.2f}"\
-            r"}$"
-
-ax.plot(X, f2(X, *(a1,b1,c1)), label=label_str, color="red")
-ax.scatter(all_cp, all_mean_ratio, color="blue", s=14)
+ax.set_xscale("log")
+# ax.set_yscale("log")
+ax.set_xlabel(r"$L^{\text{tg}}(\mathbf{\theta}_t)$", fontsize=14)
+ax.set_ylabel(r"$\operatorname{SNR}(t)$", fontsize=14)
+# set the font size of x-axis and y-axis
 ax.tick_params(axis='both', which='both', labelsize=14)
+ax.invert_xaxis()
 
-ax.set_xlabel(r"$\operatorname{CR}$", fontsize=14)
-ax.set_ylabel(r"$\overline{\operatorname{SNR}}$", fontsize=14)
-ax.legend(fontsize=10)
-# for idx in idxs:
-#     plt.annotate(str(idx), (all_mean_ratio[idx], all_cp[idx]))
-plt.savefig(os.path.join(base_path, f"mean_ratio_cp_{split}.pdf"), bbox_inches='tight')
+sm = plt.cm.ScalarMappable(cmap=cm, norm=plt.Normalize(vmin=min(all_cp_rate), vmax=max(all_cp_rate)))
+cbar = plt.colorbar(sm, ax=ax)
+cbar.ax.tick_params(labelsize=14)
+cbar.set_label(r"$\operatorname{CR}$", fontsize=14, labelpad=-40, y=-0.04, rotation=0)
+
+plt.savefig(os.path.join(base_path, f"{split}_main.pdf"), bbox_inches="tight")
 plt.close()
