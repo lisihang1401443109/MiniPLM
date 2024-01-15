@@ -1,10 +1,12 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import os
 import sys
+base_path = sys.argv[1]
+sys.path.append(base_path)
 import json
 from tqdm import tqdm
 import torch
-from tiny_story_model import ToyTokenizer
+from toy.trm.tiny_story_model import ToyTokenizer
 
 # hf_name = "roneneldan/TinyStories-1M"
 # name = "tiny_stories/1M"
@@ -23,7 +25,6 @@ from tiny_story_model import ToyTokenizer
 
 # print(' > number of parameters: {}'.format(
 #     sum([p.nelement() for p in model.parameters()])), flush=True)
-base_path = sys.argv[1]
 model_path = "/mnt/yuxian/checkpoints/mistral-7B/"
 load_dir = "/mnt/yuxian/data/tinystories/all_data/"
 max_length = 128

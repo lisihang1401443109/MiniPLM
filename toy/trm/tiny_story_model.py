@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.func import functional_call
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from model import ToyTransformer
+from .model import ToyTransformer
 from dataclasses import dataclass
 
 
