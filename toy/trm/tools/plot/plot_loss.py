@@ -14,12 +14,12 @@ max_steps = 2950
 bsl_test_losses = bsl_test_losses[:max_steps]
 opt_test_losses = opt_test_losses[:max_steps]
 
-fig = plt.figure(figsize=(6, 3))
+fig = plt.figure(figsize=(4, 3))
 ax1 = fig.add_subplot(111)
 
-l1, = ax1.plot(bsl_test_losses, label=r"Constant Policy", color="mediumblue")
-l2, = ax1.plot(opt_test_losses, label=r"(Near) Optimal Policy", color="red")
-ax1.set_ylabel(r"Target Loss", fontsize=14)
+l1, = ax1.plot(bsl_test_losses, label=r"Constant", color="mediumblue")
+l2, = ax1.plot(opt_test_losses, label=r"(Near) Optimal", color="red")
+ax1.set_ylabel(r"Target Loss $L^{\text{tg}}$", fontsize=14)
 ax1.set_xlabel(r"Training Time Steps $t$", fontsize=14)
 
 ax1.set_yscale("log")
@@ -30,7 +30,7 @@ plt.gca().yaxis.set_major_formatter(mpl.ticker.ScalarFormatter())
 plt.gca().yaxis.set_minor_formatter(mpl.ticker.ScalarFormatter())
 
 plt.annotate(text='', xy=(max_steps,bsl_test_losses[-1]-0.02), xytext=(1290,bsl_test_losses[-1]-0.02), arrowprops=dict(arrowstyle='<->'))
-plt.text(2000, bsl_test_losses[-1]-0.17, r"$2.5 \times$", fontsize=14)
+plt.text(1900, bsl_test_losses[-1]-0.17, r"$\operatorname{AR}(T) = 2.5$", fontsize=12)
 
 plt.legend(fontsize=14)
 

@@ -5,30 +5,39 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 
-base_path = "/home/lidong1/yuxian/sps-toy/results/toy/linear/d128/bs512-lr0.1-tn4096-dn512-e2000/-0.5-3.0-1.0-eval_opt/10-20-7"
-alpha_base_path = "/home/lidong1/yuxian/sps-toy/results/toy/linear/d128/bs512-lr0.1-tn4096-dn512-e2000"
+base_path = "/home/lidong1/yuxian/sps-toy/results/toy/trm/toy-trm-5k-ln-ts-64/bs512-lr0.1-tn16384-dn512-e3000/-0.8_30-eval_opt/10-20-7"
+alpha_base_path = "/home/lidong1/yuxian/sps-toy/results/toy/trm/toy-trm-5k-ln-ts-64/bs512-lr0.1-tn16384-dn512-e3000"
 
 split = "test"
 
 paths = [
     (os.path.join(base_path, "baseline"), "baseline"),
-    # (os.path.join(base_path, "opt_alpha_0.001/0"), "opt_alpha_0"),
-    # (os.path.join(base_path, "opt_alpha_0.001/1"), "opt_alpha_1"),
-    # (os.path.join(base_path, "opt_alpha_0.001/2"), "opt_alpha_2"),
-    # (os.path.join(base_path, "opt_alpha_0.001/490"), "opt_alpha_490"),
+    # (os.path.join(base_path, "opt_alpha_0.1/0"), "opt_alpha_0"),
+    # (os.path.join(base_path, "opt_alpha_0.1/1"), "opt_alpha_1"),
+    # (os.path.join(base_path, "opt_alpha_0.1/2"), "opt_alpha_2"),
+    # (os.path.join(base_path, "opt_alpha_0.1/3"), "opt_alpha_3"),
+    # (os.path.join(base_path, "opt_alpha_0.1/4"), "opt_alpha_4"),
+    # (os.path.join(base_path, "opt_alpha_0.1/5"), "opt_alpha_5"),
+    # (os.path.join(base_path, "opt_alpha_0.1/6"), "opt_alpha_5"),
+    # (os.path.join(base_path, "opt_alpha_0.1/7"), "opt_alpha_5"),
+    # (os.path.join(base_path, "opt_alpha_0.2/0"), "opt_alpha_5"),
+    # (os.path.join(base_path, "opt_alpha_0.2/1"), "opt_alpha_5"),
+    # (os.path.join(base_path, "opt_alpha_0.2/2"), "opt_alpha_5"),
+    # (os.path.join(base_path, "opt_alpha_0.2/3"), "opt_alpha_5"),
+    # (os.path.join(base_path, "opt_alpha_0.2/4"), "opt_alpha_5"),
+    # (os.path.join(base_path, "opt_alpha_0.2/5"), "opt_alpha_5"),
+    # (os.path.join(base_path, "opt_alpha_0.2/10"), "opt_alpha_5"),
+    (os.path.join(base_path, "opt_alpha_0.2/15"), "opt_alpha_5"),
+    # (os.path.join(base_path, "opt_alpha_0.4/0"), "opt_alpha_5"),
+    # (os.path.join(base_path, "opt_alpha_0.4/1"), "opt_alpha_5"),
+    # (os.path.join(base_path, "opt_alpha_0.4/2"), "opt_alpha_5"),
+    # (os.path.join(base_path, "opt_alpha_0.4/3"), "opt_alpha_5"),
+    # (os.path.join(base_path, "opt_alpha_0.4/4"), "opt_alpha_5"),
+    # (os.path.join(base_path, "opt_alpha_0.4/5"), "opt_alpha_5"),
+    # (os.path.join(base_path, "opt_alpha_0.4/10"), "opt_alpha_5"),
+    # (os.path.join(base_path, "opt_alpha_0.4/15"), "opt_alpha_5"),
+
 ]
-
-for e in range(0, 8):
-    paths.append((os.path.join(base_path, f"opt_alpha_0.001/{e}"), f"opt_0.001_epoch_{e}"))
-
-for e in range(8, 40):
-    paths.append((os.path.join(base_path, f"opt_alpha_0.001/{e}"), f"opt_0.001_epoch_{e}"))
-
-for e in range(40, 160, 4):
-    paths.append((os.path.join(base_path, f"opt_alpha_0.001/{e}"), f"opt_0.001_epoch_{e}"))
-
-for e in range(160, 500, 10):
-    paths.append((os.path.join(base_path, f"opt_alpha_0.001/{e}"), f"opt_0.001_epoch_{e}"))
 
 
 split = "test"
@@ -36,11 +45,11 @@ split = "test"
 plot, ax = plt.subplots(1, 1, figsize=(4, 3))
 
 
-step_min = 1
-step_max = 50
-vocab_size = 2
-tot_info = 2000
-train_num = 4096
+step_min = 0
+step_max = 3000
+vocab_size = 5000
+tot_info = 3000
+train_num = 16384
 all_alpha_0, all_areas = [], []
 
 cm = plt.colormaps['coolwarm']
@@ -52,7 +61,7 @@ for path in tqdm(paths):
     if alpha_epoch == "baseline":
         alpha = torch.ones(step_max, train_num) / train_num
     else:
-        alpha_path = os.path.join(alpha_base_path, f"-0.5-3.0-1.0-opt-{alpha_lr}-0/10-20-7/epoch_{alpha_epoch}/opt_alpha.pt")
+        alpha_path = os.path.join(alpha_base_path, f"-0.8_30-opt-{alpha_lr}-0/10-20-7/epoch_{alpha_epoch}/opt_alpha.pt")
         alpha = torch.load(alpha_path, map_location="cpu")
     
     alpha = torch.clamp(alpha, min=0)
@@ -69,7 +78,9 @@ for path in tqdm(paths):
     alpha = alpha[step_min:step_max]
     all_train_losses_per_inst = all_train_losses_per_inst[step_min:step_max]
 
-    alpha_0 = alpha[(all_train_losses_per_inst < 0.000001)]
+    print(np.min(all_train_losses_per_inst), np.max(all_train_losses_per_inst))
+
+    alpha_0 = alpha[(all_train_losses_per_inst < 10)]
 
     alpha_0 = alpha_0.reshape(-1)
     alpha_0 = np.concatenate([alpha_0, np.ones(1)+0.1], axis=-1)
@@ -108,5 +119,5 @@ cbar = plt.colorbar(sm, ax=ax)
 cbar.ax.tick_params(labelsize=14)
 cbar.set_label(r"$\operatorname{CR}$", fontsize=14, labelpad=-40, y=-0.04, rotation=0)
 
-plt.savefig(os.path.join(base_path, f"{split}_loss_alpha.pdf"), bbox_inches="tight")
+plt.savefig(os.path.join(base_path, f"{split}_loss_alpha.png"), bbox_inches="tight")
 plt.close()

@@ -16,7 +16,7 @@ def compute_r_square(x, y, f, popt):
     ss_res = np.sum((y - f(x, *popt)) ** 2)
     return 1 - ss_res / ss_tot
 
-base_path = "/home/lidong1/yuxian/sps-toy/results/toy/trm/toy-trm-5k-ln-ts-64/bs512-lr0.1-tn16384-dn512-e3000/-0.8_30-eval_opt/10-20-7"
+base_path = "/home/lidong1/yuxian/sps-toy/results/toy/trm/toy-trm-5k-ln-ts-64/bs512-lr0.1-tn16384-dn512-e5000/-0.8_30-eval_opt/10-20-7"
 
 paths = [
     os.path.join(base_path, "baseline"),
@@ -37,7 +37,7 @@ paths = [
 ]
 
 min_steps = 200
-max_steps = 2900
+max_steps = 4000
 bias = 0
 
 split = "test"
@@ -98,11 +98,12 @@ for i, path in enumerate(paths):
 def acc(t, B1, B2, beta1, beta2):
     return (B1**(beta1/beta2)/B2) * (t ** (1-beta1/beta2))
 
-acc_rate = acc(3000, Bs[0], Bs[1], betas[0], betas[1])
+acc_rate = acc(5000, Bs[0], Bs[1], betas[0], betas[1])
 acc_rate_exp = acc(1e6, Bs[0], Bs[1], betas[0], betas[1])
 
 print(acc_rate, acc_rate_exp, (Bs[0]-Bs[1])/Bs[0], (betas[1]-betas[0])/betas[0])
 
+print(acc_rate, acc_rate_exp)
 # plt.xticks(log_steps, steps)
 ax.set_xlabel(r"$\text{Training Steps} \ t$", fontsize=14)
 ax.set_ylabel(r"$L^{\text{tg}}$", fontsize=14)
@@ -115,4 +116,4 @@ ax.set_xticks([200, 400, 1000, 1500, 3000], [200, 400, 1000, 1500, 3000])
 ax.set_yticks([3.5, 4.0, 4.5, 5.0], [3.5, 4.0, 4.5, 5.0])
 ax.tick_params(axis='both', which='both', labelsize=14)
 plt.legend(fontsize=10)
-plt.savefig(os.path.join(base_path, f"{split}_loss_b{bias}_ms{min_steps}.pdf"), bbox_inches="tight")
+plt.savefig(os.path.join(base_path, f"{split}_loss_b{bias}_ms{min_steps}.png"), bbox_inches="tight")

@@ -12,7 +12,7 @@ test_areas, test_crs = [], []
 
 steps = [-1, 0, 1, 2, 3, 4, 5, 10, 15]
 
-A0 = T * np.log(vocab_size)
+A0 = T * np.log2(vocab_size)
 
 for i in steps:
     if i == -1:
@@ -27,17 +27,17 @@ for i in steps:
 
 steps = [s + 1 for s in steps]
 
-fig = plt.figure(figsize=(6, 3))
+fig = plt.figure(figsize=(3, 3))
 ax1 = fig.add_subplot(111)
 
-l1, = ax1.plot(steps, test_areas, label=r"Loss of $\gamma$-OptNet", color="tab:green")
+l1, = ax1.plot(steps, test_areas, label=r"$\gamma$-OptNet Loss", color="tab:green")
 ax1.set_ylabel(r"$\frac{1}{T} \times$ Target Loss AUC", fontsize=14)
 ax2 = ax1.twinx()
 l2, = ax2.plot(steps, test_crs, label=r"Compression Rate", linestyle="--", color="tab:green")
 
-l3 = ax1.scatter(steps[-1], test_areas[-1], color="red", marker="*", s=140, label=r"(Near) Optimal Policy", zorder=10)
+l3 = ax1.scatter(steps[-1], test_areas[-1], color="red", marker="*", s=140, label=r"(Near) Optimal", zorder=10)
 ax2.scatter(steps[-1], test_crs[-1], color="red", marker="*", s=140, zorder=10)
-l4 = ax1.scatter(steps[0], test_areas[0], color="mediumblue", marker="s", s=50, label=r"Constant Policy", zorder=10)
+l4 = ax1.scatter(steps[0], test_areas[0], color="mediumblue", marker="s", s=50, label=r"Constant", zorder=10)
 ax2.scatter(steps[0], test_crs[0], color="mediumblue", marker="s", s=50, zorder=10)
 
 ax2.set_ylabel(r"Compression Rate ($\operatorname{CR}$)", rotation=-90, labelpad=20, fontsize=14)
@@ -47,6 +47,6 @@ ax2.tick_params(axis='both', which='both', labelsize=14)
 
 lines = [l1, l2, l3, l4]
 labels = [l.get_label() for l in lines]
-plt.legend(lines, labels, loc="center right", fontsize=14)
+plt.legend(lines, labels, loc="center right", fontsize=10)
 
 plt.savefig(os.path.join(base_path, "area_loss.pdf"), bbox_inches="tight")

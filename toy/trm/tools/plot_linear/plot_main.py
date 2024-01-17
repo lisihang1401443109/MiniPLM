@@ -14,19 +14,31 @@ split = "test"
 
 paths = [
     (os.path.join(base_path, "baseline"), "baseline"),
-    (os.path.join(base_path, "opt_alpha_0.001/0"), "opt_alpha_0"),
-    (os.path.join(base_path, "opt_alpha_0.001/1"), "opt_alpha_1"),
+    # (os.path.join(base_path, "opt_alpha_0.001/0"), "opt_alpha_0"),
+    # (os.path.join(base_path, "opt_alpha_0.001/1"), "opt_alpha_1"),
     # (os.path.join(base_path, "opt_alpha_0.001/2"), "opt_alpha_2"),
-    (os.path.join(base_path, "opt_alpha_0.001/490"), "opt_alpha_490"),
+    # (os.path.join(base_path, "opt_alpha_0.001/490"), "opt_alpha_490"),
 ]
 
-plot, ax = plt.subplots(1, 1, figsize=(6, 3))
+for e in range(0, 8):
+    paths.append((os.path.join(base_path, f"opt_alpha_0.001/{e}"), f"opt_0.001_epoch_{e}"))
+
+for e in range(8, 40):
+    paths.append((os.path.join(base_path, f"opt_alpha_0.001/{e}"), f"opt_0.001_epoch_{e}"))
+
+for e in range(40, 160, 4):
+    paths.append((os.path.join(base_path, f"opt_alpha_0.001/{e}"), f"opt_0.001_epoch_{e}"))
+
+for e in range(160, 300, 10):
+    paths.append((os.path.join(base_path, f"opt_alpha_0.001/{e}"), f"opt_0.001_epoch_{e}"))
+
+plot, ax = plt.subplots(1, 1, figsize=(5, 5))
 
 
-step_min = 0
-step_max = 200
+step_min = 1
+step_max = 1000
 vocab_size = 2
-tot_info = 3000
+tot_info = 2000
 all_losses, all_IF_ratios, all_areas = [], [], []
 
 cm = plt.colormaps['coolwarm']
@@ -50,8 +62,6 @@ for path in tqdm(paths):
         IF_ratio = IFs[4]
     else:
         for (e, alpha_epoch), IF_epoch in zip(enumerate(alpha), IF):
-            print(IF_epoch)
-            exit(0)
             # select from IF_epoch where alpha_epoch is not zero
             # IF_epoch_no_zero = IF_epoch[alpha_epoch > 1e-8]
             alpha_epoch = torch.clamp(alpha_epoch, min=0)
@@ -79,7 +89,7 @@ all_areas_repeat = np.repeat(np.expand_dims(all_areas, axis=1), all_losses.shape
 
 all_areas = np.array(all_areas)
 print(all_areas)
-all_cp_rate = tot_info * np.log(vocab_size) / all_areas
+all_cp_rate = tot_info * np.log2(vocab_size) / all_areas
 print(all_cp_rate)
 all_cp_rate_norm = all_cp_rate - min(all_cp_rate)
 all_cp_rate_norm = all_cp_rate_norm / max(all_cp_rate_norm)
@@ -99,7 +109,7 @@ for loss, IF_ratio, area_color in zip(all_losses, all_IF_ratios, all_colors):
 
 ax.set_xscale("log")
 # ax.set_yscale("log")
-ax.set_xlabel(r"$L^{\text{tg}}(\mathbf{\theta}_t)$", fontsize=14)
+ax.set_xlabel(r"$L^{\text{tg}}(\theta_t)$", fontsize=14)
 ax.set_ylabel(r"$\operatorname{SNR}(t)$", fontsize=14)
 # set the font size of x-axis and y-axis
 ax.tick_params(axis='both', which='both', labelsize=14)
@@ -108,7 +118,7 @@ ax.invert_xaxis()
 sm = plt.cm.ScalarMappable(cmap=cm, norm=plt.Normalize(vmin=min(all_cp_rate), vmax=max(all_cp_rate)))
 cbar = plt.colorbar(sm, ax=ax)
 cbar.ax.tick_params(labelsize=14)
-cbar.set_label(r"$\operatorname{CR}$", fontsize=14, labelpad=-40, y=-0.04, rotation=0)
+cbar.set_label(r"$\operatorname{CR}$", fontsize=14, labelpad=-30, y=-0.04, rotation=0)
 
 plt.savefig(os.path.join(base_path, f"{split}_main.pdf"), bbox_inches="tight")
 plt.close()
