@@ -50,8 +50,6 @@ for path in tqdm(paths):
         IF_ratio = IFs[4]
     else:
         for (e, alpha_epoch), IF_epoch in zip(enumerate(alpha), IF):
-            print(IF_epoch)
-            exit(0)
             # select from IF_epoch where alpha_epoch is not zero
             # IF_epoch_no_zero = IF_epoch[alpha_epoch > 1e-8]
             alpha_epoch = torch.clamp(alpha_epoch, min=0)

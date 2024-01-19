@@ -1,23 +1,24 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import os
 import sys
+base_path = sys.argv[1]
+sys.path.append(base_path)
+
 import json
 from tqdm import tqdm
 import torch
-from tiny_story_model import ToyTokenizer
+from toy.trm.tiny_story_model import ToyTokenizer
 from collections import Counter
 import random
 
-
-base_path = sys.argv[1]
 model_path = "/mnt/yuxian/checkpoints/mistral-7B/"
 load_dir = "/mnt/yuxian/data/tinystories/all_data/"
 max_length = 64
 
 test_num = 512
 dev_num = 512
-train_num = 16384
-max_vocab_size = 5000
+train_num = 8192
+max_vocab_size = 4500
 
 seed = 42
 

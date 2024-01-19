@@ -19,8 +19,10 @@ N = 30
 max_length = 64
 rept_times = 0
 
+# base_data_path = "/home/aiscuser/sps/processed_data/toy-ts/mistral/small_64_4096_512_2"
+# base_data_path = "/home/aiscuser/sps/processed_data/toy-ts/mistral/small_64_8192_512_2"
 # base_data_path = "/home/aiscuser/sps/processed_data/toy-ts/mistral/small_64_16384_512_2"
-base_data_path = "/home/aiscuser/sps/processed_data/toy-ts/mistral/small_64_32768_512_2"
+# base_data_path = "/home/aiscuser/sps/processed_data/toy-ts/mistral/small_64_32768_512_2"
 model_path = "/mnt/yuxian/checkpoints/mistral-7B/"
 vocab = torch.load(os.path.join(base_data_path, "vocab.pt"))
 torch.load(os.path.join(base_data_path, "train.pt"))
