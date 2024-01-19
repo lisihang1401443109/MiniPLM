@@ -44,6 +44,7 @@ class ToyTSTransformer(nn.Module):
                 "max_len": base_config.max_position_embeddings,
                 "hidden_size": base_config.hidden_size,
                 "num_head": base_config.num_attention_heads,
+                "num_layers": base_config.num_hidden_layers
             }
             if args.embed_proj:
                 config.update({
