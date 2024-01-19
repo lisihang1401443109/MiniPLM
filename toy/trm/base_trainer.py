@@ -36,7 +36,7 @@ class ToyBaseTrainer():
 
         self.model_init_dir = os.path.join(args.base_path, "processed_data", args.data_names, "model_init")
         os.makedirs(self.model_init_dir, exist_ok=True)
-        model_init_path = os.path.join(self.model_init_dir, f"{args.ckpt_name}.pt")
+        model_init_path = os.path.join(self.model_init_dir, f"{args.ckpt_name}-new.pt")
         
         self.model = self.get_model()
         print_rank(' > number of parameters: {}'.format(

@@ -35,12 +35,12 @@ class EvalAlphaTrainer():
         l = alpha_epochs[0]
         alpha_epochs = alpha_epochs[1:]
         if alpha_epochs[0] == "b":
-            self.base_trainer.train(wandb_name="baseline", calc_IF=True)
+            self.base_trainer.train(wandb_name="baseline", calc_IF=(not self.args.eval_no_IF))
             self.base_trainer.reload_model()
             alpha_epochs = alpha_epochs[1:]
         alpha_epochs = [int(epoch) for epoch in alpha_epochs]
         for alpha_epoch in alpha_epochs:
             alpha = torch.load(os.path.join(self.args.load_alpha, f"epoch_{alpha_epoch}", "opt_alpha.pt"))
             alpha = alpha.to(self.device)
-            self.base_trainer.train(alpha=alpha, wandb_name="opt_alpha_{}/{}".format(l, alpha_epoch), calc_IF=True)
+            self.base_trainer.train(alpha=alpha, wandb_name="opt_alpha_{}/{}".format(l, alpha_epoch), calc_IF=(not self.args.eval_no_IF))
             self.base_trainer.reload_model()

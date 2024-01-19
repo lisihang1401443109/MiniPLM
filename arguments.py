@@ -258,6 +258,7 @@ def add_toy_args(parser: argparse.ArgumentParser):
     group.add_argument("--alpha-reg", type=float, default=None)
     group.add_argument("--alpha-reg2", type=float, default=None)
     group.add_argument("--wandb-name", type=str, default=None)
+    group.add_argument("--eval-no-IF", action="store_true")
     
     return parser
 
