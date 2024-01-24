@@ -94,19 +94,20 @@ for alpha_0, color in zip(all_alpha_0, all_colors):
 
 # ax.set_xscale("log")
 # ax.set_yscale("log")
-ax.set_xlabel(r"$\gamma_n(t)\ /\ \max (\gamma_n(t))$", fontsize=14)
+ax.set_xlabel(r"$\gamma_{n,t}\ /\ \max_n \{\gamma_{n,t}\}$", fontsize=14)
 ax.set_ylabel("Cumulative Probility", fontsize=14)
 ax.set_xlim(0, 1)
 # ax.set_xlabel(r"$L^{\text{tg}}(\mathbf{\theta}_t)$", fontsize=14)
 # set the font size of x-axis and y-axis
 ax.tick_params(axis='both', which='both', labelsize=14)
+ax.set_xticks([0, 0.5, 1])
 # ax.set_ylim(ymin=0)
 # ax.invert_xaxis()
 
 sm = plt.cm.ScalarMappable(cmap=cm, norm=plt.Normalize(vmin=min(all_cp_rate), vmax=max(all_cp_rate)))
-cbar = plt.colorbar(sm, ax=ax)
+cbar = plt.colorbar(sm, ax=ax, pad=0.08)
 cbar.ax.tick_params(labelsize=14)
-cbar.set_label(r"$\operatorname{CR}$", fontsize=14, labelpad=-40, y=-0.04, rotation=0)
+cbar.set_label(r"$\operatorname{CR}$", fontsize=14, labelpad=-18, y=-0.04, rotation=0)
 
 plt.savefig(os.path.join(base_path, f"{split}_loss_alpha.pdf"), bbox_inches="tight")
 plt.close()

@@ -18,7 +18,8 @@ def compute_r_square(x, y, f, popt):
 
 
 # base_path = "/home/lidong1/yuxian/sps-toy/results/toy/trm/toy-trm-5k-ln-ts-64/bs512-lr0.1-tn16384-dn512-e3000/-0.8_30-eval_opt/10-20-7"
-base_path = "/home/lidong1/yuxian/sps-toy/results/toy/trm/toy-trm-5k-ln-ts-64/bs512-lr0.1-tn16384-dn512-e4000/-0.8_30-eval_opt/10-20-7"
+# base_path = "/home/lidong1/yuxian/sps-toy/results/toy/trm/toy-trm-4.5k-ln-ts-64/bs512-lr0.1-tn8192-dn512-e2000/-0.8_30-eval_opt/10-20-7"
+base_path = "/home/lidong1/yuxian/sps-toy/results/toy/trm/toy-trm-6k-ln-ts-64/bs512-lr0.1-tn32768-dn512-e8000/-0.8_30-eval_opt/10-20-7"
 
 paths = [
     os.path.join(base_path, "baseline"),
@@ -38,9 +39,9 @@ paths = [
     
 ]
 
-min_steps = 400
-max_steps = 3500
-all_steps = 4000
+min_steps = 200
+max_steps = 4000
+all_steps = 8000
 bias = 0
 
 split = "test"
@@ -116,8 +117,6 @@ acc_rate_real = all_steps / i
 print("acc_rate_real: ", acc_rate_real, "acc_rate: ", acc_rate, "acc_rate_exp: ", acc_rate_exp)
 print("improvement: ", (Bs[0]-Bs[1])/Bs[0], (betas[1]-betas[0])/betas[0])
 
-print(acc_rate, acc_rate_exp, (Bs[0]-Bs[1])/Bs[0], (betas[1]-betas[0])/betas[0])
-
 # plt.xticks(log_steps, steps)
 ax.set_xlabel(r"$\text{Training Steps} \ t$", fontsize=14)
 ax.set_ylabel(r"$L^{\text{tg}}$", fontsize=14)
@@ -126,8 +125,8 @@ ax.set_ylabel(r"$L^{\text{tg}}$", fontsize=14)
 ax.set_xscale("log")
 ax.set_yscale("log")
 # plt.gca().yaxis.set_major_formatter(mpl.ticker.ScalarFormatter())
-ax.set_xticks([400, 1000, 2000, 4000], [400, 1000, 2000, 4000])
+ax.set_xticks([400, 1000, 2000], [400, 1000, 2000])
 ax.set_yticks([3.5, 4.0, 4.5, 5.0], [3.5, 4.0, 4.5, 5.0])
 ax.tick_params(axis='both', which='both', labelsize=14)
 plt.legend(fontsize=10)
-plt.savefig(os.path.join(base_path, f"{split}_loss_b{bias}_ms{min_steps}.pdf"), bbox_inches="tight")
+plt.savefig(os.path.join(base_path, f"{split}_loss_b{bias}_ms{min_steps}.png"), bbox_inches="tight")

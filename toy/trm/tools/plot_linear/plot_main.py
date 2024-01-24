@@ -32,7 +32,7 @@ for e in range(40, 160, 4):
 for e in range(160, 300, 10):
     paths.append((os.path.join(base_path, f"opt_alpha_0.001/{e}"), f"opt_0.001_epoch_{e}"))
 
-plot, ax = plt.subplots(1, 1, figsize=(5, 5))
+plot, ax = plt.subplots(1, 1, figsize=(5, 3))
 
 
 step_min = 1
@@ -110,7 +110,7 @@ for loss, IF_ratio, area_color in zip(all_losses, all_IF_ratios, all_colors):
 ax.set_xscale("log")
 # ax.set_yscale("log")
 ax.set_xlabel(r"$L^{\text{tg}}(\theta_t)$", fontsize=14)
-ax.set_ylabel(r"$\operatorname{SNR}(t)$", fontsize=14)
+ax.set_ylabel(r"$\operatorname{SNR}_t$", fontsize=14)
 # set the font size of x-axis and y-axis
 ax.tick_params(axis='both', which='both', labelsize=14)
 ax.invert_xaxis()
@@ -118,7 +118,7 @@ ax.invert_xaxis()
 sm = plt.cm.ScalarMappable(cmap=cm, norm=plt.Normalize(vmin=min(all_cp_rate), vmax=max(all_cp_rate)))
 cbar = plt.colorbar(sm, ax=ax)
 cbar.ax.tick_params(labelsize=14)
-cbar.set_label(r"$\operatorname{CR}$", fontsize=14, labelpad=-30, y=-0.04, rotation=0)
+cbar.set_label(r"$\operatorname{CR}$", fontsize=14, labelpad=-20, y=-0.04, rotation=0)
 
 plt.savefig(os.path.join(base_path, f"{split}_main.pdf"), bbox_inches="tight")
 plt.close()

@@ -3,14 +3,14 @@ import torch
 import numpy as np
 from matplotlib import pyplot as plt
 
-base_path = "/home/lidong1/yuxian/sps-toy/results/toy/linear/d128/bs512-lr0.1-tn4096-dn512-e2000/-0.5-3.0-1.0-eval_opt/10-20-7/"
+base_path = "/home/lidong1/yuxian/sps-toy/results/toy/trm/toy-trm-l2-5k-ln-ts-64/bs512-lr0.1-tn16384-dn512-e4000/-0.8_30-eval_opt/10-20-7/"
 
-T = 2000
-vocab_size = 2
+T = 4000
+vocab_size = 5000
 
 test_areas, test_crs = [], []
 
-steps = [-1] + list(range(0, 500, 20))
+steps = [-1] + list(range(15))
 
 A0 = T * np.log2(vocab_size)
 
@@ -18,7 +18,7 @@ for i in steps:
     if i == -1:
         _, test_losses = torch.load(os.path.join(base_path, f"baseline/all_loss.pt"), map_location="cpu")
     else:
-        _, test_losses = torch.load(os.path.join(base_path, f"opt_alpha_0.001/{i}/all_loss.pt"), map_location="cpu")
+        _, test_losses = torch.load(os.path.join(base_path, f"opt_alpha_0.4/{i}/all_loss.pt"), map_location="cpu")
     test_area = 1 / T * np.sum(test_losses)
     cr = A0 / np.sum(test_losses)
     
@@ -30,8 +30,7 @@ steps = [s + 1 for s in steps]
 fig = plt.figure(figsize=(3, 3))
 ax1 = fig.add_subplot(111)
 
-l1, = ax1.plot(steps, test_areas,
-               label=r"Loss: $J(\gamma)$", color="tab:green")
+l1, = ax1.plot(steps, test_areas, label=r"Loss: $J(\gamma)$", color="tab:green")
 ax1.set_ylabel(r"Target Loss AUC", fontsize=14)
 ax2 = ax1.twinx()
 l2, = ax2.plot(steps, test_crs, label=r"Compression Rate", linestyle="--", color="tab:green")
