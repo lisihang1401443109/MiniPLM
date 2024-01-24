@@ -64,7 +64,7 @@ class ToyBaseTrainer():
             (self.test_data[0].size(), self.test_data[1].size())))
 
     def reload_model(self):
-        self.model.load_state_dict(torch.load(os.path.join(self.model_init_dir, f"{self.args.ckpt_name}.pt")))
+        self.model.load_state_dict(torch.load(os.path.join(self.model_init_dir, f"{self.args.ckpt_name}-new.pt")))
     
     def get_tokenizer(self):
         raise NotImplementedError
