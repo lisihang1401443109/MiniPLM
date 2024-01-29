@@ -78,7 +78,7 @@ for i, path in enumerate(paths):
     fit_log_loss = log_loss[min_steps:]
     fit_log_steps = log_steps[min_steps:]
 
-    plt.scatter(steps[min_steps:], loss[min_steps:]-bias, s=5, color="cyan" if i == 0 else "coral", label="Constant Policy" if i == 0 else "Near-Optimal Policy")
+    plt.scatter(steps[min_steps:], loss[min_steps:]-bias, s=15, color="lightblue" if i == 0 else "lightcoral", label="Constant Policy" if i == 0 else "Near-Optimal Policy")
     # plt.scatter(steps, loss, s=5, color="cyan" if i == 0 else "coral", label="Constant Policy" if i == 0 else "(Near) Optimal Policy")
 
     popt, pcov = curve_fit(f, fit_log_steps, fit_log_loss)
@@ -100,8 +100,8 @@ for i, path in enumerate(paths):
     Bs.append(T_min)
     
     # label_str = r"$\ln(L^{\text{tg}})=" + f"{a:.3f}" + r"\ln(t)+" + f"{b:.2f}" + r", r^2=" + f"{r_2:.3f}$"
-    label_str = r"$L^{\text{tg}}=\left(\frac{" + f"{T_min_2:.2f}" + r"\times 10^{" + f"{T_min_1}" + r"}}{t}\right)^{" + f"{-a:.3f}" + r"}, r^2=" + f"{r_2:.3f}" + r"$"
-    ax.plot(steps[min_steps:], np.exp(f(log_steps[min_steps:], *popt)), "--", label=label_str, linewidth=1.5, color="blue" if i == 0 else "darkred")
+    label_str = r"$L^{\text{dsr}}=\left(" + f"{T_min_2:.1f}" + r"E" + f"{T_min_1}" + r"/t\right)^{" + f"{-a:.2f}" + r"}, r^2=" + f"{r_2:.3f}" + r"$"
+    ax.plot(steps[min_steps:], np.exp(f(log_steps[min_steps:], *popt)), "--", label=label_str, linewidth=3, color="blue" if i == 0 else "darkred")
     # ax.plot(steps, np.exp(f(log_steps, *popt)), linestyle="dashed", label=label_str, linewidth=1.5, color="blue" if i == 0 else "darkred")
 
 def acc(t, B1, B2, beta1, beta2):
@@ -124,7 +124,7 @@ print(acc_rate, acc_rate_exp, (Bs[0]-Bs[1])/Bs[0], (betas[1]-betas[0])/betas[0])
 
 # plt.xticks(log_steps, steps)
 ax.set_xlabel(r"$\text{Training Steps} \ t$", fontsize=18)
-ax.set_ylabel(r"$L^{\text{tg}}$", fontsize=18)
+ax.set_ylabel(r"$L^{\text{dsr}}$", fontsize=18)
 # ax.set_xlabel(r"$\ln(t)$", fontsize=14)
 # ax.set_ylabel(r"$\ln(L^{\text{tg}})$", fontsize=14)
 ax.set_xscale("log")
@@ -133,5 +133,6 @@ ax.set_yscale("log")
 ax.set_xticks([400, 1000, 2000, 3000], [400, 1000, 2000, 3000])
 ax.set_yticks([3.5, 4.0, 4.5, 5.0], [3.5, 4.0, 4.5, 5.0])
 ax.tick_params(axis='both', which='both', labelsize=18)
-plt.legend(fontsize=13)
+plt.legend(fontsize=15)
+plt.title("Transformer Language Modeling", fontsize=18)
 plt.savefig(os.path.join(base_path, f"{split}_loss_b{bias}_ms{min_steps}.png"), bbox_inches="tight", dpi=300)

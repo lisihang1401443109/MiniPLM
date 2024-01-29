@@ -109,5 +109,6 @@ cbar = plt.colorbar(sm, ax=ax, pad=0.08)
 cbar.ax.tick_params(labelsize=14)
 cbar.set_label(r"$\operatorname{CR}$", fontsize=14, labelpad=-18, y=-0.04, rotation=0)
 
+plt.title("Perceptron Linear Classification", fontsize=14)
 plt.savefig(os.path.join(base_path, f"{split}_loss_alpha.pdf"), bbox_inches="tight")
 plt.close()

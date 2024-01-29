@@ -150,12 +150,12 @@ label_str = r"$\operatorname{CR}=\log \left(\frac{" + f"{b1:.2f}" + \
             r"-\overline{{SNR}}}\right)^{" + f"{a1:.2f}"\
             r"}$"
 
-ax.plot(X, f2(X, *(a1,b1,c1)), label=label_str, color="red")
-ax.scatter(all_cp, all_mean_ratio, color="blue", s=14)
-ax.tick_params(axis='both', which='both', labelsize=14)
+ax.plot(X, f2(X, *(a1,b1,c1)), label=label_str, color="darkgreen")
+ax.scatter(all_cp, all_mean_ratio, color="lime", s=16)
+ax.tick_params(axis='both', which='both', labelsize=16)
 
-ax.set_xlabel(r"$\operatorname{CR}$", fontsize=14)
-ax.set_ylabel(r"$\overline{\operatorname{SNR}}$", fontsize=14)
+ax.set_xlabel(r"$\operatorname{CR}$", fontsize=16)
+ax.set_ylabel(r"$\overline{\operatorname{SNR}}$", fontsize=16)
 ax.legend(fontsize=10, loc="upper left")
 # for idx in idxs:
 #     plt.annotate(str(idx), (all_mean_ratio[idx], all_cp[idx]))

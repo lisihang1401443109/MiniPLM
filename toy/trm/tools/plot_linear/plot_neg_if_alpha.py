@@ -84,15 +84,20 @@ sort_idx = np.argsort(all_cp_rate)
 all_cp_rate = all_cp_rate[sort_idx]
 all_neg_IF_alpha_0_ratio = all_neg_IF_alpha_0_ratio[sort_idx]
 
-ax.plot(all_cp_rate, all_neg_IF_alpha_0_ratio * 100, marker="o", color="blue")
+ax.plot(all_cp_rate, all_neg_IF_alpha_0_ratio * 100, marker="o", color="green")
+ax.scatter(all_cp_rate[-1], all_neg_IF_alpha_0_ratio[-1] * 100, color="red", marker="*", s=140, label=r"Near-Optimal", zorder=10)
+ax.scatter(all_cp_rate[0], all_neg_IF_alpha_0_ratio[0] * 100, color="blue", marker="s", s=50, label=r"Constant", zorder=10)
 
 # ax.set_xscale("log")
 # ax.set_yscale("log")
-ax.set_xlabel(r"$\operatorname{CR}$", fontsize=14)
+ax.set_xlabel(r"Compresson Rate ($\operatorname{CR}$)", fontsize=14)
 ax.set_ylabel(r"Fraction of $\gamma_{n,t}=0$ (%)", fontsize=14)
 # set the font size of x-axis and y-axis
 ax.tick_params(axis='both', which='both', labelsize=14)
 # ax.invert_xaxis()
 
+plt.legend(fontsize=12)
+
+plt.title("Perceptron Linear Classification", fontsize=14)
 plt.savefig(os.path.join(base_path, f"{split}_neg_if.pdf"), bbox_inches="tight")
 plt.close()

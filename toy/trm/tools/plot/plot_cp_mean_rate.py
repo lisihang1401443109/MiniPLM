@@ -45,7 +45,7 @@ paths = [
 ]
 
 step_min = 0
-step_max = 2590
+step_max = 3000
 vocab_size = 5000
 all_IF_ratio, all_loss = [], []
 
@@ -120,7 +120,7 @@ popt_init = [-0.5, -1, 2.3]
 popt, pcov = curve_fit(f, all_mean_ratio, all_cp, popt_init)
 
 # X = np.linspace(np.min(all_mean_ratio), np.max(all_mean_ratio), 100)
-X = np.linspace(np.min(all_cp), (all_cp[-2] + all_cp[-1])/2, 100)
+X = np.linspace(np.min(all_cp), max(all_cp), 100)
 
 
 plot, ax = plt.subplots(1, 1, figsize=(3, 5))
@@ -141,14 +141,14 @@ label_str = r"$\operatorname{CR}=\log \left(\frac{" + f"{b1:.2f}" + \
             r"-\overline{{SNR}}}\right)^{" + f"{a1:.2f}"\
             r"}$"
 
-ax.plot(X, f2(X, *(a1,b1,c1)), label=label_str, color="red")
-ax.scatter(all_cp, all_mean_ratio, color="blue", s=14)
-ax.tick_params(axis='both', which='both', labelsize=14)
+ax.plot(X, f2(X, *(a1,b1,c1)), label=label_str, color="darkgreen")
+ax.scatter(all_cp, all_mean_ratio, color="lime", s=16)
+ax.tick_params(axis='both', which='both', labelsize=16)
 
-ax.set_xlabel(r"$\operatorname{CR}$", fontsize=14)
-ax.set_ylabel(r"$\overline{\operatorname{SNR}}$", fontsize=14)
-ax.legend(fontsize=10, loc="upper left")
+ax.set_xlabel(r"$\operatorname{CR}$", fontsize=16)
+ax.set_ylabel(r"$\overline{\operatorname{SNR}}$", fontsize=16)
+ax.legend(fontsize=11, loc="upper left")
 # for idx in idxs:
 #     plt.annotate(str(idx), (all_mean_ratio[idx], all_cp[idx]))
-plt.savefig(os.path.join(base_path, f"mean_ratio_cp_{split}.pdf"), bbox_inches='tight')
+plt.savefig(os.path.join(base_path, f"mean_ratio_cp_{split}_l1.pdf"), bbox_inches='tight')
 plt.close()

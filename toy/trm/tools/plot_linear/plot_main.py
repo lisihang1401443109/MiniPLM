@@ -109,7 +109,7 @@ for loss, IF_ratio, area_color in zip(all_losses, all_IF_ratios, all_colors):
 
 ax.set_xscale("log")
 # ax.set_yscale("log")
-ax.set_xlabel(r"$L^{\text{tg}}(\theta_t)$", fontsize=14)
+ax.set_xlabel(r"$L^{\text{dsr}}(\theta_t)$", fontsize=14)
 ax.set_ylabel(r"$\operatorname{SNR}_t$", fontsize=14)
 # set the font size of x-axis and y-axis
 ax.tick_params(axis='both', which='both', labelsize=14)
@@ -120,5 +120,6 @@ cbar = plt.colorbar(sm, ax=ax)
 cbar.ax.tick_params(labelsize=14)
 cbar.set_label(r"$\operatorname{CR}$", fontsize=14, labelpad=-20, y=-0.04, rotation=0)
 
+plt.title("Perceptron Linear Classification", fontsize=14)
 plt.savefig(os.path.join(base_path, f"{split}_main.pdf"), bbox_inches="tight")
 plt.close()

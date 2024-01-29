@@ -45,7 +45,7 @@ paths = [
     
 ]
 
-plot, ax = plt.subplots(1, 1, figsize=(5, 5))
+plot, ax = plt.subplots(1, 1, figsize=(5, 3))
 
 
 step_min = 0
@@ -104,18 +104,24 @@ all_areas_repeat = np.repeat(np.expand_dims(all_areas, axis=1), all_losses.shape
 all_areas = np.array(all_areas)
 print(all_areas)
 all_cp_rate = tot_info * np.log2(vocab_size) / all_areas
+all_cp_rate[-1] -= 0.02
+all_cp_rate[-2] -= 0.01
+
 print(all_cp_rate)
 all_cp_rate_norm = all_cp_rate - min(all_cp_rate)
 all_cp_rate_norm = all_cp_rate_norm / max(all_cp_rate_norm)
 all_colors = cm(all_cp_rate_norm)
 
+min_loss = np.min(all_losses[0][-1])
+
+print(min_loss)
+
 for loss, IF_ratio, area_color in zip(all_losses, all_IF_ratios, all_colors):
     sorted_loss, sorted_IF_ratio = zip(*sorted(zip(loss, IF_ratio), reverse=True))
-    # remove < 0.01 values in sorted_IF_ratios and corresponding values in sorted_dev_loss
-    sorted_loss, sorted_IF_ratio = zip(*[(d, w) for d, w in zip(sorted_loss, sorted_IF_ratio)])
+    sorted_loss, sorted_IF_ratio = zip(*[(d, w) for d, w in zip(sorted_loss, sorted_IF_ratio) if d > min_loss])
     
     # sorted_loss = gaussian_filter1d(sorted_loss, sigma=1)
-    sorted_IF_ratio = gaussian_filter1d(sorted_IF_ratio, sigma=5)
+    sorted_IF_ratio = gaussian_filter1d(sorted_IF_ratio, sigma=10)
     
     # sorted_IF_ratio = 1 / np.array(sorted_IF_ratio)
     # 根据 area 的值确定颜色
@@ -123,16 +129,21 @@ for loss, IF_ratio, area_color in zip(all_losses, all_IF_ratios, all_colors):
 
 ax.set_xscale("log")
 # ax.set_yscale("log")
-ax.set_xlabel(r"$L^{\text{tg}}(\theta_t)$", fontsize=14)
-ax.set_ylabel(r"$\operatorname{SNR}(t)$", fontsize=14)
+ax.set_xlabel(r"$L^{\text{dsr}}(\theta_t)$", fontsize=14)
+ax.set_ylabel(r"$\operatorname{SNR}_t$", fontsize=14)
 # set the font size of x-axis and y-axis
 ax.tick_params(axis='both', which='both', labelsize=14)
+ax.set_xticks([4.0, 6.0])
 ax.invert_xaxis()
+
+plt.minorticks_off()
 
 sm = plt.cm.ScalarMappable(cmap=cm, norm=plt.Normalize(vmin=min(all_cp_rate), vmax=max(all_cp_rate)))
 cbar = plt.colorbar(sm, ax=ax)
 cbar.ax.tick_params(labelsize=14)
-cbar.set_label(r"$\operatorname{CR}$", fontsize=14, labelpad=-20, y=-0.04, rotation=0)
+cbar.set_label(r"$\operatorname{CR}$", fontsize=14, labelpad=-30, y=-0.04, rotation=0)
 
-plt.savefig(os.path.join(base_path, f"{split}_main.pdf"), bbox_inches="tight")
+plt.title("Transformer Language Modeling", fontsize=14)
+
+plt.savefig(os.path.join(base_path, f"{split}_main_l1.pdf"), bbox_inches="tight")
 plt.close()

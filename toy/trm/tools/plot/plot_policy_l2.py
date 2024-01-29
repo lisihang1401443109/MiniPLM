@@ -79,5 +79,7 @@ cbar = plt.colorbar(sm, ax=ax)
 cbar.ax.tick_params(labelsize=14)
 cbar.set_label(r"$\gamma_{n,t}\ $" + r"$(\times 10^{-3})$", fontsize=14, labelpad=20, rotation=270)
 
+plt.title("Transformer Language Modeling", fontsize=14)
+
 plt.savefig(os.path.join(base_path, f"{split}_alpha.png"), bbox_inches="tight", dpi=300)
 plt.close()

@@ -30,8 +30,8 @@ steps = [s + 1 for s in steps]
 fig = plt.figure(figsize=(3, 3))
 ax1 = fig.add_subplot(111)
 
-l1, = ax1.plot(steps, test_areas, label=r"Loss: $J(\gamma)$", color="tab:green")
-ax1.set_ylabel(r"Target Loss AUC", fontsize=14)
+l1, = ax1.plot(steps, test_areas, label=r"$J(\gamma)$", color="tab:green")
+ax1.set_ylabel(r"AUC of $L^{\text{dsr}}$", fontsize=14)
 ax2 = ax1.twinx()
 l2, = ax2.plot(steps, test_crs, label=r"Compression Rate", linestyle="--", color="tab:green")
 
@@ -48,5 +48,6 @@ ax2.tick_params(axis='both', which='both', labelsize=14)
 lines = [l1, l2, l3, l4]
 labels = [l.get_label() for l in lines]
 plt.legend(lines, labels, loc="center right", fontsize=10)
+plt.title("Transformer Language Modeling", fontsize=14)
 
 plt.savefig(os.path.join(base_path, "area_loss.pdf"), bbox_inches="tight")
