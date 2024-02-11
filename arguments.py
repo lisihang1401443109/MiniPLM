@@ -333,6 +333,8 @@ def get_args():
         
         if args.warmup_iters > 0:
             assert args.scheduler_name is not None
+    elif args.type == "tokenize":
+        pass
     else:
         raise NotImplementedError
 

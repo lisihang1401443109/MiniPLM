@@ -1,14 +1,14 @@
-from data_utils.distributed_indexed import DistributedMMapIndexedDataset
-from transformers import AutoTokenizer
-import sys
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
+torch.manual_seed(0)
 
-tokenizer = AutoTokenizer.from_pretrained("checkpoints/fairseq/125M/")
+path = 'openbmb/MiniCPM-2B-dpo-fp32'
+tokenizer = AutoTokenizer.from_pretrained(path)
+model = AutoModelForCausalLM.from_pretrained(
+    path, torch_dtype=torch.float32, device_map='cuda', trust_remote_code=True)
 
-ctx = DistributedMMapIndexedDataset("/home/lidong1/yuxian/sps/processed_data/pretrain/owbt/chunked/fairseq-1025", "data", False, 0)
-
-idx = int(sys.argv[1])
-
-print(ctx[idx])
-print(len(ctx[idx]))
-print(ctx[idx][-20:])
-print(tokenizer.decode(ctx[idx]))
+while True:
+    inp = input(">>> ")    
+    responds, history = model.chat(
+        tokenizer, inp, temperature=0.8, top_p=0.8, pad_token_id=2)
+    print(responds)
