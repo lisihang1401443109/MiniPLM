@@ -39,8 +39,8 @@ ax1.set_xlim(0, 50)
 # ax1.set_ylim(0.67, 1)
 ax1.axis("off")
 
-l1, = ax1.plot(X, Y1, color="blue", linestyle="--", alpha=0.5, linewidth=2.5)
-l3, = ax1.plot(X, Y3, color="blue", linestyle="--", alpha=0.5, linewidth=2.5)
+l1, = ax1.plot(X, Y1, color="blue", alpha=0.5, linewidth=2.5)
+# l3, = ax1.plot(X, Y3, color="blue", linestyle="--", alpha=0.5, linewidth=2.5)
 # l4, = ax1.plot(X, Y4, color="blue", linestyle="--", alpha=0.5, linewidth=2.5)
 l2, = ax1.plot(X, Y2, color="red", linewidth=2.5)
 
