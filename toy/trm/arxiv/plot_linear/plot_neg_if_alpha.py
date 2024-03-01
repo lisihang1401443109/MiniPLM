@@ -35,7 +35,7 @@ for e in range(10, 40, 10):
 for e in range(40, 500, 20):
     paths.append((os.path.join(base_path, f"opt_alpha_0.001/{e}"), f"opt_0.001_epoch_{e}"))
 
-plot, ax = plt.subplots(1, 1, figsize=(4, 2.5))
+plot, ax = plt.subplots(1, 1, figsize=(4, 2.6))
 
 
 step_min = 1
@@ -85,8 +85,8 @@ all_cp_rate = all_cp_rate[sort_idx]
 all_neg_IF_alpha_0_ratio = all_neg_IF_alpha_0_ratio[sort_idx]
 
 ax.plot(all_cp_rate, all_neg_IF_alpha_0_ratio * 100, marker="o", color="green")
-ax.scatter(all_cp_rate[-1], all_neg_IF_alpha_0_ratio[-1] * 100, color="red", marker="*", s=140, label=r"Near-Optimal", zorder=10)
-ax.scatter(all_cp_rate[0], all_neg_IF_alpha_0_ratio[0] * 100, color="blue", marker="s", s=50, label=r"Constant", zorder=10)
+ax.scatter(all_cp_rate[-1], all_neg_IF_alpha_0_ratio[-1] * 100, color="red", marker="*", s=140, label=r"Near-Optimal Learning", zorder=10)
+ax.scatter(all_cp_rate[0], all_neg_IF_alpha_0_ratio[0] * 100, color="blue", marker="s", s=50, label=r"Conventional Learning", zorder=10)
 
 # ax.set_xscale("log")
 # ax.set_yscale("log")
@@ -96,9 +96,9 @@ ax.set_ylabel(r"Fraction of $\gamma_{n,t}=0$ (%)", fontsize=14)
 ax.tick_params(axis='both', which='both', labelsize=14)
 # ax.invert_xaxis()
 
-plt.legend(fontsize=12)
+plt.legend(fontsize=12, loc="upper left")
 
 # plt.title("Perceptron Linear Classification", fontsize=14)
-plt.savefig(os.path.join("/home/lidong1/yuxian/sps-toy/results/toy/icml",
+plt.savefig(os.path.join("/home/lidong1/yuxian/sps-toy/results/toy/arxiv",
             f"{split}_neg_if_linear.pdf"), bbox_inches="tight")
 plt.close()

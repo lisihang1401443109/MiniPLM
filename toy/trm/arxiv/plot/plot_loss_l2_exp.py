@@ -46,29 +46,30 @@ opt_test_losses = gaussian_filter1d(opt_test_losses, sigma=100)
 bsl_test_losses = bsl_test_losses[:max_steps]
 opt_test_losses = opt_test_losses[:max_steps]
 
-fig = plt.figure(figsize=(5.5, 3))
+fig = plt.figure(figsize=(5, 2.5))
 ax1 = fig.add_subplot(111)
 
-l1, = ax1.plot(bsl_test_losses, label=r"Conventional Learning", color="mediumblue")
-l2, = ax1.plot(opt_test_losses, label=r"Near-Optimal Learning", color="red")
+l1, = ax1.plot(bsl_test_losses, label=r"Conventional LM Learning", color="mediumblue")
+l2, = ax1.plot(opt_test_losses, label=r"Near-Optimal LM Learning", color="red")
 
 ax1.fill_between(range(10,len(bsl_test_losses)+10), bsl_test_losses-bsl_std, bsl_test_losses+bsl_std, facecolor="mediumblue", alpha=0.2)
 ax1.fill_between(range(10,len(opt_test_losses)+10), opt_test_losses-opt_std, opt_test_losses+opt_std, facecolor="red", alpha=0.2)
 
-ax1.set_ylabel(r"Desired Loss $L^{\text{dsr}}(\theta_t)$", fontsize=14)
-ax1.set_xlabel(r"Training Time Steps $t$", fontsize=14)
+ax1.set_ylabel(r"Loss", fontsize=14)
+ax1.set_xlabel(r"Training Time Steps", fontsize=14)
 
-ax1.set_yscale("log")
+# ax1.set_yscale("log")
 ax1.tick_params(axis='both', which='both', labelsize=14)
-ax1.set_ylim([3.1, 5.5])
+ax1.set_ylim([3.1, 5.2])
+ax1.set_yticks([3.5, 4.0, 4.5, 5.0])
 
 plt.gca().yaxis.set_major_formatter(mpl.ticker.ScalarFormatter())
 plt.gca().yaxis.set_minor_formatter(mpl.ticker.ScalarFormatter())
 
-plt.annotate(text='', xy=(max_steps,bsl_test_losses[-1]-0.01), xytext=(1700,bsl_test_losses[-1]-0.01), arrowprops=dict(arrowstyle='<->'))
-plt.text(2600, bsl_test_losses[-1]-0.17, r"$2.41 \times$ Speedup", fontsize=12)
+# plt.annotate(text='', xy=(max_steps,bsl_test_losses[-1]-0.01), xytext=(1700,bsl_test_losses[-1]-0.01), arrowprops=dict(arrowstyle='<->'))
+# plt.text(2600, bsl_test_losses[-1]-0.17, r"$2.41 \times$ Speedup", fontsize=12)
 
-plt.legend(fontsize=14)
+plt.legend(fontsize=12)
 # plt.title("Transformer Language Modeling", fontsize=14)
 
-plt.savefig(os.path.join("/home/lidong1/yuxian/sps-toy/results/toy/arxiv/", "losses.pdf"), bbox_inches="tight")
+plt.savefig(os.path.join("/home/lidong1/yuxian/sps-toy/results/toy/arxiv/", "losses_exp.pdf"), bbox_inches="tight")

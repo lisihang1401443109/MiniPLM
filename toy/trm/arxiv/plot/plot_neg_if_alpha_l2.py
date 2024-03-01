@@ -51,7 +51,7 @@ paths = [
     # (os.path.join(base_path, "opt_alpha_0.4/19"), "opt_alpha_5"),
 ]
 
-plot, ax = plt.subplots(1, 1, figsize=(4, 2.5))
+plot, ax = plt.subplots(1, 1, figsize=(4, 2.6))
 
 
 step_min = 0
@@ -100,8 +100,8 @@ all_cp_rate = all_cp_rate[sort_idx]
 all_neg_IF_alpha_0_ratio = all_neg_IF_alpha_0_ratio[sort_idx]
 
 ax.plot(all_cp_rate, all_neg_IF_alpha_0_ratio * 100, marker="o", color="green")
-ax.scatter(all_cp_rate[-1], all_neg_IF_alpha_0_ratio[-1] * 100, color="red", marker="*", s=140, label=r"Near-Optimal", zorder=10)
-ax.scatter(all_cp_rate[0], all_neg_IF_alpha_0_ratio[0] * 100, color="blue", marker="s", s=50, label=r"Constant", zorder=10)
+ax.scatter(all_cp_rate[-1], all_neg_IF_alpha_0_ratio[-1] * 100, color="red", marker="*", s=140, label=r"Near-Optimal Learning", zorder=10)
+ax.scatter(all_cp_rate[0], all_neg_IF_alpha_0_ratio[0] * 100, color="blue", marker="s", s=50, label=r"Conventional Learning", zorder=10)
 # 
 # ax.set_xscale("log")
 # ax.set_yscale("log")
@@ -114,6 +114,6 @@ ax.tick_params(axis='both', which='both', labelsize=14)
 plt.legend(fontsize=12, loc="upper left")
 
 # plt.title("Transformer Language Modeling", fontsize=14)
-plt.savefig(os.path.join("/home/lidong1/yuxian/sps-toy/results/toy/icml",
+plt.savefig(os.path.join("/home/lidong1/yuxian/sps-toy/results/toy/arxiv",
             f"{split}_neg_if.pdf"), bbox_inches="tight")
 plt.close()

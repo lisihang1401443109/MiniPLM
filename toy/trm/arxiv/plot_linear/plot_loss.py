@@ -44,14 +44,14 @@ opt_std = np.array(opt_std)
 
 print(bsl_std)
 
-fig = plt.figure(figsize=(4, 3))
+fig = plt.figure(figsize=(5.5, 3))
 ax1 = fig.add_subplot(111)
 
-l1, = ax1.plot(bsl_test_losses, label=r"Constant", color="mediumblue")
-l2, = ax1.plot(opt_test_losses, label=r"Near-Optimal", color="red")
+l1, = ax1.plot(bsl_test_losses, label=r"Conventional Learning", color="mediumblue")
+l2, = ax1.plot(opt_test_losses, label=r"Near-Optimal Learning", color="red")
 ax1.fill_between(range(10, len(bsl_test_losses) + 10), bsl_test_losses-bsl_std, bsl_test_losses+bsl_std, facecolor="mediumblue", alpha=0.2)
 ax1.fill_between(range(10, len(opt_test_losses) + 10), opt_test_losses-opt_std, opt_test_losses+opt_std, facecolor="red", alpha=0.2)
-ax1.set_ylabel(r"$L^{\text{dsr}}(\theta_t)$", fontsize=14)
+ax1.set_ylabel(r"Desired Loss $L^{\text{dsr}}(\theta_t)$", fontsize=14)
 ax1.set_xlabel(r"Training Time Steps $t$", fontsize=14)
 ax1.get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
 ax1.set_ylim(0.09, 0.2)
@@ -66,9 +66,9 @@ plt.gca().yaxis.set_major_formatter(mpl.ticker.ScalarFormatter())
 plt.gca().yaxis.set_minor_formatter(mpl.ticker.ScalarFormatter())
 
 plt.annotate(text='', xy=(max_steps,bsl_test_losses[-1]-0.001), xytext=(390,bsl_test_losses[-1]-0.001), arrowprops=dict(arrowstyle='<->'))
-plt.text(1300, bsl_test_losses[-1]-0.008, r"$5.50 \times$", fontsize=12)
+plt.text(1300, bsl_test_losses[-1]-0.008, r"$5.50 \times$ Speedup", fontsize=12)
 
 plt.legend(fontsize=14)
 # plt.title("Perceptron Linear Classification", fontsize=14)
 
-plt.savefig(os.path.join("/home/lidong1/yuxian/sps-toy/results/toy/icml/", "losses_linear.pdf"), bbox_inches="tight")
+plt.savefig(os.path.join("/home/lidong1/yuxian/sps-toy/results/toy/arxiv/", "losses_linear.pdf"), bbox_inches="tight")

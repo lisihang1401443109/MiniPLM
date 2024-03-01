@@ -142,7 +142,7 @@ c1 = popt[2]
 def f2(x, a, b, c):
     return a * np.log(b/(c-x))
 
-ax.vlines(c1, 0.14, 0.53, color="gray", linestyle="--")
+ax.vlines(c1, 0.16, 0.53, color="gray", linestyle="--")
 
 # label_str = r"$\operatorname{CR}=" + "{:.1f}".format(popt[0]) + "e^{" + "{:.1f}".format(popt[1]) + "\ \overline{\operatorname{SNR}}}" + " + {:.1f}$".format(popt[2])
 label_str = r"$\operatorname{CR}=\log \left(\frac{" + f"{b1:.1f}" + \
@@ -154,10 +154,10 @@ ax.plot(X, f2(X, *(a1,b1,c1)), label=label_str, color="darkgreen")
 ax.scatter(all_cp, all_mean_ratio, color="lime", s=14)
 ax.tick_params(axis='both', which='both', labelsize=14)
 
-ax.set_xlabel(r"Compression Ratio ($\operatorname{CR}$)", fontsize=14)
+ax.set_xlabel(r"$\operatorname{CR}$", fontsize=14)
 ax.set_ylabel(r"$\overline{\operatorname{SIM}}$", fontsize=14)
-ax.legend(fontsize=12, loc="lower left", handlelength=0.8)
+# ax.legend(fontsize=12, loc="lower left", handlelength=0.8)
 # for idx in idxs:
 #     plt.annotate(str(idx), (all_mean_ratio[idx], all_cp[idx]))
-plt.savefig(os.path.join("/home/lidong1/yuxian/sps-toy/results/toy/arxiv", f"mean_ratio_cp_{split}.pdf"), bbox_inches='tight')
+plt.savefig(os.path.join("/home/lidong1/yuxian/sps-toy/results/toy/arxiv", f"main_2_front.pdf"), bbox_inches='tight')
 plt.close()

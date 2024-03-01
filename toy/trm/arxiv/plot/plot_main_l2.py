@@ -62,7 +62,7 @@ paths = [
     (os.path.join(base_path, "opt_alpha_0.4/19"), "opt_alpha_5"),
 ]
 
-plot, ax = plt.subplots(1, 1, figsize=(5, 2))
+plot, ax = plt.subplots(1, 1, figsize=(5, 2.5))
 
 
 step_min = 0
@@ -71,7 +71,7 @@ vocab_size = 5000
 tot_info = 4000
 all_losses, all_IF_ratios, all_areas = [], [], []
 
-font_size = 9
+font_size = 12
 
 cm = plt.colormaps['coolwarm']
 
@@ -145,8 +145,8 @@ for loss, IF_ratio, area_color in zip(all_losses, all_IF_ratios, all_colors):
 
 ax.set_xscale("log")
 # ax.set_yscale("log")
-ax.set_xlabel(r"$L^{\text{dsr}}(\theta_t)$", fontsize=font_size)
-ax.set_ylabel(r"$\operatorname{SNR}_t$", fontsize=font_size)
+ax.set_xlabel(r"Desired Loss $L^{\text{dsr}}(\theta_t)$", fontsize=font_size)
+ax.set_ylabel(r"$\operatorname{SIM}_t$", fontsize=font_size)
 # set the font size of x-axis and y-axis
 ax.tick_params(axis='both', which='both', labelsize=font_size)
 ax.invert_xaxis()
@@ -158,5 +158,5 @@ cbar.set_label(r"$\operatorname{CR}$", fontsize=font_size, labelpad=-30, y=-0.04
 
 # plt.title("Transformer Language Modeling", fontsize=font_size)
 
-plt.savefig(os.path.join("/home/lidong1/yuxian/sps-toy/results/toy/icml/", f"{split}_main.pdf"), bbox_inches="tight")
+plt.savefig(os.path.join("/home/lidong1/yuxian/sps-toy/results/toy/arxiv/", f"{split}_main.pdf"), bbox_inches="tight")
 plt.close()

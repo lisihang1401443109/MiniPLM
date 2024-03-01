@@ -125,22 +125,22 @@ c1 = popt[2]
 def f2(x, a, b, c):
     return a * np.log(b/(c-x))
 
-ax.vlines(c1, 0.02, 0.11, color="gray", linestyle="--")
+ax.vlines(c1, 0.01, 0.11, color="gray", linestyle="--")
 
-label_str = r"$\operatorname{CR}=" + "{:.1f}".format(popt[0]) + "e^{" + "{:.1f}".format(popt[1]) + "\ \overline{\operatorname{SNR}}}" + " + {:.1f}$".format(popt[2])
+# label_str = r"$\operatorname{CR}=" + "{:.1f}".format(popt[0]) + "e^{" + "{:.1f}".format(popt[1]) + "\ \overline{\operatorname{SNR}}}" + " + {:.1f}$".format(popt[2])
 label_str = r"$\operatorname{CR}=\log \left(\frac{" + f"{b1:.1f}" + \
             r"}{" + f"{c1:.1f}" + \
-            r"-\overline{{SNR}}}\right)^{" + f"{a1:.2f}"\
+            r"-\overline{{SIM}}}\right)^{" + f"{a1:.2f}"\
             r"}$"
 
 ax.plot(X, f2(X, *(a1,b1,c1)), label=label_str, color="darkgreen")
 ax.scatter(all_cp, all_mean_ratio, color="lime", s=14)
 ax.tick_params(axis='both', which='both', labelsize=14)
 
-ax.set_xlabel(r"$\operatorname{CR}$", fontsize=14)
-ax.set_ylabel(r"$\overline{\operatorname{SNR}}$", fontsize=14)
-ax.legend(fontsize=12, handlelength=0.8)
+ax.set_xlabel(r"Compression Ratio ($\operatorname{CR}$)", fontsize=14)
+ax.set_ylabel(r"$\overline{\operatorname{SIM}}$", fontsize=14)
+ax.legend(fontsize=12, loc="lower left", handlelength=0.8)
 # for idx in idxs:
 #     plt.annotate(str(idx), (all_mean_ratio[idx], all_cp[idx]))
-plt.savefig(os.path.join("/home/lidong1/yuxian/sps-toy/results/toy/icml", f"mean_ratio_cp_{split}_linear.pdf"), bbox_inches='tight')
+plt.savefig(os.path.join("/home/lidong1/yuxian/sps-toy/results/toy/arxiv", f"mean_ratio_cp_{split}_linear.pdf"), bbox_inches='tight')
 plt.close()

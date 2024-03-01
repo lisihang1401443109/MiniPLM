@@ -27,17 +27,17 @@ for i in steps:
 
 steps = [s + 1 for s in steps]
 
-fig = plt.figure(figsize=(3, 3))
+fig = plt.figure(figsize=(5, 3))
 ax1 = fig.add_subplot(111)
 
-l1, = ax1.plot(steps, test_areas, label=r"$J(\gamma)$", color="tab:green")
-ax1.set_ylabel(r"AUC of $L^{\text{dsr}}$", fontsize=14)
+l1, = ax1.plot(steps, test_areas, label=r"Learning Oplicy Optimization Loss", color="tab:green")
+ax1.set_ylabel(r"AUC of the Desired Loss", fontsize=14)
 ax2 = ax1.twinx()
 l2, = ax2.plot(steps, test_crs, label=r"Compression Rate", linestyle="--", color="tab:green")
 
-l3 = ax1.scatter(steps[-1], test_areas[-1], color="red", marker="*", s=140, label=r"Near-Optimal", zorder=10)
+l3 = ax1.scatter(steps[-1], test_areas[-1], color="red", marker="*", s=140, label=r"Near-Optimal Learning", zorder=10)
 ax2.scatter(steps[-1], test_crs[-1], color="red", marker="*", s=140, zorder=10)
-l4 = ax1.scatter(steps[0], test_areas[0], color="mediumblue", marker="s", s=50, label=r"Constant", zorder=10)
+l4 = ax1.scatter(steps[0], test_areas[0], color="mediumblue", marker="s", s=50, label=r"Conventional Learning", zorder=10)
 ax2.scatter(steps[0], test_crs[0], color="mediumblue", marker="s", s=50, zorder=10)
 
 ax2.set_ylabel(r"Compression Rate ($\operatorname{CR}$)", rotation=-90, labelpad=20, fontsize=14)
@@ -50,4 +50,4 @@ labels = [l.get_label() for l in lines]
 plt.legend(lines, labels, loc="center right", fontsize=10)
 # plt.title("Transformer Language Modeling", fontsize=14)
 
-plt.savefig(os.path.join("/home/lidong1/yuxian/sps-toy/results/toy/icml/", "area_loss.pdf"), bbox_inches="tight")
+plt.savefig(os.path.join("/home/lidong1/yuxian/sps-toy/results/toy/arxiv/", "area_loss.pdf"), bbox_inches="tight")

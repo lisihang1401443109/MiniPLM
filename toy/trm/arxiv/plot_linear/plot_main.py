@@ -32,7 +32,7 @@ for e in range(40, 160, 4):
 for e in range(160, 300, 10):
     paths.append((os.path.join(base_path, f"opt_alpha_0.001/{e}"), f"opt_0.001_epoch_{e}"))
 
-plot, ax = plt.subplots(1, 1, figsize=(5, 2))
+plot, ax = plt.subplots(1, 1, figsize=(5, 2.5))
 
 
 step_min = 1
@@ -41,7 +41,7 @@ vocab_size = 2
 tot_info = 2000
 all_losses, all_IF_ratios, all_areas = [], [], []
 
-font_size = 9
+font_size = 12
 
 cm = plt.colormaps['coolwarm']
 
@@ -111,8 +111,8 @@ for loss, IF_ratio, area_color in zip(all_losses, all_IF_ratios, all_colors):
 
 ax.set_xscale("log")
 # ax.set_yscale("log")
-ax.set_xlabel(r"$L^{\text{dsr}}(\theta_t)$", fontsize=font_size)
-ax.set_ylabel(r"$\operatorname{SNR}_t$", fontsize=font_size)
+ax.set_xlabel(r"Desired Loss $L^{\text{dsr}}(\theta_t)$", fontsize=font_size)
+ax.set_ylabel(r"$\operatorname{SIM}_t$", fontsize=font_size)
 # set the font size of x-axis and y-axis
 ax.tick_params(axis='both', which='both', labelsize=font_size)
 ax.invert_xaxis()
@@ -120,8 +120,8 @@ ax.invert_xaxis()
 sm = plt.cm.ScalarMappable(cmap=cm, norm=plt.Normalize(vmin=min(all_cp_rate), vmax=max(all_cp_rate)))
 cbar = plt.colorbar(sm, ax=ax)
 cbar.ax.tick_params(labelsize=font_size)
-cbar.set_label(r"$\operatorname{CR}$", fontsize=font_size, labelpad=-20, y=-0.04, rotation=0)
+cbar.set_label(r"$\operatorname{CR}$", fontsize=font_size, labelpad=-17, y=-0.04, rotation=0)
 
 # plt.title("Perceptron Linear Classification", fontsize=font_size)
-plt.savefig(os.path.join("/home/lidong1/yuxian/sps-toy/results/toy/icml/", f"{split}_main_linear.pdf"), bbox_inches="tight")
+plt.savefig(os.path.join("/home/lidong1/yuxian/sps-toy/results/toy/arxiv/", f"{split}_main_linear.pdf"), bbox_inches="tight")
 plt.close()
