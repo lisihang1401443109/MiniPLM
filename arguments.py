@@ -453,7 +453,8 @@ def get_args():
             f"{args.seed}-{args.seed_data}-{args.seed_gd}",
         )
         args.save = save_path
-
+    elif args.type == "tokenize":
+        pass
     else:
         raise NotImplementedError
 
