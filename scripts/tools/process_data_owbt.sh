@@ -5,6 +5,6 @@ python3 tools/process_data_owbt.py \
     --save processed_data_1/pretrain/owbt/ \
     --max-length 1025 \
     --log-interval 10000 \
-    --data-process-workers 96 \
+    --data-process-workers 56 \
     --model-type fairseq \
     --chunk-num-per-shard 1000000

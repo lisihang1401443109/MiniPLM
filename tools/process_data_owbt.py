@@ -89,9 +89,9 @@ def main():
     
     output_path = os.path.join(output_path, "chunked", args.model_type + "-" + str(args.max_length))
     os.makedirs(output_path, exist_ok=True)
-    os.makedirs(output_path.replace("processed_data_1", "processed_data"), exist_ok=True)
+    # os.makedirs(output_path.replace("processed_data_1", "processed_data"), exist_ok=True)
     
-    with open(os.path.join(output_path.replace("processed_data_1", "processed_data"), "args_get_paragraph.json"), "w") as f:
+    with open(os.path.join(output_path, "args_get_paragraph.json"), "w") as f:
         json.dump(vars(args), f)
     
     with open(os.path.join(args.base_path, "tools", f"end_sent_token_{args.model_type}.json"), "r") as f:
@@ -156,8 +156,8 @@ def main():
                 print("Shard {} is done.".format(ofid))
                 builder.finalize(idx_file)
                 
-                copy_to_blob(args.base_path, bin_file, bin_file.replace("processed_data_1", "processed_data").replace(args.base_path, ""), rm_source=True)
-                copy_to_blob(args.base_path, idx_file, idx_file.replace("processed_data_1", "processed_data").replace(args.base_path, ""), rm_source=True)
+                # copy_to_blob(args.base_path, bin_file, bin_file.replace("processed_data_1", "processed_data").replace(args.base_path, ""), rm_source=True)
+                # copy_to_blob(args.base_path, idx_file, idx_file.replace("processed_data_1", "processed_data").replace(args.base_path, ""), rm_source=True)
                 
                 ofid += 1
                 bin_file = os.path.join(output_path, f"data_{ofid}.bin")
@@ -183,8 +183,8 @@ def main():
     print("Shard {} is done.".format(ofid))
     builder.finalize(idx_file)
     
-    copy_to_blob(args.base_path, bin_file, bin_file.replace("processed_data_1", "processed_data").replace(args.base_path, ""), rm_source=True)
-    copy_to_blob(args.base_path, idx_file, idx_file.replace("processed_data_1", "processed_data").replace(args.base_path, ""), rm_source=True)
+    # copy_to_blob(args.base_path, bin_file, bin_file.replace("processed_data_1", "processed_data").replace(args.base_path, ""), rm_source=True)
+    # copy_to_blob(args.base_path, idx_file, idx_file.replace("processed_data_1", "processed_data").replace(args.base_path, ""), rm_source=True)
 
     fin.close()
     pool.close()
