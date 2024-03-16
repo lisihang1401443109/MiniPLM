@@ -1,6 +1,8 @@
-cd ~/sps/
+cd ~/sps-toy/
 conda init
 source ~/.bashrc
-conda create -n sps python=3.10 -y
-conda activate sps
+conda create -n gyx-toy python=3.10 -y
+conda activate gyx-toy
 bash install.sh
+
+wandb disabled

@@ -79,7 +79,8 @@ def all_gather(t, dim=0, world_size=None, group=None, op="cat"):
 # Initialize
 def set_random_seed(seed, mp=False):
     """Set random seed for reproducability."""
-    seed = dist.get_rank() + seed
+    if dist.is_initialized():
+        seed = dist.get_rank() + seed
     if seed is not None and seed > 0:
         random.seed(seed)
         np.random.seed(seed)
@@ -122,12 +123,13 @@ def init_distributed_ds(args):
     deepspeed.init_distributed(timeout=timedelta(minutes=300))
 
 
-def initialize(args):
-    # init bmt
-    if args.deepspeed:
-        init_distributed_ds(args)
-    else:
-        init_distributed(args)
+def initialize(args, do_distributed=True):
+    # init distributed
+    if do_distributed:
+        if args.deepspeed:
+            init_distributed_ds(args)
+        else:
+            init_distributed(args)
 
     # if args.model_parallel:
     #     assert dist.get_world_size() % args.model_parallel_size == 0 
