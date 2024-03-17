@@ -1,5 +1,6 @@
 import os
 import re
+import wandb
 from collections import defaultdict
 from train_eval_utils.base_trainer import BaseTrainer
 from utils import print_rank, save_rank
@@ -38,6 +39,8 @@ class PreTrainer(BaseTrainer):
         lm_res = self.evaluate_lm()
         if get_rank() == 0:
             res = {**lm_res}
+            
+            wandb.log(res, step=self.global_steps)
             
             eval_log_str = self.get_log(res, "eval")
             print_rank(eval_log_str)

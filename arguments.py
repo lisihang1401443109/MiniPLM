@@ -44,6 +44,9 @@ def add_model_args(parser: argparse.ArgumentParser):
     group.add_argument("--draft-model-path", type=str, default=None)
     group.add_argument("--mos-experts", type=int, default=None)
     
+    group.add_argument("--attn-impl", type=str, default="eager")
+    group.add_argument("--xops-attn", action="store_true")
+    
     return parser
 
 
@@ -77,6 +80,9 @@ def add_runtime_args(parser: argparse.ArgumentParser):
     group.add_argument("--resume-dir", type=str, default=None)
     group.add_argument("--resume-tag", type=str, default=None)
     group.add_argument("--no-eval-when-start", action="store_true")
+    
+    group.add_argument("--calc-noise-batch", action="store_true")
+
     return parser
 
 
@@ -103,6 +109,7 @@ def add_data_args(parser: argparse.ArgumentParser):
     group.add_argument("--json-data", action="store_true")
     group.add_argument("--bin-data", action="store_true")
     group.add_argument("--txt-data", action="store_true")
+    group.add_argument("--pad-id-in-data", type=int, default=-1)
     
     group.add_argument("--prompt-data-dir", type=str)
     group.add_argument("--lm-data-dir", type=str)

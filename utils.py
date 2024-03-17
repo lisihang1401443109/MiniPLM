@@ -147,10 +147,14 @@ def get_model(args, device, model_path=None, config=None, from_scratch=None):
         model_path = args.model_path
     print_rank("Initializing model from {}".format(model_path), rank=0)
     if config is None:
-        config = AutoConfig.from_pretrained(model_path)
-        if args.dropout_path_rate is not None:
-            config.drop_path_rate = args.dropout_path_rate
-    
+        config = AutoConfig.from_pretrained(model_path, attn_implementation=args.attn_impl)
+        
+    if args.dropout_path_rate is not None:
+        config.drop_path_rate = args.dropout_path_rate
+    if args.xops_attn:
+        assert args.attn_impl == "eager"
+        config.use_memory_efficient_attention = True
+
     st_time = time.time()
     if args.model_parallel:
         config.is_model_parallel = True
@@ -166,7 +170,7 @@ def get_model(args, device, model_path=None, config=None, from_scratch=None):
         config.is_model_parallel = False
         from_scratch = from_scratch if from_scratch is not None else args.from_scratch
         if from_scratch:
-            model = AutoModelForCausalLM.from_config(config).to(device)
+            model = AutoModelForCausalLM.from_config(config, attn_implementation=args.attn_impl).to(device)
         else:
             model = AutoModelForCausalLM.from_pretrained(model_path, config=config, device_map={"": device}, torch_dtype=torch.float16)
 
@@ -190,7 +194,7 @@ def get_tokenizer(args, model_path=None):
         model_path = args.model_path
 
     tokenizer = AutoTokenizer.from_pretrained(model_path)
-    if args.model_type in ["gpt2", "opt", "llama", "gptj"]:
+    if args.model_type in ["gpt2", "opt", "llama", "gptj", "mistral"]:
         tokenizer.pad_token_id = tokenizer.eos_token_id
     
     return tokenizer

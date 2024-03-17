@@ -1,10 +1,10 @@
 python3 tools/process_data_owbt.py \
     --base-path $1 \
-    --model-path checkpoints/fairseq/125M \
+    --model-path checkpoints/mistral/7B \
     --data-dir pretrain_data/openwebtext/raw.txt \
     --save processed_data/pretrain/owbt/ \
     --max-length 1025 \
     --log-interval 10000 \
     --data-process-workers 56 \
-    --model-type fairseq \
+    --model-type mistral \
     --chunk-num-per-shard 1000000

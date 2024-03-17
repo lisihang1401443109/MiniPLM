@@ -2,6 +2,7 @@ import torch
 import random
 import os
 import re
+import wandb
 
 from utils import print_rank, get_model, save_rank, save_parallel, get_tokenizer, all_gather
 from torch.distributed import get_rank
@@ -44,7 +45,9 @@ class BaseTrainer():
         self.G_2 = 0
         self.S = 0
         self.grad_norm_small_batch = 0
+        self.grad_norm = 0
         self.norm_exp_avg_gamma = 0.9
+        self.exp_name = args.save.strip("/").replace(args.base_path.strip("/"), "").replace("_", "").replace("/", "_").strip("_")
 
         if args.model_parallel:
             self.dp_world_size = mpu.get_data_parallel_world_size()
@@ -295,6 +298,37 @@ class BaseTrainer():
 
         return grad_norm, d
 
+    def compute_noise_batch(self):
+        if self.steps % self.args.gradient_accumulation_steps == 0:
+            if get_rank() == 0:
+                grad_norm_small_batch = self.compute_scaled_grad_norm(self.model.module)
+                grad_norm_small_batch = grad_norm_small_batch / self.optimizer.cur_scale * self.args.gradient_accumulation_steps
+                self.grad_norm_small_batch = torch.tensor([grad_norm_small_batch], device=self.device)
+            else:
+                self.grad_norm_small_batch = torch.zeros(1, device=self.device)
+
+            dist.broadcast(self.grad_norm_small_batch, src=0, group=self.dp_group)
+        
+        if self.model.is_gradient_accumulation_boundary():
+            assert (self.steps + 1) % self.args.gradient_accumulation_steps == 0
+            B_big = self.total_batch_size
+            B_small = self.args.batch_size
+            if torch.isnan(self.grad_norm) or torch.isinf(self.grad_norm) or torch.isnan(self.grad_norm_small_batch) or torch.isinf(self.grad_norm_small_batch):
+                save_rank("grad norm: " + str(self.grad_norm.item()) + " grad norm small batch: " + str(self.grad_norm_small_batch.item()), os.path.join(self.args.save, "log.txt"))
+                self.grad_norm = 0.0
+                self.grad_norm_small_batch = 0.0
+            G_2 = 1/(B_big - B_small) * (B_big * self.grad_norm * self.grad_norm - B_small * self.grad_norm_small_batch * self.grad_norm_small_batch)
+            S = 1/(1/B_small - 1/B_big) * (self.grad_norm_small_batch * self.grad_norm_small_batch - self.grad_norm * self.grad_norm)
+            self.G_2 = self.norm_exp_avg_gamma * self.G_2 + (1 - self.norm_exp_avg_gamma) * G_2.item()
+            self.S = self.norm_exp_avg_gamma * self.S + (1 - self.norm_exp_avg_gamma) * S.item()
+
+        return dict(
+            grad_norm_small_batch="{:.4f}".format(self.grad_norm_small_batch.item()),
+            G_2="{:.4f}".format(self.G_2),
+            S="{:.4f}".format(self.S),
+            B_noise="{:.4f}".format(self.S/(self.G_2 + 1e-8)),
+        )
+
     def backward(self, loss):
         self.model.backward(loss)
 
@@ -309,6 +343,15 @@ class BaseTrainer():
         self.epoch = 0
         
         logging_stats = defaultdict(float)
+
+        if dist.get_rank() == 0:
+            run = wandb.init(
+                name=self.args.type,
+                project="ptkd",
+                group=self.exp_name,
+                config=self.args,
+                reinit=True,
+                tags=[self.args.time_stamp, self.args.data_names])
         
         if not self.args.resume_training and not self.args.no_eval_when_start:
             self.evaluate()
@@ -355,36 +398,14 @@ class BaseTrainer():
                 self.backward(loss)
                 backward_time = time() - backward_time
 
-                # exit(0)
-
-                if self.steps % self.args.gradient_accumulation_steps == 0:
-                    if get_rank() == 0:
-                        grad_norm_small_batch = self.compute_scaled_grad_norm(self.model.module)
-                        # _, gn_per_layer = self.compute_scaled_grad_norm_per_layer()
-                        # print(gn_per_layer)
-                        grad_norm_small_batch = grad_norm_small_batch / self.optimizer.cur_scale * self.args.gradient_accumulation_steps
-                        self.grad_norm_small_batch = torch.tensor([grad_norm_small_batch], device=self.device)
-                    else:
-                        self.grad_norm_small_batch = torch.zeros(1, device=self.device)
-
-                    dist.broadcast(self.grad_norm_small_batch, src=0, group=self.dp_group)
-                
+                self.grad_norm = 0.0
                 if self.model.is_gradient_accumulation_boundary():
-                    assert (self.steps + 1) % self.args.gradient_accumulation_steps == 0
-                    grad_norm = self.optimizer.scaled_global_norm() / self.optimizer.cur_scale
-                    B_big = self.total_batch_size
-                    B_small = self.args.batch_size
-                    G_2 = 1/(B_big - B_small) * (B_big * grad_norm * grad_norm - B_small * self.grad_norm_small_batch * self.grad_norm_small_batch)
-                    S = 1/(1/B_small - 1/B_big) * (self.grad_norm_small_batch * self.grad_norm_small_batch - grad_norm * grad_norm)
-                    self.G_2 = self.norm_exp_avg_gamma * self.G_2 + (1 - self.norm_exp_avg_gamma) * G_2.item()
-                    self.S = self.norm_exp_avg_gamma * self.S + (1 - self.norm_exp_avg_gamma) * S.item()
-                    # instance_grad_norm_2 = self.instance_grad_norm_2 / self.total_batch_size
-                    # variance = instance_grad_norm_2 - grad_norm * grad_norm
-                    # self.instance_grad_norm_2 = 0.0
-                else:
-                    grad_norm = 0.0
-                    # variance = 0.0
-
+                    self.grad_norm = self.optimizer.scaled_global_norm() / self.optimizer.cur_scale
+                
+                noise_batch_stats = {}
+                if self.args.calc_noise_batch:
+                    noise_batch_stats = self.compute_noise_batch()
+                
                 # step
                 step_time = time()
                 self.model.step()
@@ -420,14 +441,23 @@ class BaseTrainer():
                 if (self.steps > 0) and (self.global_steps > 0) and (self.global_steps % self.args.log_interval == 0) and ((self.steps+1) % self.args.gradient_accumulation_steps == 0):
                     logging_stats = {k:v/(self.args.log_interval*self.args.gradient_accumulation_steps) for k,v in logging_stats.items()}
                     log_str = self.get_log(logging_stats, "train", 
-                                           grad_norm="{:.4f}".format(grad_norm),
-                                           grad_norm_small_batch="{:.4f}".format(self.grad_norm_small_batch.item()),
-                                           G_2="{:.4f}".format(self.G_2),
-                                           S="{:.4f}".format(self.S),
-                                           B_noise="{:.4f}".format(self.S/(self.G_2 + 1e-8)),
+                                           grad_norm="{:.4f}".format(self.grad_norm),
+                                           **noise_batch_stats,
                                            lr="{:.4e}".format(self.lr_scheduler.get_last_lr()[0]),
                                            scale=self.optimizer.cur_scale if hasattr(self.optimizer, "cur_scale") else 0,
                                            step_time=logging_stats.get("elasped_time", 0) * self.args.gradient_accumulation_steps,)
+                    
+                    if dist.get_rank() == 0:
+                        wandb_logging_stats = {
+                            **logging_stats,
+                            "grad_norm": self.grad_norm,
+                            "lr": self.lr_scheduler.get_last_lr()[0],
+                            "scale": self.optimizer.cur_scale if hasattr(self.optimizer, "cur_scale") else 0,
+                            "step_time": logging_stats.get("elasped_time", 0) * self.args.gradient_accumulation_steps,
+                        }
+                        
+                        wandb.log(wandb_logging_stats, step=self.global_steps)
+                    
                     print_rank("*" * 100)
                     print_rank(log_str)
                     print_rank(self.args.save)
@@ -458,6 +488,9 @@ class BaseTrainer():
                 if self.steps % self.args.gradient_accumulation_steps == 0:
                     self.global_steps += 1
 
+        if dist.get_rank() == 0:
+            run.finish()
+        
     def evaluate(self):
         raise NotImplementedError
 

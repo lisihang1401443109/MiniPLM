@@ -48,6 +48,7 @@ def main():
     
     device = torch.cuda.current_device()
     cur_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    args.time_stamp = cur_time
     save_rank("\n\n" + "="*30 + f" EXP at {cur_time} " + "="*30, os.path.join(args.save, "log.txt"))
     
     with open(args.deepspeed_config, "r") as f:

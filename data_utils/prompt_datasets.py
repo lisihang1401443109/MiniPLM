@@ -21,7 +21,7 @@ class PromptDataset(Dataset):
         self.split = split
         self.pad_id = self.tokenizer.pad_token_id
         self.eod_id = self.tokenizer.eos_token_id
-        self.pad_id_in_data = self.tokenizer.pad_token_id
+        self.pad_id_in_data = self.args.pad_id_in_data
         assert self.eod_id != self.pad_id_in_data
         self.max_length = args.max_length
         self.min_prompt_length = args.min_prompt_length

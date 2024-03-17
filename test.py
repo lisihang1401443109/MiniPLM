@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import json
 from transformers import AutoTokenizer
 
 # m = torch.load("/home/lidong1/yuxian/sps/results/gpt2/train/mos_kd/gpt2-base-gpt2-xlarge-sft/e20-bs16-lr0.0005-G1-N2-kd0.5-mos10_noact/2142/pytorch_model.bin")
@@ -87,6 +88,44 @@ from transformers import AutoTokenizer
 
 # print(t)
 
-m = torch.load("/home/aiscuser/sps/model_batch_None.pt", map_location="cpu")
+# m = torch.load("/home/aiscuser/sps/model_batch_None.pt", map_location="cpu")
 
-print(m["input_ids"][0].tolist()[:20])
+# print(m["input_ids"][0].tolist()[:20])
+
+from data_utils.distributed_indexed import DistributedMMapIndexedDataset
+
+tokenizer = AutoTokenizer.from_pretrained("checkpoints/mistral/7B/")
+
+data = DistributedMMapIndexedDataset("/home/guyuxian/sps/processed_data/pretrain/owbt/chunked/mistral-1025", f"data", 0, 1)
+
+print(data[1])
+
+print(tokenizer.decode(data[3]))
+
+# with open("dd") as f:
+#     lines = f.readlines()
+
+# n = 0
+# for line in lines:
+#     x, s = line.split(" ")
+#     if float(s) > 0.13:
+#         n += 1
+
+# print(n)
+
+# tokenizer = AutoTokenizer.from_pretrained("checkpoints/fairseq/125M/")
+
+# tokenizer = AutoTokenizer.from_pretrained("checkpoints/mistral/7B/")
+
+# s = "I love you.\n I love you."
+
+# tokens = tokenizer.encode(s, add_special_tokens=False)
+
+# print(tokens)
+
+# with open("/home/guyuxian/sps/tools/end_sent_token_fairseq.json") as f:
+#     obj = json.load(f)
+
+# tokens = tokenizer.convert_ids_to_tokens(obj)
+
+# print(tokens)

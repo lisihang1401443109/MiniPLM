@@ -11,7 +11,7 @@ import random
 import numpy as np
 import random
 import json
-from transformers import LlamaTokenizer, AutoTokenizer
+from transformers import AutoTokenizer
 
 import argparse
 from arguments import add_data_args, add_runtime_args, add_hp_args, add_model_args
@@ -34,12 +34,9 @@ class Encoder(object):
 
     def initializer(self,):
         # Use Encoder class as a container for global data
-        if self.args.model_type == "llama":
-            Encoder.tokenizer = LlamaTokenizer.from_pretrained(self.args.model_path)
-        else:
-            Encoder.tokenizer = AutoTokenizer.from_pretrained(self.args.model_path)
+        Encoder.tokenizer = AutoTokenizer.from_pretrained(self.args.model_path)
         
-        if self.args.model_type in ["llama"]:
+        if self.args.model_type in ["llama", "mistral"]:
             Encoder.tokenizer.pad_token = Encoder.tokenizer.eos_token
 
     def encode(self, id_with_line):
@@ -72,17 +69,16 @@ def check_sent_end(tokenizer, tokens):
 def main():
     args = get_args()
     output_path = args.save
-    if args.model_type == "llama":
-        tokenizer = LlamaTokenizer.from_pretrained(args.model_path)
-    else:
-        tokenizer = AutoTokenizer.from_pretrained(args.model_path)
+
+    tokenizer = AutoTokenizer.from_pretrained(args.model_path)
     
-    if args.model_type in ["llama"]:
+    if args.model_type in ["llama", "mistral"]:
         tokenizer.pad_token = tokenizer.eos_token
 
     rt_token_id = {
-        "llama": 198,
-        "fairseq": 198
+        "llama": 13,
+        "fairseq": 198,
+        "mistral": 13,
     }[args.model_type]
     
     print_args(args)
@@ -104,6 +100,7 @@ def main():
     
     sid, lid, ofid = 0, 0, 0
     log_bytes_processed, log_doc_proccessed = 0, 0
+    token_num = 0
     padded_token_num = 0
     chunk_tokens_buffer = [tokenizer.bos_token_id]
 
@@ -170,11 +167,13 @@ def main():
             mbs = log_bytes_processed / elapsed / 1024 / 1024
             ds = log_doc_proccessed / elapsed
             
-            s = f"Processed {lid} documents. {sid} chunks. " + \
+            s = f"Processed {lid} documents. {sid} chunks. {sid * args.max_length / 1e9}B tokens." + \
                 f"Padding fraction: {padded_token_num / (sid * args.max_length)}." + \
                 f"({ds} docs/s, {mbs} MB/s). Total Time: {current - global_start} s."
         
             print(s, file=sys.stderr)
+            with open(os.path.join(output_path, "log.txt"), "a") as f:
+                print(s, file=f)
             
             log_bytes_processed, log_doc_proccessed = 0, 0
             proc_start = current
