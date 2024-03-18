@@ -72,6 +72,10 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_path)
     
+    ori_max_length = args.max_length
+    add_length = int(args.max_length / args.corrupt_interval)
+    args.max_length = args.max_length + add_length
+    
     if args.model_type in ["llama", "mistral"]:
         tokenizer.pad_token = tokenizer.eos_token
 
@@ -143,8 +147,27 @@ def main():
                     
                     break
             
+            if args.corrupt_type == "interval":
+                # remove tokens from new_chunk every args.corrupt_interval tokens
+                new_chunk_corrupt = []
+                for i in range(0, len(new_chunk), args.corrupt_interval + 1):
+                    new_chunk_corrupt.extend(new_chunk[i:i+args.corrupt_interval])
+                new_chunk = new_chunk_corrupt
+            elif args.corrupt_type == "random":
+                new_chunk_corrupt = []
+                rm_idxs = random.sample(list(range(1, len(new_chunk))), add_length)
+                rm_idxs = sorted(rm_idxs)
+                prev_idx = 0
+                for idx in rm_idxs:
+                    new_chunk_corrupt.extend(new_chunk[prev_idx:idx])
+                    prev_idx = idx + 1
+                new_chunk_corrupt.extend(new_chunk[prev_idx:])
+                new_chunk = new_chunk_corrupt
+            else:
+                raise NotImplementedError("Corrupt type not implemented.")
+            
             assert new_chunk[0] == tokenizer.bos_token_id
-            assert len(new_chunk) == args.max_length
+            assert len(new_chunk) == ori_max_length, (len(new_chunk), ori_max_length)
                                 
             sid += 1
             builder.add_item(torch.IntTensor(new_chunk))
@@ -157,7 +180,7 @@ def main():
                 # copy_to_blob(args.base_path, idx_file, idx_file.replace("processed_data_1", "processed_data").replace(args.base_path, ""), rm_source=True)
                 
                 ofid += 1
-
+                
                 if ofid >= args.max_shard_num:
                     break
                 
@@ -174,8 +197,8 @@ def main():
             mbs = log_bytes_processed / elapsed / 1024 / 1024
             ds = log_doc_proccessed / elapsed
             
-            s = f"Processed {lid} documents. {sid} chunks. {sid * args.max_length / 1e9}B tokens." + \
-                f"Padding fraction: {padded_token_num / (sid * args.max_length)}." + \
+            s = f"Processed {lid} documents. {sid} chunks. {sid * args.max_length / 1e9}B tokens. " + \
+                f"Padding fraction: {padded_token_num / (sid * args.max_length)}. " + \
                 f"({ds} docs/s, {mbs} MB/s). Total Time: {current - global_start} s."
         
             print(s, file=sys.stderr)
@@ -184,7 +207,7 @@ def main():
             
             log_bytes_processed, log_doc_proccessed = 0, 0
             proc_start = current
-        
+
     if ofid < args.max_shard_num:
         print("Shard {} is done.".format(ofid))
         builder.finalize(idx_file)

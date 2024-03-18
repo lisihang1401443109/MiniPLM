@@ -89,6 +89,7 @@ def add_runtime_args(parser: argparse.ArgumentParser):
 def add_data_args(parser: argparse.ArgumentParser):
     group = parser.add_argument_group('data', 'data configurations')
     group.add_argument("--data-dir", type=str, default=None)
+    group.add_argument("--dev-data-dir", type=str, default=None)
     group.add_argument("--processed-data-dir", type=str, default=None)
     group.add_argument("--force-process", action="store_true")
     group.add_argument("--force-process-demo", action="store_true")
@@ -120,6 +121,9 @@ def add_data_args(parser: argparse.ArgumentParser):
     group.add_argument("--only-prompt", action="store_true")
     
     group.add_argument("--chunk-num-per-shard", type=int, default=10000)
+    group.add_argument("--corrupt-interval", type=int, default=10)
+    group.add_argument("--corrupt-type", type=str, default="interval")
+    group.add_argument("--max-shard-num", type=int, default=10000000)
     return parser
 
 

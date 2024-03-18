@@ -96,7 +96,7 @@ from data_utils.distributed_indexed import DistributedMMapIndexedDataset
 
 tokenizer = AutoTokenizer.from_pretrained("checkpoints/mistral/7B/")
 
-data = DistributedMMapIndexedDataset("/home/guyuxian/sps/processed_data/pretrain/owbt/chunked/mistral-1025", f"data", 0, 1)
+data = DistributedMMapIndexedDataset("/home/guyuxian/sps/processed_data/pretrain/owbt_corrupt/chunked/mistral-1127", f"data", 0, 1)
 
 print(data[1])
 

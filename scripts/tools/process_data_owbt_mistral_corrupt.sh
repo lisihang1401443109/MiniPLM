@@ -1,0 +1,13 @@
+python3 tools/process_data_owbt_corrupt.py \
+    --base-path $1 \
+    --model-path checkpoints/mistral/7B \
+    --data-dir pretrain_data/openwebtext/raw.txt \
+    --save processed_data/pretrain/owbt_corrupt_5_rdm/ \
+    --max-length 1025 \
+    --log-interval 10000 \
+    --data-process-workers 56 \
+    --model-type mistral \
+    --chunk-num-per-shard 1000000 \
+    --corrupt-interval 5 \
+    --corrupt-type "random" \
+    --max-shard-num 1
