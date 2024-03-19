@@ -111,6 +111,8 @@ def add_data_args(parser: argparse.ArgumentParser):
     group.add_argument("--bin-data", action="store_true")
     group.add_argument("--txt-data", action="store_true")
     group.add_argument("--pad-id-in-data", type=int, default=-1)
+    group.add_argument("--min-state", type=int, default=0)
+    group.add_argument("--max-state", type=int, default=100000)
     
     group.add_argument("--prompt-data-dir", type=str)
     group.add_argument("--lm-data-dir", type=str)
@@ -277,6 +279,7 @@ def add_toy_args(parser: argparse.ArgumentParser):
 def base_save_path(args):
     return os.path.join(
         args.save,
+        (f"{args.data_names.replace('/', '_')}"),
         (f"{args.ckpt_name.replace('/', '_')}"),
         (f"e{args.epochs}" if args.epochs is not None else f"t{numerize(args.total_iters)}") + \
         (f"-w{numerize(args.warmup_iters)}" if args.warmup_iters > 0 else "") + \

@@ -25,7 +25,7 @@ class PreTrainer(BaseTrainer):
         if do_train:
             if args.dev_data_dir is None:
                 args.dev_data_dir = args.data_dir
-            self.train_dataset = PromptDataset(args, self.tokenizer, "data", args.data_dir, args.train_num, min_offset=10000)
+            self.train_dataset = PromptDataset(args, self.tokenizer, "data", args.data_dir, args.train_num, min_offset=10000, min_state=self.args.min_state)
             print_rank("train num", len(self.train_dataset))
             # self.train_dataset = PromptDataset(args, self.tokenizer, "data", args.data_dir, args.dev_num, max_offset=10000)
             # print_rank("train num", len(self.train_dataset))

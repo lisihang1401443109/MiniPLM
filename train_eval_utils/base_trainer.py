@@ -344,9 +344,11 @@ class BaseTrainer():
         
         logging_stats = defaultdict(float)
 
+        wandb_name = self.args.wandb_name if self.args.wandb_name is not None else self.args.type
+        
         if dist.get_rank() == 0:
             run = wandb.init(
-                name=self.args.type,
+                name=wandb_name,
                 project="ptkd",
                 group=self.exp_name,
                 config=self.args,
