@@ -18,7 +18,8 @@ TYPE="pretrain"
 CKPT_NAME="mistral/125M"
 CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
 # data
-DATA_DIR="${BASE_PATH}/processed_data/pretrain/owbt_corrupt/chunked/mistral-1127"
+# DATA_DIR="${BASE_PATH}/processed_data/pretrain/owbt_corrupt_5_rdm/chunked/mistral-1230"
+DATA_DIR="${BASE_PATH}/processed_data/pretrain/owbt_corrupt_50/chunked/mistral-1045"
 # hp
 BATCH_SIZE=16
 LR=0.0006
@@ -46,7 +47,7 @@ OPTS+=" --n-nodes ${NNODES}"
 # OPTS+=" --gradient-checkpointing"
 OPTS+=" --from-scratch"
 # data
-OPTS+=" --data-names owbt_corrupt"
+OPTS+=" --data-names owbt_corrupt_50"
 OPTS+=" --data-dir ${DATA_DIR}"
 OPTS+=" --num-workers 8"
 OPTS+=" --dev-num 10000"

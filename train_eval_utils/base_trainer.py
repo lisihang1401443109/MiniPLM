@@ -567,7 +567,7 @@ class BaseTrainer():
         dist.barrier()
         return all_prompt_ids, all_response_ids, res, response_strs
 
-    def generate(self, batch, decode_type="trm_ar"):
+    def get_generattion_config(self, batch):
         max_new_tokens = self.args.max_length - batch["input_ids"].size(1)
         generation_config = GenerationConfig(
             do_sample=self.args.do_sample,
@@ -582,6 +582,10 @@ class BaseTrainer():
             return_dict_in_generate=True,
             output_scores=False
         )
+        return generation_config
+    
+    def generate(self, batch, decode_type="trm_ar"):
+        generation_config = self.get_generattion_config(batch)
         gen_out = self.model.generate(**batch, generation_config=generation_config)
         return gen_out
         

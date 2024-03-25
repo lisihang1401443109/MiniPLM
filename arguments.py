@@ -113,6 +113,7 @@ def add_data_args(parser: argparse.ArgumentParser):
     group.add_argument("--pad-id-in-data", type=int, default=-1)
     group.add_argument("--min-state", type=int, default=0)
     group.add_argument("--max-state", type=int, default=100000)
+    group.add_argument("--data-split", type=str, default=None)
     
     group.add_argument("--prompt-data-dir", type=str)
     group.add_argument("--lm-data-dir", type=str)
@@ -226,6 +227,10 @@ def add_gen_args(parser: argparse.ArgumentParser):
     group.add_argument("--temperature", type=float, default=1)
     group.add_argument("--decode-type", type=str, default="trm_ar")
     group.add_argument("--lookahead", type=int, default=1)
+    
+    # contrastive decoding
+    group.add_argument("--amateur-alpha", type=float, default=1.0)
+    group.add_argument("--amateur-beta", type=float, default=1.0)
     
     return parser
 
