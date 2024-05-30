@@ -24,3 +24,17 @@ class WarmupCosineAnnealingLR(CosineAnnealingLR):
     def load_state_dict(self, state_dict):
         self.warmup_steps = state_dict.pop("warmup_steps")
         super().load_state_dict(state_dict)
+
+
+class SimWarmupLinearScheduler():
+    # output warmup linear learning rate
+    def __init__(self, num_warmup_steps, num_training_steps, lr):
+        self.num_warmup_steps = num_warmup_steps
+        self.num_training_steps = num_training_steps
+        self.lr = lr
+        self.step = 0
+
+    def get_lr(self, t):
+        if t < self.num_warmup_steps:
+            return self.lr * float(t) / float(max(1, self.num_warmup_steps))
+        return self.lr * max(0.0, float(self.num_training_steps - t) / float(max(1, self.num_training_steps - self.num_warmup_steps)))

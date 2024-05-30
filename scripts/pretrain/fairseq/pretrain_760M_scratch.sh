@@ -45,6 +45,7 @@ OPTS+=" --n-nodes ${NNODES}"
 # OPTS+=" --gradient-checkpointing"
 OPTS+=" --from-scratch"
 # data
+OPTS+=" --data-names owbt"
 OPTS+=" --data-dir ${DATA_DIR}"
 OPTS+=" --num-workers 4"
 OPTS+=" --dev-num 10000"

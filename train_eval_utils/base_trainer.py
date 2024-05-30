@@ -3,6 +3,7 @@ import random
 import os
 import re
 import wandb
+import uuid
 
 from utils import print_rank, get_model, save_rank, save_parallel, get_tokenizer, all_gather
 from torch.distributed import get_rank
@@ -48,7 +49,12 @@ class BaseTrainer():
         self.grad_norm = 0
         self.norm_exp_avg_gamma = 0.9
         self.exp_name = args.save.strip("/").replace(args.base_path.strip("/"), "").replace("_", "").replace("/", "_").strip("_")
-
+        self.wandb_name = self.args.wandb_name if self.args.wandb_name is not None else self.exp_name
+        self.group_name = self.args.wandb_group or "pad"
+        self.epochs = 0
+        self.total_steps = 0
+        self.first_printed = False
+        
         if args.model_parallel:
             self.dp_world_size = mpu.get_data_parallel_world_size()
             self.dp_rank = mpu.get_data_parallel_rank()
@@ -178,13 +184,16 @@ class BaseTrainer():
         print_rank(f"Train iters per epoch: {self.train_iters_per_epoch}")
         print_rank(f"Save interval: {args.save_interval}")
         print_rank(f"Eval interval: {args.eval_interval}")
-        
+    
+    def prepare_inference(self, args=None):
+        pass
+     
     def set_datasets(self, args=None, do_train=True):
         args = args or self.args
         if do_train:
             self.train_dataset = PromptDataset(args, self.tokenizer, "train", args.data_dir, args.train_num)
             print_rank("train num", len(self.train_dataset))
-            self.eval_dataset = PromptDataset(args, self.tokenizer, "valid", args.data_dir, args.dev_num)
+            self.eval_dataset = PromptDataset(args, self.tokenizer, "dev", args.data_dir, args.dev_num)
         else:
             self.eval_dataset = PromptDataset(args, self.tokenizer, "test", args.data_dir, args.dev_num)
 
@@ -329,37 +338,55 @@ class BaseTrainer():
             B_noise="{:.4f}".format(self.S/(self.G_2 + 1e-8)),
         )
 
-    def backward(self, loss):
+    def backward(self, loss, loss_stats=None):
         self.model.backward(loss)
 
-    def train(self):
+    def _all_reduce_loss(self, loss):
+        dist.all_reduce(loss, group=self.dp_group, op=dist.ReduceOp.SUM)
+        return (loss / self.dp_world_size).item()
 
-        train_sampler = DistributedSampler(self.train_dataset, shuffle=(not self.args.precompute_data_order), drop_last=True, rank=self.dp_rank, num_replicas=self.dp_world_size)
-        train_dataloader = DataLoader(
-            self.train_dataset, sampler=train_sampler, batch_size=self.args.batch_size, num_workers=self.args.num_workers, collate_fn=self.train_dataset.collate_lm, drop_last=True)
+    def first_print(self, model_batch, no_model_batch):
+        if self.dp_rank == 0:
+            print(model_batch["input_ids"][0].cpu().tolist())
+            print(self.tokenizer.decode(model_batch["input_ids"][0].cpu().tolist(), skip_special_tokens=True))
+            print(model_batch["attention_mask"][0].cpu().tolist())
+            print(no_model_batch["label"][0].cpu().tolist())
+            print(no_model_batch["loss_mask"][0].int().cpu().tolist())
+            torch.save(model_batch, os.path.join(self.args.save, "model_batch_0.pt"))
+            torch.save(no_model_batch, os.path.join(self.args.save, "no_model_batch_0.pt"))
+
+    def set_train(self):
+        self.model.train()
+
+    def train(self):
+        
+        if self.args.do_train:
+            train_sampler = DistributedSampler(self.train_dataset, shuffle=((not self.args.precompute_data_order) and (not self.args.no_shuffle)), drop_last=True, rank=self.dp_rank, num_replicas=self.dp_world_size)
+            train_dataloader = DataLoader(
+                self.train_dataset, sampler=train_sampler, batch_size=self.args.batch_size, num_workers=self.args.num_workers, collate_fn=self.train_dataset.collate, drop_last=True)
 
         self.steps = 0
         self.global_steps = 1
         self.epoch = 0
         
         logging_stats = defaultdict(float)
-
-        wandb_name = self.args.wandb_name if self.args.wandb_name is not None else self.args.type
-        
-        if dist.get_rank() == 0:
+        if self.args.do_train and dist.get_rank() == 0:
+            wandb_id = self.args.wandb_id or (str(int(time())) + "-" + str(uuid.uuid4()))
             run = wandb.init(
-                name=wandb_name,
-                project="ptkd",
-                group=self.exp_name,
+                id=wandb_id,
+                name=self.wandb_name,
+                project="ol",
+                group=self.group_name,
                 config=self.args,
                 reinit=True,
                 tags=[self.args.time_stamp, self.args.data_names])
         
-        if not self.args.resume_training and not self.args.no_eval_when_start:
+        if self.args.do_train and not self.args.resume_training and not self.args.no_eval_when_start:
             self.evaluate()
-        self.model.train()
 
+        st_time = time()
         for epoch in range(0, self.epochs):
+            self.set_train()
             self.epoch = epoch
             train_sampler.set_epoch(epoch)
             self.train_dataset.set_epoch(epoch)
@@ -381,6 +408,10 @@ class BaseTrainer():
                             np.random.set_state(self.last_rng_states["numpy"])
                             random.setstate(self.last_rng_states["python"])
 
+                if not self.first_printed:
+                    self.first_print(model_batch, no_model_batch)
+                    self.first_printed = True
+
                 # print_rank(f"Epoch {epochs}, Iter {it}")
                 self.train_dataset.move_to_device(model_batch, no_model_batch, self.device)
                 
@@ -390,19 +421,25 @@ class BaseTrainer():
                 stats = {}
                 
                 # forward
+                torch.cuda.synchronize()
                 forward_time = time()
                 loss, loss_stats = self.compute_loss(model_batch, no_model_batch)
-                stats.update(loss_stats)
+                stats.update({k:v for k,v in loss_stats.items() if "NO_LOGGING" not in k})
+                torch.cuda.synchronize()
                 forward_time = time() - forward_time
 
                 # backward
                 backward_time = time()
-                self.backward(loss)
+                self.backward(loss, loss_stats)
+                torch.cuda.synchronize()
                 backward_time = time() - backward_time
 
                 self.grad_norm = 0.0
                 if self.model.is_gradient_accumulation_boundary():
-                    self.grad_norm = self.optimizer.scaled_global_norm() / self.optimizer.cur_scale
+                    if self.args.fp32:
+                        self.grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.clip_grad)
+                    else:
+                        self.grad_norm = self.optimizer.scaled_global_norm() / self.optimizer.cur_scale
                 
                 noise_batch_stats = {}
                 if self.args.calc_noise_batch:
@@ -411,10 +448,10 @@ class BaseTrainer():
                 # step
                 step_time = time()
                 self.model.step()
+                torch.cuda.synchronize()
                 step_time = time() - step_time
 
-                dist.all_reduce(loss, group=self.dp_group, op=dist.ReduceOp.SUM)
-                stats["loss"] = loss / self.dp_world_size
+                stats["loss"] = self._all_reduce_loss(loss)
                     
                 elapsed_time = forward_time + backward_time + step_time
                 stats["elasped_time"] = elapsed_time
@@ -440,14 +477,21 @@ class BaseTrainer():
                                             scale=self.optimizer.cur_scale if hasattr(self.optimizer, "cur_scale") else 0),)
 
                 
-                if (self.steps > 0) and (self.global_steps > 0) and (self.global_steps % self.args.log_interval == 0) and ((self.steps+1) % self.args.gradient_accumulation_steps == 0):
+                if (self.args.gradient_accumulation_steps == 1 or self.steps > 0) and \
+                    (self.global_steps > 0) and \
+                        (self.global_steps % self.args.log_interval == 0) and \
+                             ((self.steps+1) % self.args.gradient_accumulation_steps == 0):
                     logging_stats = {k:v/(self.args.log_interval*self.args.gradient_accumulation_steps) for k,v in logging_stats.items()}
+                    now_time = time()
+                    real_step_time = (now_time - st_time) / self.args.log_interval
+                    st_time = now_time
                     log_str = self.get_log(logging_stats, "train", 
                                            grad_norm="{:.4f}".format(self.grad_norm),
                                            **noise_batch_stats,
                                            lr="{:.4e}".format(self.lr_scheduler.get_last_lr()[0]),
                                            scale=self.optimizer.cur_scale if hasattr(self.optimizer, "cur_scale") else 0,
-                                           step_time=logging_stats.get("elasped_time", 0) * self.args.gradient_accumulation_steps,)
+                                           step_time=logging_stats.get("elasped_time", 0) * self.args.gradient_accumulation_steps,
+                                           real_step_time = real_step_time)
                     
                     if dist.get_rank() == 0:
                         wandb_logging_stats = {
@@ -478,10 +522,10 @@ class BaseTrainer():
                 if (self.steps > 0) and (self.global_steps > 0) and ((self.steps+1) % self.args.gradient_accumulation_steps == 0) and \
                     (self.global_steps % self.args.eval_interval == 0):
                     self.evaluate()
-                    self.model.train()
+                    self.set_train()
 
                 # end
-                if self.global_steps >= self.total_steps:
+                if ((self.steps+1) % self.args.gradient_accumulation_steps == 0) and (self.global_steps >= self.total_steps):
                     self.save(self.args.save)
                     self.evaluate()
                     return
@@ -490,9 +534,18 @@ class BaseTrainer():
                 if self.steps % self.args.gradient_accumulation_steps == 0:
                     self.global_steps += 1
 
-        if dist.get_rank() == 0:
-            run.finish()
+        if self.args.do_infer:
+            self.inference()
         
+        if self.args.do_eval:
+            self.evaluate()
+
+        if self.args.do_train and dist.get_rank() == 0:
+            run.finish()
+
+    def inference(self):
+        pass
+
     def evaluate(self):
         raise NotImplementedError
 
@@ -502,17 +555,20 @@ class BaseTrainer():
         avg_loss = all_losses.mean().item()
         return avg_loss
 
-    def evaluate_lm(self):
-        eval_sampler = DistributedSampler(self.eval_dataset, shuffle=False, drop_last=False, rank=self.dp_rank, num_replicas=self.dp_world_size)
+    def evaluate_lm(self, eval_dataset=None):
+        eval_dataset = eval_dataset or self.eval_dataset
+        eval_sampler = DistributedSampler(eval_dataset, shuffle=False, drop_last=False, rank=self.dp_rank, num_replicas=self.dp_world_size)
         eval_dataloader = DataLoader(
-            self.eval_dataset, sampler=eval_sampler, batch_size=self.args.eval_batch_size, num_workers=self.args.num_workers, collate_fn=self.eval_dataset.collate_lm)
+            eval_dataset, sampler=eval_sampler, batch_size=self.args.eval_batch_size, num_workers=self.args.num_workers, collate_fn=eval_dataset.collate)
         
         self.model.eval()
         all_losses = []
                     
         with torch.no_grad():
-            for model_batch, no_model_batch in tqdm(eval_dataloader, f"LM Evaluation", disable=(not get_rank() == 0)):
-                self.eval_dataset.move_to_device(model_batch, no_model_batch, self.device)
+            for i, (model_batch, no_model_batch) in enumerate(tqdm(eval_dataloader, f"LM Evaluation", disable=(not get_rank() == 0))):
+                if i == 0 and self.dp_rank == 0:
+                    self.first_print(model_batch, no_model_batch)
+                eval_dataset.move_to_device(model_batch, no_model_batch, self.device)
                 loss = self.compute_lm_loss(model_batch, no_model_batch, mean=False)
                 all_losses.append(loss)
         

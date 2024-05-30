@@ -66,6 +66,12 @@ def check_sent_end(tokenizer, tokens):
     return len(tokens) == 1 or " " in s
 
 
+def print_and_save(s, output_path):
+    print(s)
+    with open(os.path.join(output_path, "log.txt"), "a") as f:
+        f.write(s + "\n")
+
+
 def main():
     args = get_args()
     output_path = args.save
@@ -95,8 +101,8 @@ def main():
     
     startup_start = time.time()
 
-    print("Opening", args.data_dir)
-    print("Output path:", output_path)
+    print_and_save(f"Opening {args.data_dir}", output_path)
+    print_and_save(f"Output path {output_path}", output_path)
     
     sid, lid, ofid = 0, 0, 0
     log_bytes_processed, log_doc_proccessed = 0, 0
@@ -105,7 +111,7 @@ def main():
     chunk_tokens_buffer = [tokenizer.bos_token_id]
 
     bin_file = os.path.join(output_path, f"data_{ofid}.bin")
-    print(bin_file)
+    print_and_save(bin_file, output_path)
     idx_file = os.path.join(output_path, f"data_{ofid}.idx")
     builder = make_builder(bin_file, impl="mmap", dtype=np.uint16)
 
@@ -117,10 +123,12 @@ def main():
     proc_start = time.time()
     global_start = time.time()
     
-    print("Processing", input_file)
+    print_and_save(f"Processing {input_file}", output_path)
     
     # use the tokenizer to encode the sentences
-    encoded_docs = pool.imap_unordered(encoder.encode, enumerate(fin), 10)
+    encoded_docs = pool.imap_unordered(encoder.encode, enumerate(fin), 20)
+
+    _chunks = []
 
     for doc_tokens, doc_id, bytes_processed in encoded_docs:
         lid += 1
@@ -137,27 +145,31 @@ def main():
                     # 1. Who are you? I am the D.A. and he is //Bat Man. -> Who are you? // I am the D.A. and he is Bat Man.
                     # 2. Who are you? I am the D.//A. -> Who are you? // I am the D.A.
                     incomplete_sent = new_chunk[i+1:]
-                    new_chunk = new_chunk[:i+1] + [tokenizer.pad_token_id] * (args.max_length - (i+1))
+                    new_chunk = new_chunk[:i+1]
+                    # new_chunk = new_chunk[:i+1] + [tokenizer.pad_token_id] * (args.max_length - (i+1))
                     chunk_tokens_buffer = chunk_tokens_buffer[:1] + incomplete_sent + chunk_tokens_buffer[1:]
                     padded_token_num += args.max_length - (i+1)
                     
                     break
             
             assert new_chunk[0] == tokenizer.bos_token_id
-            assert len(new_chunk) == args.max_length
+            assert len(new_chunk) <= args.max_length
                                 
             sid += 1
-            builder.add_item(torch.IntTensor(new_chunk))
+            _chunks.append(np.array(new_chunk, dtype=np.uint16))
             
             if sid % args.chunk_num_per_shard == 0:
-                print("Shard {} is done.".format(ofid))
+                print_and_save("Shuffling chunks in shard {}.".format(ofid), output_path)
+                random.shuffle(_chunks)
+                print_and_save("Adding chunks to shard {}.".format(ofid), output_path)
+                builder.add_np_items(_chunks)
+                print_and_save("Shard {} is done.".format(ofid), output_path)
                 builder.finalize(idx_file)
-                
+                _chunks = []
                 # copy_to_blob(args.base_path, bin_file, bin_file.replace("processed_data_1", "processed_data").replace(args.base_path, ""), rm_source=True)
                 # copy_to_blob(args.base_path, idx_file, idx_file.replace("processed_data_1", "processed_data").replace(args.base_path, ""), rm_source=True)
                 
                 ofid += 1
-
                 if ofid >= args.max_shard_num:
                     break
                 
@@ -165,16 +177,13 @@ def main():
                 idx_file = os.path.join(output_path, f"data_{ofid}.idx")
                 builder = make_builder(bin_file, impl="mmap", dtype=np.uint16)
 
-        if ofid >= args.max_shard_num:
-            break
-
         if lid % args.log_interval == 0:
             current = time.time()
             elapsed = current - proc_start
             mbs = log_bytes_processed / elapsed / 1024 / 1024
             ds = log_doc_proccessed / elapsed
             
-            s = f"Processed {lid} documents. {sid} chunks. {sid * args.max_length / 1e9}B tokens." + \
+            s = f"Processed {lid} documents. {sid} chunks. {(sid * args.max_length - padded_token_num) / 1e9}B tokens. " + \
                 f"Padding fraction: {padded_token_num / (sid * args.max_length)}." + \
                 f"({ds} docs/s, {mbs} MB/s). Total Time: {current - global_start} s."
         
@@ -184,22 +193,33 @@ def main():
             
             log_bytes_processed, log_doc_proccessed = 0, 0
             proc_start = current
+
+        if ofid >= args.max_shard_num:
+            break
         
-    if ofid < args.max_shard_num:
-        print("Shard {} is done.".format(ofid))
+    if sid % args.chunk_num_per_shard != 0:
+        print_and_save("Shuffling chunks in shard {}.".format(ofid), output_path)
+        random.shuffle(_chunks)
+        print_and_save("Adding chunks to shard {}.".format(ofid), output_path)
+        builder.add_np_items(_chunks)
+        print_and_save("Shard {} is done.".format(ofid), output_path)
         builder.finalize(idx_file)
+        _chunks = []
     
     # copy_to_blob(args.base_path, bin_file, bin_file.replace("processed_data_1", "processed_data").replace(args.base_path, ""), rm_source=True)
     # copy_to_blob(args.base_path, idx_file, idx_file.replace("processed_data_1", "processed_data").replace(args.base_path, ""), rm_source=True)
 
     fin.close()
+    pool.terminate()
     pool.close()
     pool.join()
     
     # summarize
-    print("Total time:", time.time() - startup_start)
-    print("Total processed paragraphs:", sid)
-    print("Average paragraph length:", log_bytes_processed / sid)
+    print_and_save(f"Total time: {time.time() - startup_start}.", output_path)
+    print_and_save(f"Total processed paragraphs: {sid}.", output_path)
+    total_tokens = sid * args.max_length - padded_token_num
+    print_and_save(f"Total tokens: {total_tokens / 1e9:.4f}B", output_path)
+    print_and_save(f"Total padding fraction: {padded_token_num / (sid * args.max_length)}.", output_path)
         
 
 if __name__ == '__main__':

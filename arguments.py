@@ -43,6 +43,7 @@ def add_model_args(parser: argparse.ArgumentParser):
     group.add_argument("--draft-ckpt-name", type=str, default=None)
     group.add_argument("--draft-model-path", type=str, default=None)
     group.add_argument("--mos-experts", type=int, default=None)
+    group.add_argument("--fp32", action="store_true")
     
     group.add_argument("--attn-impl", type=str, default="eager")
     group.add_argument("--xops-attn", action="store_true")
@@ -57,6 +58,7 @@ def add_runtime_args(parser: argparse.ArgumentParser):
     group.add_argument("--do-train", action="store_true")
     group.add_argument("--do-valid", action="store_true")
     group.add_argument("--do-eval", action="store_true")
+    group.add_argument("--do-infer", action="store_true")
     group.add_argument('--base-path', type=str, default=None, help='Path to the project base directory.')
     group.add_argument('--load', type=str, default=None,
                        help='Path to a directory containing a model checkpoint.')
@@ -65,9 +67,9 @@ def add_runtime_args(parser: argparse.ArgumentParser):
     group.add_argument('--save-all', action="store_true")
     group.add_argument("--log-interval", type=int, default=10)
     group.add_argument("--mid-log-num", type=int, default=4)
-    group.add_argument('--save-interval', type=int, default=1000,
+    group.add_argument('--save-interval', type=int, default=10000000,
                        help='number of iterations between saves')
-    group.add_argument("--eval-interval", type=int, default=1000)
+    group.add_argument("--eval-interval", type=int, default=10000000)
     group.add_argument('--local_rank', type=int, default=None,
                        help='local rank passed from distributed launcher')
     group.add_argument("--save-additional-suffix", type=str, default="")
@@ -83,13 +85,19 @@ def add_runtime_args(parser: argparse.ArgumentParser):
     
     group.add_argument("--calc-noise-batch", action="store_true")
 
+    group.add_argument("--load-cache", type=str)
+    group.add_argument("--wandb-name", type=str, default=None)
+    group.add_argument("--wandb-group", type=str, default=None)
+    group.add_argument("--wandb-id", type=str, default=None)
     return parser
 
 
 def add_data_args(parser: argparse.ArgumentParser):
     group = parser.add_argument_group('data', 'data configurations')
+    group.add_argument("--dataset-type", type=str, default=None)
     group.add_argument("--data-dir", type=str, default=None)
     group.add_argument("--dev-data-dir", type=str, default=None)
+    group.add_argument("--test-data-dir", type=str, default=None)
     group.add_argument("--processed-data-dir", type=str, default=None)
     group.add_argument("--force-process", action="store_true")
     group.add_argument("--force-process-demo", action="store_true")
@@ -102,6 +110,7 @@ def add_data_args(parser: argparse.ArgumentParser):
     group.add_argument("--test-num", type=int, default=-1)
     group.add_argument("--test-ratio", type=float, default=1)
     group.add_argument("--gen-num", type=int, default=-1)
+    group.add_argument("--infer-num", type=int, default=-1)
     group.add_argument("--data-names", type=str, default=None)
     group.add_argument("--prompt-type", type=str, default=None)
     group.add_argument("--num-workers", type=int, default=1)
@@ -110,10 +119,12 @@ def add_data_args(parser: argparse.ArgumentParser):
     group.add_argument("--json-data", action="store_true")
     group.add_argument("--bin-data", action="store_true")
     group.add_argument("--txt-data", action="store_true")
-    group.add_argument("--pad-id-in-data", type=int, default=-1)
+    group.add_argument("--split-token-id", type=int, default=None)
     group.add_argument("--min-state", type=int, default=0)
     group.add_argument("--max-state", type=int, default=100000)
+    group.add_argument("--min-offset", type=int, default=0)
     group.add_argument("--data-split", type=str, default=None)
+    group.add_argument("--no-shuffle", action="store_true")
     
     group.add_argument("--prompt-data-dir", type=str)
     group.add_argument("--lm-data-dir", type=str)
@@ -127,6 +138,8 @@ def add_data_args(parser: argparse.ArgumentParser):
     group.add_argument("--corrupt-interval", type=int, default=10)
     group.add_argument("--corrupt-type", type=str, default="interval")
     group.add_argument("--max-shard-num", type=int, default=10000000)
+    group.add_argument("--max-sample-num", type=int, default=None)
+
     return parser
 
 
@@ -163,6 +176,7 @@ def add_hp_args(parser: argparse.ArgumentParser):
                        help='weight-decay')
     group.add_argument('--loss-scale', type=float, default=65536,
                        help='loss scale')
+    group.add_argument('--optimizer-name', type=str, default='AdamW')
     group.add_argument('--adam-beta', type=float, default=0.9),
     group.add_argument('--adam-beta2', type=float, default=0.999),
     group.add_argument('--adam-eps', type=float, default=1e-8),
@@ -235,62 +249,28 @@ def add_gen_args(parser: argparse.ArgumentParser):
     return parser
 
 
-def add_toy_args(parser: argparse.ArgumentParser):
-    group = parser.add_argument_group('toy', 'toy experiments')
-    group.add_argument("--input-dim", type=int, default=512)
-    group.add_argument("--input-real-dim", type=int, default=None)
-    group.add_argument("--lr-alpha", type=float, default=0.001)
-    group.add_argument("--lam", type=float, default=0.0)
-    group.add_argument("--outer-epochs", type=int, default=5)
-    group.add_argument("--linear-theta-scale", type=int, default=1)
-    group.add_argument("--train-mu", type=float, default=0)
-    group.add_argument("--train-sigma", type=float, default=1)
-    group.add_argument("--train-noise", type=float, default=1)
-    group.add_argument("--dev-mu", type=float, default=0)
-    group.add_argument("--dev-sigma", type=float, default=1)
-    group.add_argument("--dev-noise", type=float, default=0.1)
-    group.add_argument("--ood", type=float, default=None)
-    group.add_argument("--alpha-update-interval", type=int, default=1)
-    
-    group.add_argument("--dnn-hidden-dim", type=int, default=None)
-    group.add_argument("--gd-dnn-hidden-dim", type=int, default=None)
-    group.add_argument("--approx-proj", action="store_true")
-    group.add_argument("--load-toy-data", type=str, default=None)
-    group.add_argument("--load-alpha", type=str, default=None)
-    
-    group.add_argument("--ratio-1-2", type=float, default=1.0)
-    group.add_argument("--opt-alpha", action="store_true")
-    group.add_argument("--eval-opt-alpha", action="store_true")
-    group.add_argument("--num-head", type=int, default=4)
-    group.add_argument("--outer-lr", type=float, default=0.0001)
-    group.add_argument("--outer-epoch", type=int, default=40)
-    group.add_argument("--opt-alpha-wm-steps", type=int, default=0)
-    group.add_argument("--grad-batch-size", type=int, default=-1)
-    group.add_argument("--clip-grad-out", type=int, default=-1)
-    group.add_argument("--avg-IF-calc-interval", type=int, default=None)
-    group.add_argument("--embed-proj", action="store_true")
-    group.add_argument("--add-noise", type=str, default=None)
-    group.add_argument("--toy-zero2", action="store_true")
-    group.add_argument("--num-samp-grads", type=int, default=None)
-    group.add_argument("--alpha-epochs", type=str, default=None)
-    group.add_argument("--alpha-reg", type=float, default=None)
-    group.add_argument("--alpha-reg2", type=float, default=None)
-    group.add_argument("--wandb-name", type=str, default=None)
-    group.add_argument("--eval-no-IF", action="store_true")
-    
-    return parser
-
-
 def base_save_path(args):
+    if args.do_train:
+        return os.path.join(
+            args.save,
+            (f"{args.data_names.replace('/', '_')}"),
+            (f"{args.ckpt_name.replace('/', '_')}"),
+            (f"e{args.epochs}" if args.epochs is not None else f"t{numerize(args.total_iters)}") + \
+            (f"-w{numerize(args.warmup_iters)}" if args.warmup_iters > 0 else "") + \
+            (f"-bs{args.batch_size}-lr{args.lr}{args.lr_decay_style}{args.lr_min}-G{args.gradient_accumulation_steps}-N{args.n_gpu}-NN{args.n_nodes}") + \
+            (f"-mp{args.model_parallel_size}" if args.model_parallel > 0 else "") + \
+            (f"-scr" if args.from_scratch else "") + \
+            args.save_additional_suffix
+        )
+    else:
+        return base_save_path_eval(args)
+
+
+def base_save_path_eval(args):
     return os.path.join(
         args.save,
         (f"{args.data_names.replace('/', '_')}"),
         (f"{args.ckpt_name.replace('/', '_')}"),
-        (f"e{args.epochs}" if args.epochs is not None else f"t{numerize(args.total_iters)}") + \
-        (f"-w{numerize(args.warmup_iters)}" if args.warmup_iters > 0 else "") + \
-        (f"-bs{args.batch_size}-lr{args.lr}{args.lr_decay_style}{args.lr_min}-G{args.gradient_accumulation_steps}-N{args.n_gpu}-NN{args.n_nodes}") + \
-        (f"-mp{args.model_parallel_size}" if args.model_parallel > 0 else "") + \
-        (f"-scr" if args.from_scratch else "") + \
         args.save_additional_suffix
     )
 
@@ -304,7 +284,6 @@ def get_args():
     parser = add_ppo_args(parser)
     parser = add_minillm_args(parser)
     parser = add_gen_args(parser)
-    parser = add_toy_args(parser)
     parser = deepspeed.add_config_arguments(parser)
     
     args, unknown = parser.parse_known_args()
@@ -312,12 +291,10 @@ def get_args():
     assert all(["--" not in x for x in unknown]), unknown
     
     args.local_rank = int(os.getenv("LOCAL_RANK", "0"))
-
-    assert args.model_type is not None
-
     args.n_gpu = args.n_gpu * args.n_nodes
     
     assert args.model_type is not None
+    assert args.data_names is not None
         
     if args.type == "eval_main":
         if args.ckpt_name is not None:
@@ -402,79 +379,11 @@ def get_args():
         
         if args.warmup_iters > 0:
             assert args.scheduler_name is not None
-    elif args.type == "toy":
-        # if args.model_type in ["linear", "linear_fa", "linear_da"]:
-        #     model_info = f"d{args.input_dim}-{args.input_real_dim}-l{args.lam}"
-        #     suffix = ""
-        #     if args.model_type == "linear_fa":
-        #         suffix += (f"oe{args.outer_epochs}-lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}")
-        #     elif args.model_type == "linear_da":
-        #         suffix += (f"lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}-aui{args.alpha_update_interval}")
-        # elif args.model_type in ["linear_cls", "linear_cls_da", "linear_soft_cls", "linear_soft_cls_da"]:
-        #     model_info = f"d{args.input_dim}-{args.input_real_dim}-l{args.lam}"
-        #     suffix = ""
-        #     if args.model_type in ["linear_cls_da", "linear_soft_cls_da"]:
-        #         if args.load_toy_data is not None:
-        #             args.dev_mu, args.train_sigma, args.dev_sigma, args.train_num, args.seed, args.seed_data, args.seed_gd = \
-        #                 args.load_toy_data.split("-")
-        #             args.dev_mu = float(args.dev_mu)
-        #             args.train_sigma = float(args.train_sigma)
-        #             args.dev_sigma = float(args.dev_sigma)
-        #             args.train_num = int(args.train_num)
-        #             args.seed = int(args.seed)
-        #             args.seed_data = int(args.seed_data)
-        #             args.seed_gd = int(args.seed_gd)
-        #         suffix += (f"lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-dmu{args.dev_mu}-dsig{args.dev_sigma}-aui{args.alpha_update_interval}")
-        #         suffix += ("-aproj" if args.approx_proj else "-proj")
-        # elif args.model_type in ["linear_dnn", "linear_dnn_fa"]:
-        #     model_info = f"d{args.input_dim}-l{args.lam}-h{args.dnn_hidden_dim}"
-        #     suffix = ""
-        #     if args.model_type == "linear_dnn_fa":
-        #         suffix += (f"oe{args.outer_epochs}-lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}")
-        # elif args.model_type in ["dnn_dnn", "dnn_dnn_fa"]:
-        #     model_info = f"d{args.input_dim}-gh{args.gd_dnn_hidden_dim}-l{args.lam}-h{args.dnn_hidden_dim}"
-        #     suffix = ""
-        #     if args.model_type == "dnn_dnn_fa":
-        #         suffix += (f"oe{args.outer_epochs}-lra{args.lr_alpha}-tmu{args.train_mu}-tsig{args.train_sigma}-tnoi{args.train_noise}-dmu{args.dev_mu}-dsig{args.dev_sigma}-dnoi{args.dev_noise}")
-        if args.model_type in ["trm", "linear"]:
-            # model_info = f"d{args.input_dim}-h{args.num_head}"
-            if args.data_names == "toy-add":
-                model_info = f"{args.ckpt_name}-add"
-                suffix = f"r{args.ratio_1_2}"
-            elif args.data_names == "toy-ts":
-                model_info = f"{args.ckpt_name}-ts-{args.max_length}"
-                suffix = ""
-                if args.add_noise is not None:
-                    suffix += f"-{args.add_noise}"
-            elif args.data_names == "toy-linear":
-                model_info = f"d{args.input_dim}"
-                suffix = ""
-                if args.add_noise is not None:
-                    suffix += f"-{args.add_noise}"
-            else:
-                raise NotImplementedError
-            if args.opt_alpha:
-                suffix += f"-opt-{args.outer_lr}-{args.opt_alpha_wm_steps}"
-                if args.alpha_reg is not None:
-                    suffix += f"-reg{args.alpha_reg}"
-                if args.alpha_reg2 is not None:
-                    suffix += f"-reg2{args.alpha_reg2}"
-            if args.eval_opt_alpha:
-                suffix += "-eval_opt"
-        
-        suffix += args.save_additional_suffix
-        save_path = os.path.join(
-            args.save,
-            args.model_type,
-            model_info,
-            (f"bs{args.batch_size}-lr{args.lr}-tn{args.train_num}-dn{args.dev_num}-e{args.epochs}"),
-            suffix,
-            f"{args.seed}-{args.seed_data}-{args.seed_gd}",
-        )
-        args.save = save_path
     elif args.type == "tokenize":
         pass
+    elif args.type == "dummy":
+        pass
     else:
-        raise NotImplementedError
+        raise NotImplementedError(args.type)
 
     return args

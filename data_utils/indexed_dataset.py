@@ -19,6 +19,8 @@ from itertools import accumulate
 import numpy as np
 import torch
 
+from utils import naive_copy_to_blob
+
 
 def __best_fitting_dtype(vocab_size=None):
     if vocab_size is not None and vocab_size < 65500:
@@ -121,6 +123,57 @@ def create_doc_idx(sizes):
         if s == 0:
             doc_idx.append(i + 1)
     return doc_idx
+
+
+class ChunkedDatasetBuilder():
+    def __init__(self, base_path, chunk_num_per_shard, split, output_path, dtype, tmp_output_path=None):
+        self.base_path = base_path
+        self.split = split
+        self.chunk_num_per_shard = chunk_num_per_shard
+        self.ofid = 0
+        self.dtype = dtype
+        self.output_path = output_path
+        self.bin_file = os.path.join(self.output_path, f"{self.split}_{self.ofid}.bin")
+        self.idx_file = os.path.join(self.output_path, f"{self.split}_{self.ofid}.idx")
+        self.tmp_output_path = tmp_output_path
+        if self.tmp_output_path is not None:
+            self.tmp_bin_file = os.path.join(self.tmp_output_path, f"{self.split}_{self.ofid}.bin")
+            self.tmp_idx_file = os.path.join(self.tmp_output_path, f"{self.split}_{self.ofid}.idx")
+            self.builder = make_builder(self.tmp_bin_file, impl="mmap", dtype=dtype)
+        else:
+            self.builder = make_builder(self.bin_file, impl="mmap", dtype=dtype)
+        self._chunks = []
+    
+    def add_np_item(self, item):
+        self._chunks.append(np.array(item, dtype=self.dtype))
+        if len(self._chunks) % self.chunk_num_per_shard == 0:
+            self.builder.add_np_items(self._chunks)
+            self.builder.finalize(self.tmp_idx_file)
+            self._chunks = []
+
+            if self.tmp_output_path is not None:
+                naive_copy_to_blob(self.base_path, self.tmp_bin_file, self.bin_file.replace(self.base_path, ""), rm_source=True)
+                naive_copy_to_blob(self.base_path, self.tmp_idx_file, self.idx_file.replace(self.base_path, ""), rm_source=True)
+
+            self.ofid += 1
+            self.bin_file = os.path.join(self.output_path, f"{self.split}_{self.ofid}.bin")
+            self.idx_file = os.path.join(self.output_path, f"{self.split}_{self.ofid}.idx")
+            
+            if self.tmp_output_path is not None:
+                self.tmp_bin_file = os.path.join(self.tmp_output_path, f"{self.split}_{self.ofid}.bin")
+                self.tmp_idx_file = os.path.join(self.tmp_output_path, f"{self.split}_{self.ofid}.idx")
+                self.builder = make_builder(self.tmp_bin_file, impl="mmap", dtype=self.dtype)
+            else:
+                self.builder = make_builder(self.bin_file, impl="mmap", dtype=self.dtype)
+    
+    def finalize(self):
+        if len(self._chunks) > 0:
+            self.builder.add_np_items(self._chunks)
+            self.builder.finalize(self.tmp_idx_file)
+            self._chunks = []
+        if self.tmp_output_path is not None:
+            naive_copy_to_blob(self.base_path, self.tmp_bin_file, self.bin_file.replace(self.base_path, ""), rm_source=True)
+            naive_copy_to_blob(self.base_path, self.tmp_idx_file, self.idx_file.replace(self.base_path, ""), rm_source=True)
 
 
 class IndexedDataset(torch.utils.data.Dataset):
@@ -547,6 +600,24 @@ class MMapIndexedDatasetBuilder(object):
         np_array = np.array(tensor.numpy(), dtype=self._dtype)
         self._data_file.write(np_array.tobytes(order='C'))
         self._sizes.append(np_array.size)
+
+    def add_items(self, tensors):
+        sizes = [tensor.size(-1) for tensor in tensors]
+        tensors = torch.cat(tensors, dim=0)
+        np_arrays = np.array(tensors.numpy(), dtype=self._dtype)
+        self._data_file.write(np_arrays.tobytes(order='C'))
+        self._sizes.extend(sizes)
+    
+    def add_np_item(self, np_array):
+        np_array = np.array(np_array, dtype=self._dtype)
+        self._data_file.write(np_array.tobytes(order='C'))
+        self._sizes.append(np_array.size)
+
+    def add_np_items(self, np_arrays):
+        sizes = [np_array.size for np_array in np_arrays]
+        np_arrays = np.concatenate(np_arrays, axis=0)
+        self._data_file.write(np_arrays.tobytes(order='C'))
+        self._sizes.extend(sizes)
 
     def end_document(self):
         self._doc_idx.append(len(self._sizes))

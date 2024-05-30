@@ -1,0 +1,8 @@
+allow-other: true
+
+azstorage:
+  type: block
+  account-name: msranlpintern
+  account-key: TDiIfKsHfxN+/5CFjVoWvWT3s3feQWnbhmp8DH3coHZEZB1FRMIDaaC8ijOfLA+An4RB/fUNdpUXCjBgX64vdQ==
+  mode: key
+  container: yuxian

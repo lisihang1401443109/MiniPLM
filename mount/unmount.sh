@@ -1,1 +1,1 @@
-sudo umount /mnt/yuxian/
+sudo umount $1

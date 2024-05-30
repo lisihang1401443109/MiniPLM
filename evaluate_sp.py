@@ -15,8 +15,8 @@ from tqdm import tqdm
 import numpy as np
 import json
 from utils import print_rank, save_rank, get_model
-from autoregressive_sampling import autoregressive_sampling
-from speculative_sampling import speculative_sampling, speculative_sampling2
+from speculative_decoding.autoregressive_sampling import autoregressive_sampling
+from speculative_decoding.speculative_sampling import speculative_sampling, speculative_sampling2
 
 from rouge_metric import compute_metrics
 import deepspeed

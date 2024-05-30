@@ -142,7 +142,7 @@ def initialize(args, do_distributed=True):
         
         
 # Load and save model
-def get_model(args, device, model_path=None, config=None, from_scratch=None):
+def get_model(args, device, model_path=None, config=None, from_scratch=None, model_cls=None):
     if model_path is None:
         model_path = args.model_path
     print_rank("Initializing model from {}".format(model_path), rank=0)
@@ -169,10 +169,12 @@ def get_model(args, device, model_path=None, config=None, from_scratch=None):
     else:
         config.is_model_parallel = False
         from_scratch = from_scratch if from_scratch is not None else args.from_scratch
+        model_cls = model_cls if model_cls is not None else AutoModelForCausalLM
         if from_scratch:
-            model = AutoModelForCausalLM.from_config(config, attn_implementation=args.attn_impl).to(device)
+            model = model_cls.from_config(config, attn_implementation=args.attn_impl).to(device)
         else:
-            model = AutoModelForCausalLM.from_pretrained(model_path, config=config, device_map={"": device}, torch_dtype=torch.float16)
+            dtype = torch.float32 if args.fp32 else torch.float16
+            model = model_cls.from_pretrained(model_path, config=config, device_map={"": device}, torch_dtype=dtype)
 
         if dist.get_rank() == 0:
             print(' > number of parameters: {}'.format(
@@ -194,7 +196,7 @@ def get_tokenizer(args, model_path=None):
         model_path = args.model_path
 
     tokenizer = AutoTokenizer.from_pretrained(model_path)
-    if args.model_type in ["gpt2", "opt", "llama", "gptj", "mistral"]:
+    if args.model_type in ["gpt2", "opt", "llama", "gptj", "mistral", "stable_lm"]:
         tokenizer.pad_token_id = tokenizer.eos_token_id
     
     return tokenizer
@@ -237,6 +239,15 @@ def copy_from_blob(base_path, source_dir, target_dir, rm_source=False):
     cmd = f"{base_path}/azcopy copy --recursive=true \"https://msranlpintern.blob.core.windows.net/yuxian/sps/{source_dir}{sas_token}\" {target_dir}"
     print(cmd)
     os.system(cmd)
+
+
+def naive_copy_to_blob(base_path, source_dir, target_dir, rm_source=False):
+    cmd = f"cp -r {source_dir} {base_path}/{target_dir}"
+    print(cmd)
+    os.system(cmd)
+    if rm_source:
+        print(f"rm -rf {source_dir}")
+        os.system(f"rm -rf {source_dir}")
 
 
 def remove_path(path):

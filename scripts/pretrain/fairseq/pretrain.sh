@@ -44,6 +44,7 @@ OPTS+=" --ckpt-name ${CKPT_NAME}"
 OPTS+=" --n-gpu ${GPUS_PER_NODE}"
 OPTS+=" --gradient-checkpointing"
 # data
+OPTS+=" --data-names owbt"
 OPTS+=" --data-dir ${DATA_DIR}"
 OPTS+=" --num-workers 4"
 OPTS+=" --dev-num 10000"

@@ -3,6 +3,6 @@ allow-other: true
 azstorage:
   type: block
   account-name: msranlpintern
-  account-key: TDiIfKsHfxN+/5CFjVoWvWT3s3feQWnbhmp8DH3coHZEZB1FRMIDaaC8ijOfLA+An4RB/fUNdpUXCjBgX64vdQ==
+  account-key: GmB6riG7iRFIVQO/z/R+3nUpGaak+uLSY0RW8wQMpNOeWzC9vUvSb/2qwibXVM9+9GajoorHPNFg+AStTJ5LEQ==
   mode: key
   container: yuxian

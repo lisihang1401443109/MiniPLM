@@ -95,7 +95,7 @@ class KDPreTrainer(PreTrainer):
     def evaluate(self):
         eval_sampler = DistributedSampler(self.eval_dataset, shuffle=False, drop_last=False, rank=self.dp_rank, num_replicas=self.dp_world_size)
         eval_dataloader = DataLoader(
-            self.eval_dataset, sampler=eval_sampler, batch_size=self.args.eval_batch_size, num_workers=self.args.num_workers, collate_fn=self.eval_dataset.collate_lm)
+            self.eval_dataset, sampler=eval_sampler, batch_size=self.args.eval_batch_size, num_workers=self.args.num_workers, collate_fn=self.eval_dataset.collate)
         
         self.model.eval()
         all_losses, all_lm_losses, all_kd_losses, all_kd_entropy = [], [], [], []

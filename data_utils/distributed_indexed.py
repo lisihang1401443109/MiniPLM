@@ -105,7 +105,9 @@ class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
         def __len__(self):
             return self._len
 
-    def __init__(self, path, name, rank_number=0, rank_total=1, do_probe=True, min_state=0, max_state=None, min_offset=0, max_offset=None, cache = None, load_to_ram=False):
+    def __init__(self, path, name, rank_number=0, rank_total=1, do_probe=True, 
+                 min_state=0, max_state=None, min_offset=0, max_offset=None, min_ratio=None, max_ratio=None,
+                 cache = None, load_to_ram=False):
         
         super().__init__()
 
@@ -129,6 +131,13 @@ class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
         self._bin_buffer_mmap = None
         self.max_state, self.history, self.lens = self._probe_data_path(self._path, self._name, self._rank_total, do_probe=do_probe, min_state=min_state, max_state=max_state)
         self.total_length = int(self.history[self.max_state-1][1])
+
+        if min_ratio is not None:
+            self.min_offset = int(min_ratio * self.total_length)
+        
+        if max_ratio is not None:
+            self.max_offset = int(max_ratio * self.total_length)
+
         self.valid_length = (self.max_offset if self.max_offset is not None else self.total_length) - self.min_offset
 
         if not dist.is_initialized() or dist.get_rank() == 0:  
@@ -185,8 +194,11 @@ class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
             source_file = os.path.join(path, name + f"_{self._state}")
         else:
             source_file = os.path.join(path, name)
-            
+        
+        assert os.path.exists(data_file_path(source_file)), "Data file not found: {}".format(data_file_path(source_file))
+        assert os.path.exists(index_file_path(source_file)), "Index file not found: {}".format(index_file_path(source_file))
         self._index = self.Index(index_file_path(source_file))
+        
         if load_to_ram:
             print("Loading from file")
             self._bin_buffer = np.fromfile(data_file_path(source_file), dtype=self._index.dtype)
@@ -229,15 +241,17 @@ class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
 
         if isinstance(idx, int):
             if idx >= self.total_length:
-                print(f"idx: {idx} total_length: {self.total_length}")
+                print(f"Distributed index stop interation. Idx: {idx} Total_length: {self.total_length}")
                 raise StopIteration
             
+            origin_state = self._state
             while idx >= self.history[self._state][1] or idx < self.history[self._state][0]:
                 self._state += 1
                 if self._state >= self.max_state:
                     self._state = 0
                 # print(self._state)
-            self._do_init(self._path, self._name, self._cache, self._state, self._do_probe, self._load_to_ram)
+            if self._state != origin_state:
+                self._do_init(self._path, self._name, self._cache, self._state, self._do_probe, self._load_to_ram)
             ptr, size = self._index[self.__relative_idx(idx)]
             return np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=size, offset=ptr)
         elif isinstance(idx, slice):
