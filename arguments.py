@@ -337,7 +337,7 @@ def get_args():
             f"{args.seed}",
         )
         args.save = save_path
-    elif args.type in ["sft", "pretrain"]:
+    elif args.type in ["sft", "pretrain", "sft_lm"]:
         args.save = os.path.join(
             base_save_path(args),
             (f"-mos{args.mos_experts}" if args.mos_experts is not None else ""),

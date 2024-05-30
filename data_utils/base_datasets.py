@@ -12,7 +12,7 @@ import numpy as np
 
 
 class BaseDataset(Dataset):
-    def __init__(self, args, tokenizer, split, data_path=None, num=-1, **kwargs):
+    def __init__(self, args, tokenizer, split, data_path=None, num=-1, ada_max_length=False, **kwargs):
         super().__init__()
         
         num_log = str(num) if num >= 0 else "ALL"
@@ -32,6 +32,7 @@ class BaseDataset(Dataset):
         self.order = None
         self.epoch = 0
         self.skip_offset = (-1, -1)
+        self.ada_max_length = ada_max_length
 
         self.load_data(**kwargs)
         

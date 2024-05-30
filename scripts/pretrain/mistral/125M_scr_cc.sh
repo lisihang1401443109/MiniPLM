@@ -18,7 +18,7 @@ TYPE="pretrain"
 CKPT_NAME="mistral/125M"
 CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
 # data
-DATA_DIR="${BASE_PATH}/processed_data/pretrain/owbt/chunked/mistral-1025"
+DATA_DIR="${BASE_PATH}/processed_data/pretrain/cc_head_fix/chunked/mistral-1025"
 # hp
 BATCH_SIZE=16
 LR=0.0006
@@ -46,11 +46,12 @@ OPTS+=" --n-nodes ${NNODES}"
 # OPTS+=" --gradient-checkpointing"
 OPTS+=" --from-scratch"
 # data
-OPTS+=" --data-names owbt"
+OPTS+=" --data-names cc_head"
 OPTS+=" --data-dir ${DATA_DIR}"
 OPTS+=" --num-workers 8"
-OPTS+=" --dev-num 10000"
+OPTS+=" --dev-num 16384"
 OPTS+=" --bin-data"
+OPTS+=" --no-shuffle"
 # hp
 OPTS+=" --lr ${LR}"
 OPTS+=" --lr-min ${LR_MIN}"
@@ -64,7 +65,7 @@ OPTS+=" --clip-grad 1.0"
 OPTS+=" --adam-beta 0.9"
 OPTS+=" --adam-beta2 0.98"
 OPTS+=" --adam-eps 1e-6"
-OPTS+=" --total-iters 140000"
+OPTS+=" --total-iters 200000"
 # length
 OPTS+=" --max-length ${MAX_LENGTH}"
 # runtime
@@ -72,9 +73,11 @@ OPTS+=" --do-train"
 OPTS+=" --do-valid"
 OPTS+=" --save-interval 5000"
 OPTS+=" --eval-interval 1000"
-OPTS+=" --log-interval 4"
+OPTS+=" --log-interval 10"
 OPTS+=" --mid-log-num 1"
 OPTS+=" --save ${SAVE_PATH}"
+OPTS+=" --wandb-group main"
+OPTS+=" --wandb-name ms125_cc"
 # seed
 OPTS+=" --seed ${SEED}"
 # deepspeed

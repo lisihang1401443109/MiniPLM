@@ -13,8 +13,8 @@ from .base_datasets import BaseDataset
 
 
 class PromptDataset(BaseDataset):
-    def __init__(self, args, tokenizer, split, data_path=None, num=-1, **kwargs):
-        super().__init__(args, tokenizer, split, data_path, num, **kwargs)
+    def __init__(self, args, tokenizer, split, data_path=None, num=-1, ada_max_length=False, **kwargs):
+        super().__init__(args, tokenizer, split, data_path, num, ada_max_length=ada_max_length, **kwargs)
         self.split_token_id = self.args.split_token_id or len(tokenizer)
 
     def __len__(self):
@@ -49,9 +49,12 @@ class PromptDataset(BaseDataset):
             return None, None
         
         bs = len(samples)
-        max_length = max([len(samp[1]) + len(samp[2]) for samp in samples])
-        max_length = min(max_length-1, self.max_length)
-        
+        if self.ada_max_length:
+            max_length = max([len(samp[1]) + len(samp[2]) for samp in samples])
+            max_length = min(max_length-1, self.max_length)
+        else:
+            max_length = self.max_length
+
         model_batch = {
             "input_ids": torch.ones(bs, max_length, dtype=torch.long) * self.pad_id,
             "attention_mask": torch.zeros(bs, max_length, dtype=torch.long),

@@ -14,9 +14,3 @@ pip3 install peft
 pip3 install matplotlib
 pip3 install wandb
 pip3 install cvxpy
-
-ln -s /data/guyuxian/sps/results/ results
-ln -s /data/guyuxian/sps/processed_data/ processed_data
-ln -s /data/guyuxian/data downstream_data
-ln -s /data/guyuxian/checkpoints checkpoints
-ln -s /data/guyuxian/pretrain_data pretrain_data
