@@ -16,6 +16,8 @@ class PromptDataset(BaseDataset):
     def __init__(self, args, tokenizer, split, data_path=None, num=-1, ada_max_length=False, **kwargs):
         super().__init__(args, tokenizer, split, data_path, num, ada_max_length=ada_max_length, **kwargs)
         self.split_token_id = self.args.split_token_id or len(tokenizer)
+        self.min_prompt_length = args.min_prompt_length
+        self.max_prompt_length = args.max_prompt_length
 
     def __len__(self):
         return self.num
@@ -37,6 +39,10 @@ class PromptDataset(BaseDataset):
         elif self.args.json_data:
             prompt_ids = data["prompt_ids"]
             response_ids = data["output_ids"]
+
+        if self.args.trunc_data:
+            prompt_ids = prompt_ids[:self.args.max_prompt_length]
+            response_ids = response_ids[:self.args.max_length + 1 - len(prompt_ids)]
 
         assert len(prompt_ids) + len(response_ids) <= self.args.max_length + 1, \
             f"Prompt and response too long: {len(prompt_ids)} + {len(response_ids)} > {self.args.max_length + 1}"        

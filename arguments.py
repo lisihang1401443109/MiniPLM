@@ -116,6 +116,7 @@ def add_data_args(parser: argparse.ArgumentParser):
     group.add_argument("--num-workers", type=int, default=1)
     group.add_argument("--max-prompt-length", type=int, default=512)
     group.add_argument("--min-prompt-length", type=int, default=128)
+    group.add_argument("--trunc-data", action="store_true")
     group.add_argument("--json-data", action="store_true")
     group.add_argument("--bin-data", action="store_true")
     group.add_argument("--txt-data", action="store_true")
@@ -135,8 +136,6 @@ def add_data_args(parser: argparse.ArgumentParser):
     group.add_argument("--only-prompt", action="store_true")
     
     group.add_argument("--chunk-num-per-shard", type=int, default=10000)
-    group.add_argument("--corrupt-interval", type=int, default=10)
-    group.add_argument("--corrupt-type", type=str, default="interval")
     group.add_argument("--max-shard-num", type=int, default=10000000)
     group.add_argument("--max-sample-num", type=int, default=None)
 

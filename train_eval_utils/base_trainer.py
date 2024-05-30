@@ -352,6 +352,7 @@ class BaseTrainer():
             print(model_batch["attention_mask"][0].cpu().tolist())
             print(no_model_batch["label"][0].cpu().tolist())
             print(no_model_batch["loss_mask"][0].int().cpu().tolist())
+            print("#### Size:", model_batch["input_ids"].size(), "####")
             torch.save(model_batch, os.path.join(self.args.save, "model_batch_0.pt"))
             torch.save(no_model_batch, os.path.join(self.args.save, "no_model_batch_0.pt"))
 

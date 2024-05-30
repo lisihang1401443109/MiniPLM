@@ -26,8 +26,6 @@ class BaseDataset(Dataset):
         self.pad_id = self.tokenizer.pad_token_id
         self.eod_id = self.tokenizer.eos_token_id
         self.max_length = args.max_length
-        self.min_prompt_length = args.min_prompt_length
-        self.max_prompt_length = args.max_prompt_length
         self.answers = None
         self.order = None
         self.epoch = 0
@@ -100,7 +98,7 @@ class BaseDataset(Dataset):
                     output_ids = self.tokenizer.encode(d["output"])
             data.append({
                 "prompt_ids": prompt_ids,
-                "output_ids": output_ids[:self.max_length - self.max_prompt_length]
+                "output_ids": output_ids
             })
         print_rank("Load End")
         return data, data_origin
