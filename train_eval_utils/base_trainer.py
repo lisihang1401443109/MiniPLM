@@ -127,6 +127,10 @@ class BaseTrainer():
         self.model = model
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
+        
+        if self.args.torch_compile is not None:
+            print_rank(f"Torch Compile Mode: {self.args.torch_compile}")
+            self.model = torch.compile(self.model, mode=self.args.torch_compile)
 
     def resume_training(self):
         load_dir = self.args.resume_dir or self.args.save

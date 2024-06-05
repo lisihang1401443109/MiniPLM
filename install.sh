@@ -14,3 +14,4 @@ pip3 install peft
 pip3 install matplotlib
 pip3 install wandb
 pip3 install cvxpy
+pip3 install xformers

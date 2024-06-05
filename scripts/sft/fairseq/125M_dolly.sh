@@ -16,10 +16,10 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
 # type
 TYPE="sft"
 # model
-CKPT_NAME="fairseq/125M"
+CKPT_NAME="gpt2/base"
 CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
 # data
-DATA_DIR="${BASE_PATH}/processed_data/dolly/fairseq"
+DATA_DIR="${BASE_PATH}/processed_data/dolly/gpt2"
 # hp
 BATCH_SIZE=4
 LR=0.0005
@@ -35,7 +35,7 @@ SEED=10
 
 OPTS=""
 # model
-OPTS+=" --model-type fairseq"
+OPTS+=" --model-type gpt2"
 OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --model-path ${CKPT}"
 OPTS+=" --ckpt-name ${CKPT_NAME}"

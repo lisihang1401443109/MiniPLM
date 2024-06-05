@@ -146,6 +146,7 @@ def get_model(args, device, model_path=None, config=None, from_scratch=None, mod
     if model_path is None:
         model_path = args.model_path
     print_rank("Initializing model from {}".format(model_path), rank=0)
+    print_rank(f"Attention Implementation: {args.attn_impl}")
     if config is None:
         config = AutoConfig.from_pretrained(model_path, attn_implementation=args.attn_impl)
         
@@ -153,6 +154,7 @@ def get_model(args, device, model_path=None, config=None, from_scratch=None, mod
         config.drop_path_rate = args.dropout_path_rate
     if args.xops_attn:
         assert args.attn_impl == "eager"
+        print_rank("Xops Attention")
         config.use_memory_efficient_attention = True
 
     st_time = time.time()

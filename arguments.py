@@ -45,8 +45,9 @@ def add_model_args(parser: argparse.ArgumentParser):
     group.add_argument("--mos-experts", type=int, default=None)
     group.add_argument("--fp32", action="store_true")
     
-    group.add_argument("--attn-impl", type=str, default="eager")
+    group.add_argument("--attn-impl", type=str, default=None)
     group.add_argument("--xops-attn", action="store_true")
+    group.add_argument("--torch-compile", type=str, default=None)
     
     return parser
 

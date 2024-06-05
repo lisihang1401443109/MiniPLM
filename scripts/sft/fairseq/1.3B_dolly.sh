@@ -16,13 +16,13 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
 # type
 TYPE="sft"
 # model
-CKPT_NAME="fairseq/125M"
+CKPT_NAME="gpt2/base"
 CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
 # data
-DATA_DIR="${BASE_PATH}/processed_data/dolly/fairseq"
+DATA_DIR="${BASE_PATH}/processed_data/dolly/gpt2"
 # hp
 BATCH_SIZE=4
-LR=0.0005
+LR=0.00005
 GRAD_ACC=1
 EVAL_BATCH_SIZE=32
 # length
@@ -35,7 +35,7 @@ SEED=10
 
 OPTS=""
 # model
-OPTS+=" --model-type fairseq"
+OPTS+=" --model-type gpt2"
 OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --model-path ${CKPT}"
 OPTS+=" --ckpt-name ${CKPT_NAME}"
@@ -58,7 +58,7 @@ OPTS+=" --warmup-iters 0"
 OPTS+=" --lr-decay-style cosine"
 OPTS+=" --weight-decay 1e-2"
 OPTS+=" --clip-grad 1.0"
-OPTS+=" --epochs 20"
+OPTS+=" --epochs 10"
 # length
 OPTS+=" --max-length ${MAX_LENGTH}"
 OPTS+=" --max-prompt-length 256"
@@ -88,7 +88,6 @@ OPTS+=" --temperature 1.0"
 
 export NCCL_DEBUG=""
 export WANDB_DISABLED=True
-export TOKENIZERS_PARALLELISM=false
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
 CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/train.py ${OPTS} $@"

@@ -38,6 +38,9 @@ class Encoder(object):
         response = line["output"]
         prompt_tokens = Encoder.tokenizer.encode(prompt, add_special_tokens=False)
         full_tokens = Encoder.tokenizer.encode(prompt + response, add_special_tokens=False) + [Encoder.tokenizer.eos_token_id]
+        if self.args.model_type in ["fairseq", "mistral", "llama"]:
+            prompt_tokens = [Encoder.tokenizer.bos_token_id] + prompt_tokens
+            full_tokens = [Encoder.tokenizer.bos_token_id] + full_tokens
         response_tokens = full_tokens[len(prompt_tokens):]
         
         if len(prompt_tokens) > self.args.max_prompt_length:
@@ -59,7 +62,7 @@ def main():
 
     if args.dev_num > 0:
         all_data = {
-            "valid": raw_data[:args.dev_num],
+            "dev": raw_data[:args.dev_num],
             "train": raw_data[args.dev_num:]
         }
     else:
@@ -96,6 +99,11 @@ def main():
             total_bytes_processed += bytes_processed
             if prompt is None:
                 continue
+            if inst_num == 0:
+                print("Prompt", prompt_str)
+                print("Response", response)
+                print("Prompt tokens", prompt)
+                print("Response tokens", response)
             
             binary_builder.add_item(torch.IntTensor(prompt + [-1] + response))
 
