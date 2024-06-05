@@ -1,0 +1,1 @@
+nvidia-docker run -t -i -v /data/yuxiangu/sps/:/root/sps/ -v /mnt/chongqinggeminiceph1fs/geminicephfs/wxime-training/yuxiangu/:/mnt/yuxian/ weregistry.woa.com/llanjiang/py3.10_cuda11.8_transformers4.35_torch2.1_vllm0.2.2:v5_attack /bin/bash
