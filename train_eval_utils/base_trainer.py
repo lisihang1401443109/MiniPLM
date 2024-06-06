@@ -51,6 +51,9 @@ class BaseTrainer():
         self.exp_name = args.save.strip("/").replace(args.base_path.strip("/"), "").replace("_", "").replace("/", "_").strip("_")
         self.wandb_name = self.args.wandb_name if self.args.wandb_name is not None else self.exp_name
         self.group_name = self.args.wandb_group or "pad"
+        self.steps = 0
+        self.global_steps = 1
+        self.epoch = 0
         self.epochs = 0
         self.total_steps = 0
         self.first_printed = False
@@ -195,11 +198,11 @@ class BaseTrainer():
     def set_datasets(self, args=None, do_train=True):
         args = args or self.args
         if do_train:
-            self.train_dataset = PromptDataset(args, self.tokenizer, "train", args.data_dir, args.train_num, ada_max_length=True)
+            self.train_dataset = PromptDataset(args, self.tokenizer, "train", args.data_dir, args.train_num, ada_max_length=args.ada_max_length)
             print_rank("train num", len(self.train_dataset))
-            self.eval_dataset = PromptDataset(args, self.tokenizer, "dev", args.data_dir, args.dev_num, ada_max_length=True)
+            self.eval_dataset = PromptDataset(args, self.tokenizer, "dev", args.data_dir, args.dev_num, ada_max_length=args.ada_max_length)
         else:
-            self.eval_dataset = PromptDataset(args, self.tokenizer, "test", args.data_dir, args.dev_num, ada_max_length=True)
+            self.eval_dataset = PromptDataset(args, self.tokenizer, "test", args.data_dir, args.dev_num, ada_max_length=args.ada_max_length)
 
     def compute_loss(self, model_batch, no_model_batch):
         raise NotImplementedError
@@ -369,10 +372,6 @@ class BaseTrainer():
             train_sampler = DistributedSampler(self.train_dataset, shuffle=((not self.args.precompute_data_order) and (not self.args.no_shuffle)), drop_last=True, rank=self.dp_rank, num_replicas=self.dp_world_size)
             train_dataloader = DataLoader(
                 self.train_dataset, sampler=train_sampler, batch_size=self.args.batch_size, num_workers=self.args.num_workers, collate_fn=self.train_dataset.collate, drop_last=True)
-
-        self.steps = 0
-        self.global_steps = 1
-        self.epoch = 0
         
         logging_stats = defaultdict(float)
         if self.args.do_train and dist.get_rank() == 0:

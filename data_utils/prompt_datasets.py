@@ -41,7 +41,7 @@ class PromptDataset(BaseDataset):
             response_ids = data["output_ids"]
 
         if self.args.trunc_data:
-            prompt_ids = prompt_ids[:self.args.max_prompt_length]
+            prompt_ids = prompt_ids[-self.args.max_prompt_length:]
             response_ids = response_ids[:self.args.max_length + 1 - len(prompt_ids)]
 
         assert len(prompt_ids) + len(response_ids) <= self.args.max_length + 1, \

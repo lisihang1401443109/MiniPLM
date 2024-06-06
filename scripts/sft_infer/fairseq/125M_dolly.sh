@@ -14,10 +14,10 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
                   --master_port $MASTER_PORT"
 
 # type
-TYPE="sft"
+TYPE="sft_lm_infer"
 # model
-CKPT_NAME="fairseq/125M"
-CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
+CKPT_NAME="fairseq_125M_3927"
+CKPT="${BASE_PATH}/results/sft/dolly/fairseq_125M/e20-bs4-lr0.0005cosine1e-07-G1-N8-NN1/3927"
 # data
 DATA_DIR="${BASE_PATH}/processed_data/dolly/fairseq"
 # hp
@@ -40,38 +40,23 @@ OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --model-path ${CKPT}"
 OPTS+=" --ckpt-name ${CKPT_NAME}"
 OPTS+=" --n-gpu ${GPUS_PER_NODE}"
-# OPTS+=" --gradient-checkpointing"
 # data
 OPTS+=" --data-names dolly"
 OPTS+=" --data-dir ${DATA_DIR}"
 OPTS+=" --num-workers 0"
-OPTS+=" --dev-num 1000"
+OPTS+=" --infer-num -1"
 OPTS+=" --bin-data"
 OPTS+=" --split-token-id 65535"
 OPTS+=" --trunc-data"
 OPTS+=" --ada-max-length"
+OPTS+=" --data-split train"
 # hp
-OPTS+=" --lr ${LR}"
-OPTS+=" --batch-size ${BATCH_SIZE}"
 OPTS+=" --eval-batch-size ${EVAL_BATCH_SIZE}"
-OPTS+=" --gradient-accumulation-steps ${GRAD_ACC}"
-OPTS+=" --warmup-iters 0"
-OPTS+=" --lr-decay-style cosine"
-OPTS+=" --weight-decay 1e-2"
-OPTS+=" --clip-grad 1.0"
-OPTS+=" --epochs 20"
 # length
 OPTS+=" --max-length ${MAX_LENGTH}"
 OPTS+=" --max-prompt-length 256"
 # runtime
-OPTS+=" --do-train"
-OPTS+=" --do-valid"
-OPTS+=" --eval-ppl"
-OPTS+=" --eval-gen"
-OPTS+=" --save-interval -1"
-OPTS+=" --eval-interval -1"
-OPTS+=" --log-interval 4"
-OPTS+=" --mid-log-num -1"
+OPTS+=" --do-infer"
 OPTS+=" --save ${SAVE_PATH}"
 # seed
 OPTS+=" --seed ${SEED}"
@@ -80,19 +65,13 @@ OPTS+=" --deepspeed"
 OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
 # type
 OPTS+=" --type ${TYPE}"
-# gen
-OPTS+=" --do-sample"
-OPTS+=" --top-k 0"
-OPTS+=" --top-p 1.0"
-OPTS+=" --temperature 1.0"
-
 
 export NCCL_DEBUG=""
 export WANDB_DISABLED=True
 export TOKENIZERS_PARALLELISM=false
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
-CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/train.py ${OPTS} $@"
+CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/inference.py ${OPTS} $@"
 
 echo ${CMD}
 echo "PYTHONPATH=${PYTHONPATH}"

@@ -117,6 +117,7 @@ def add_data_args(parser: argparse.ArgumentParser):
     group.add_argument("--num-workers", type=int, default=1)
     group.add_argument("--max-prompt-length", type=int, default=512)
     group.add_argument("--min-prompt-length", type=int, default=128)
+    group.add_argument("--ada-max-length", action="store_true")
     group.add_argument("--trunc-data", action="store_true")
     group.add_argument("--json-data", action="store_true")
     group.add_argument("--bin-data", action="store_true")
@@ -379,6 +380,8 @@ def get_args():
         
         if args.warmup_iters > 0:
             assert args.scheduler_name is not None
+    elif args.type == "sft_lm_infer":
+        args.save = base_save_path_eval(args)
     elif args.type == "tokenize":
         pass
     elif args.type == "dummy":
