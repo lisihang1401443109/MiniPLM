@@ -2,35 +2,15 @@ import time
 import os
 
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
-from torch.utils.data import DataLoader, DistributedSampler
-from torch.optim import AdamW
-import deepspeed
 
-import random
 import json
-from tqdm import tqdm
-import math
 from arguments import get_args
 
-from utils import print_args, initialize
-from utils import print_rank
-from utils import save_rank
-from utils import get_tokenizer
+from utils import print_args, initialize, save_rank
 
-from kd.trainer import KDTrainer
-from sft.trainer import SFTTrainer
-from sft.lm_trainer import SFTLMTrainer
-from mos.trainer import MOSKDTrainer
-from mos.trainer import MOSSFTTrainer
 from pretrain.trainer import PreTrainer
-from pretrain.residual_trainer import ResidualPreTrainer
-from pretrain.residual_kd_trainer import ResidualKDPreTrainer
-from pretrain.kd_trainer import KDPreTrainer
-from pretrain.contrastive_kd_trainer import ContrastiveKDPreTrainer
+from vanilla_kd.trainer import VanillaKDPreTrainer
 
 
 torch.set_num_threads(16)
@@ -65,28 +45,12 @@ def main():
     
     args.deepspeed_config = None
     
-    if args.type == "kd":
-        trainer = KDTrainer(args, ds_config, device, args.do_train)
-    elif args.type == "sft":
-        trainer = SFTTrainer(args, ds_config, device, args.do_train)
-    elif args.type == "sft_lm":
-        trainer = SFTLMTrainer(args, ds_config, device, args.do_train)
-    elif args.type == "mos_kd":
-        trainer = MOSKDTrainer(args, ds_config, device, args.do_train)
-    elif args.type == "mos_sft":
-        trainer = MOSSFTTrainer(args, ds_config, device, args.do_train)
-    elif args.type == "pretrain":
+    if args.type == "pretrain":
         trainer = PreTrainer(args, ds_config, device, args.do_train)
-    elif args.type == "pt_rsd":
-        trainer = ResidualPreTrainer(args, ds_config, device, args.do_train)
-    elif args.type == "kd_rsd":
-        trainer = ResidualKDPreTrainer(args, ds_config, device, args.do_train)
-    elif args.type == "kd_pretrain":
-        trainer = KDPreTrainer(args, ds_config, device, args.do_train)
-    elif args.type == "kd_contrastive":
-        trainer = ContrastiveKDPreTrainer(args, ds_config, device, args.do_train)
+    elif args.type == "vanilla_kd":
+        trainer = VanillaKDPreTrainer(args, ds_config, device, args.do_train)
     else:
-        raise NotImplementedError        
+        raise NotImplementedError(f"Type {args.type} not implemented.")
     
     trainer.train()
 

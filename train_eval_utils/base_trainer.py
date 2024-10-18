@@ -1,32 +1,31 @@
-import torch
-import random
 import os
-import re
-import wandb
 import uuid
-
-from utils import print_rank, get_model, save_rank, save_parallel, get_tokenizer, all_gather
-from torch.distributed import get_rank
-import torch.distributed as dist
-from torch.utils.data import DataLoader, DistributedSampler
-from torch.optim import AdamW
-import torch.nn as nn
-import torch.nn.functional as F
-import deepspeed
+import json
 import math
+import wandb
+import random
+import deepspeed
 import numpy as np
 from time import time
-from collections import defaultdict
-from data_utils.prompt_datasets import PromptDataset
-import json
 from tqdm import tqdm
+from collections import defaultdict
+
+import torch
+import torch.nn as nn
+import torch.distributed as dist
+from torch.distributed import get_rank
+from torch.utils.data import DataLoader, DistributedSampler
+from torch.optim import AdamW, SGD, Adam
+from data_utils.prompt_datasets import PromptDataset
+
 from transformers import (
     GenerationConfig,
     get_constant_schedule_with_warmup,
     get_polynomial_decay_schedule_with_warmup,
 )
-from rouge_metric import compute_metrics
-from torch.func import functional_call, vmap, grad
+from utils import print_rank, save_rank, save_parallel, all_gather, print_and_save_rank
+from utils import get_model, get_tokenizer
+from utils import WANDB_PROJ_NAME
 
 from .schedulers import WarmupCosineAnnealingLR
 
@@ -43,20 +42,18 @@ class BaseTrainer():
         self.device = device
         self.do_train = do_train
         self.tokenizer = get_tokenizer(args)
-        self.G_2 = 0
-        self.S = 0
-        self.grad_norm_small_batch = 0
         self.grad_norm = 0
-        self.norm_exp_avg_gamma = 0.9
         self.exp_name = args.save.strip("/").replace(args.base_path.strip("/"), "").replace("_", "").replace("/", "_").strip("_")
         self.wandb_name = self.args.wandb_name if self.args.wandb_name is not None else self.exp_name
         self.group_name = self.args.wandb_group or "pad"
-        self.steps = 0
-        self.global_steps = 1
-        self.epoch = 0
-        self.epochs = 0
-        self.total_steps = 0
+        self.global_steps = None
+        self.steps = None
+        self.epoch = None
+        self.epochs = None
+        self.total_steps = None
         self.first_printed = False
+        if self.args.start_from_global_step is not None:
+            self.last_global_steps = self.args.start_from_global_step
         
         if args.model_parallel:
             self.dp_world_size = mpu.get_data_parallel_world_size()
@@ -74,31 +71,38 @@ class BaseTrainer():
     
     def get_optimizer(self, model, args=None):
         args = args or self.args
-        # Use AdamW.
-        optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay, eps=args.adam_eps, betas=(args.adam_beta, args.adam_beta2))
-        print_rank(f'Optimizer = {optimizer.__class__.__name__}')
+        if self.args.optimizer_name.lower() == "sgd":
+            optimizer = SGD(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+        elif self.args.optimizer_name.lower() == "adam":
+            optimizer = Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay, eps=args.adam_eps, betas=(args.adam_beta, args.adam_beta2))
+        elif self.args.optimizer_name.lower() == "adamw":
+            optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay, eps=args.adam_eps, betas=(args.adam_beta, args.adam_beta2))
+        else:
+            raise ValueError(f"Optimizer of type {self.args.optimizer_name} is not supported yet.")
+        print_and_save_rank(f'Optimizer = {optimizer.__class__.__name__}')
         return optimizer
         
     def get_lr_scheduler(self, optimizer, args=None):
         args = args or self.args
-        if args.lr_decay_style == "constant":
+        assert self.total_steps is not None and self.total_steps > 0
+        if args.scheduler_name == "constant":
             lr_scheduler = get_constant_schedule_with_warmup(
                 optimizer,
                 num_warmup_steps=args.warmup_iters)
-        elif args.lr_decay_style == "cosine":
+        elif args.scheduler_name == "cosine":
             lr_scheduler = WarmupCosineAnnealingLR(
                 optimizer,
                 T_max=self.total_steps,
                 warmup_steps=args.warmup_iters,
                 eta_min=args.lr_min)
-        elif args.lr_decay_style == "noam":
+        elif args.scheduler_name == "noam":
             lr_scheduler = get_polynomial_decay_schedule_with_warmup(
                 optimizer,
                 num_warmup_steps=args.warmup_iters,
                 num_training_steps=self.total_steps,
                 power=0.5)
         else:
-            raise ValueError(f"lr_scheduler of type {args.lr_decay_style} is not supported yet.")
+            raise ValueError(f"lr_scheduler of type {args.scheduler_name} is not supported yet.")
 
         return lr_scheduler
     
@@ -125,14 +129,14 @@ class BaseTrainer():
         )
         
         # get the memory usage
-        print_rank("Model mem\n", torch.cuda.memory_summary())
+        print_and_save_rank("Model mem\n", torch.cuda.memory_summary(), os.path.join(args.save, "log.txt"))
         
         self.model = model
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
         
         if self.args.torch_compile is not None:
-            print_rank(f"Torch Compile Mode: {self.args.torch_compile}")
+            print_and_save_rank(f"Torch Compile Mode: {self.args.torch_compile}", os.path.join(args.save, "log.txt"))
             self.model = torch.compile(self.model, mode=self.args.torch_compile)
 
     def resume_training(self):
@@ -152,8 +156,9 @@ class BaseTrainer():
         self.last_global_steps = dynamics["global_steps"]
         self.train_dataset.set_skip_offset(dynamics["skip_offset"])
         
-        print_rank(f"Resume from {load_dir} {tag}")
-        print_rank(f"Resume from step {self.last_steps}, epoch {self.last_epochs}, global step {self.last_global_steps}")
+        print_and_save_rank(f"Resume from {load_dir} {tag}", os.path.join(self.args.save, "log.txt"))
+        print_and_save_rank(f"Resume from step {self.last_steps}, epoch {self.last_epochs}, global step {self.last_global_steps}",
+                            os.path.join(self.args.save, "log.txt"))
  
     def prepare_learning(self, args=None):
         args = args or self.args
@@ -185,12 +190,20 @@ class BaseTrainer():
             assert os.path.exists(os.path.join(self.args.save, "data_order.npy"))
             self.train_dataset.set_order(path=os.path.join(self.args.save, "data_order.npy"))
 
-        print_rank(f"Total batch size: {self.total_batch_size}")
-        print_rank(f"Total iters: {self.total_steps}")
-        print_rank(f"Total epochs: {self.epochs}")
-        print_rank(f"Train iters per epoch: {self.train_iters_per_epoch}")
-        print_rank(f"Save interval: {args.save_interval}")
-        print_rank(f"Eval interval: {args.eval_interval}")
+        print_and_save_rank(f"Total batch size: {self.total_batch_size}", os.path.join(args.save, "log.txt"))
+        print_and_save_rank(f"Total iters: {self.total_steps}", os.path.join(args.save, "log.txt"))
+        print_and_save_rank(f"Total epochs: {self.epochs}", os.path.join(args.save, "log.txt"))
+        print_and_save_rank(f"Train iters per epoch: {self.train_iters_per_epoch}", os.path.join(args.save, "log.txt"))
+        print_and_save_rank(f"Save interval: {args.save_interval}", os.path.join(args.save, "log.txt"))
+        print_and_save_rank(f"Eval interval: {args.eval_interval}", os.path.join(args.save, "log.txt"))
+    
+        self.train_dataloader, self.train_sampler = self.get_train_sampler_dataloader()
+    
+    def get_train_sampler_dataloader(self):
+        train_sampler = DistributedSampler(self.train_dataset, shuffle=((not self.args.precompute_data_order) and (not self.args.no_shuffle)), drop_last=True, rank=self.dp_rank, num_replicas=self.dp_world_size)
+        train_dataloader = DataLoader(
+            self.train_dataset, sampler=train_sampler, batch_size=self.args.batch_size, num_workers=self.args.num_workers, collate_fn=self.train_dataset.collate, drop_last=True)
+        return train_dataloader, train_sampler
     
     def prepare_inference(self, args=None):
         pass
@@ -199,10 +212,14 @@ class BaseTrainer():
         args = args or self.args
         if do_train:
             self.train_dataset = PromptDataset(args, self.tokenizer, "train", args.data_dir, args.train_num, ada_max_length=args.ada_max_length)
-            print_rank("train num", len(self.train_dataset))
-            self.eval_dataset = PromptDataset(args, self.tokenizer, "dev", args.data_dir, args.dev_num, ada_max_length=args.ada_max_length)
+            print_and_save_rank("### Training Data Number:", len(self.train_dataset), os.path.join(args.save, "log.txt"))
+            if args.dev_data_dir is not None:
+                self.eval_dataset = PromptDataset(args, self.tokenizer, "dev", args.dev_data_dir, args.dev_num, ada_max_length=args.ada_max_length)
+                print_and_save_rank("### Dev Data Number:", len(self.eval_dataset), os.path.join(args.save, "log.txt"))
+            else:
+                self.eval_dataset = None
         else:
-            self.eval_dataset = PromptDataset(args, self.tokenizer, "test", args.data_dir, args.dev_num, ada_max_length=args.ada_max_length)
+            self.eval_dataset = PromptDataset(args, self.tokenizer, "test", args.test_data_dir, args.dev_num, ada_max_length=args.ada_max_length)
 
     def compute_loss(self, model_batch, no_model_batch):
         raise NotImplementedError
@@ -215,6 +232,7 @@ class BaseTrainer():
             loss_func = nn.CrossEntropyLoss(reduction="none")
             lm_losses = loss_func(logits.float().view(-1, logits.shape[-1]), label.view(-1))
             lm_losses = lm_losses.view(-1, label.size(-1))
+        assert all(torch.sum(loss_mask, dim=-1) > 0)
         lm_loss = torch.sum((lm_losses * loss_mask), dim=-1) / torch.sum(loss_mask, dim=-1)
         return lm_loss
 
@@ -222,22 +240,17 @@ class BaseTrainer():
         outputs = self.model(**model_batch, use_cache=False)
         logits = outputs.logits
 
-        # probs = torch.softmax(logits, dim=-1)
-        # one_hot_labels = F.one_hot(no_model_batch["label"], num_classes=probs.shape[-1])
-        
-        # grad_on_logits = one_hot_labels - probs
-        
-        # tmp = grad_on_logits.norm(dim=-1) ** 0.5
-        # tmp = tmp * no_model_batch["loss_mask"] / torch.sum(no_model_batch["loss_mask"], dim=-1, keepdim=True)
-        # tmp = tmp * 2048 / 4
-        # print_rank(tmp)
-
         lm_loss = self._get_lm_loss_from_logits(logits, no_model_batch["label"], no_model_batch["loss_mask"])
         
         if mean:
             lm_loss = lm_loss.mean()            
         
         return lm_loss
+
+    def print_and_save(self, log_str, output_path=None):
+        output_path = output_path or self.args.save
+        print_rank(log_str)
+        save_rank(log_str, os.path.join(output_path, "log.txt"))
 
     def get_log(self, stats, phase, **kwargs):
         log_prefix = "{} | epoch {}/{} | steps {} | global_steps {}/{}".format(
@@ -254,158 +267,121 @@ class BaseTrainer():
         
         return log_prefix + " | " + log_midfix + " | " + log_suffix
 
-    def compute_instance_grad_norm_2(self, model, model_batch, no_model_batch):
-        params = {k: v.detach() for k, v in model.named_parameters()}
-        buffers = {k: v.detach() for k, v in model.named_buffers()}
-        input_ids = model_batch["input_ids"]
-        attention_mask = model_batch["attention_mask"]
-        label = no_model_batch["label"]
-        loss_mask = no_model_batch["loss_mask"]
-        
-        def _compute_loss(params, buffers, input_ids, attention_mask, label, loss_mask):
-            input_ids = input_ids.unsqueeze(0)
-            attention_mask = attention_mask.unsqueeze(0)
-            label = label.unsqueeze(0)
-
-            outputs = functional_call(model, (params, buffers), (input_ids, attention_mask))
-            loss = self._get_lm_loss_from_logits(outputs.logits, label, loss_mask)
-            loss = loss.mean()
-            return loss
-
-        ft_compute_grad = grad(_compute_loss)
-        ft_compute_sample_grad = vmap(ft_compute_grad, in_dims=(None, None, 0, 0, 0, 0), randomness="same")
-        ft_per_sample_grads = ft_compute_sample_grad(params, buffers, input_ids, attention_mask, label, loss_mask)
-        total_norm_2 = torch.zeros(1, device=self.device)
-        for k, v in ft_per_sample_grads.items():
-            param_norm = v.norm(2, dim=-1)
-            total_norm_2 += (param_norm * param_norm).sum()
-        
-        dist.all_reduce(total_norm_2, group=self.dp_group, op=dist.ReduceOp.SUM)
-        return total_norm_2
-
-    def compute_scaled_grad_norm(self, model):
-        grad_norm = 0.0
-        for p in model.parameters():
-            if p.grad is not None:
-                grad_norm += p.grad.data.float().norm(2).item() ** 2
-        grad_norm = grad_norm ** 0.5
-        return grad_norm
-
-    def compute_scaled_grad_norm_per_layer(self):
-        grad_norm = 0.0
-        pattern = r"model.layers.(\d+).*"
-        d = defaultdict(float)
-        for n, p in self.model.module.named_parameters():
-            m = re.match(pattern, n)
-            if p.grad is not None:
-                norm = p.grad.data.float().norm(2).item() ** 2
-
-            if m is not None:
-                layer_num = int(m.group(1))
-                d[layer_num] += norm
-            else:
-                d[n] += norm
-            
-            grad_norm += norm
-            
-        grad_norm = grad_norm ** 0.5
-        for k in d:
-            d[k] = d[k] ** 0.5
-
-        return grad_norm, d
-
-    def compute_noise_batch(self):
-        if self.steps % self.args.gradient_accumulation_steps == 0:
-            if get_rank() == 0:
-                grad_norm_small_batch = self.compute_scaled_grad_norm(self.model.module)
-                grad_norm_small_batch = grad_norm_small_batch / self.optimizer.cur_scale * self.args.gradient_accumulation_steps
-                self.grad_norm_small_batch = torch.tensor([grad_norm_small_batch], device=self.device)
-            else:
-                self.grad_norm_small_batch = torch.zeros(1, device=self.device)
-
-            dist.broadcast(self.grad_norm_small_batch, src=0, group=self.dp_group)
-        
-        if self.model.is_gradient_accumulation_boundary():
-            assert (self.steps + 1) % self.args.gradient_accumulation_steps == 0
-            B_big = self.total_batch_size
-            B_small = self.args.batch_size
-            if torch.isnan(self.grad_norm) or torch.isinf(self.grad_norm) or torch.isnan(self.grad_norm_small_batch) or torch.isinf(self.grad_norm_small_batch):
-                save_rank("grad norm: " + str(self.grad_norm.item()) + " grad norm small batch: " + str(self.grad_norm_small_batch.item()), os.path.join(self.args.save, "log.txt"))
-                self.grad_norm = 0.0
-                self.grad_norm_small_batch = 0.0
-            G_2 = 1/(B_big - B_small) * (B_big * self.grad_norm * self.grad_norm - B_small * self.grad_norm_small_batch * self.grad_norm_small_batch)
-            S = 1/(1/B_small - 1/B_big) * (self.grad_norm_small_batch * self.grad_norm_small_batch - self.grad_norm * self.grad_norm)
-            self.G_2 = self.norm_exp_avg_gamma * self.G_2 + (1 - self.norm_exp_avg_gamma) * G_2.item()
-            self.S = self.norm_exp_avg_gamma * self.S + (1 - self.norm_exp_avg_gamma) * S.item()
-
-        return dict(
-            grad_norm_small_batch="{:.4f}".format(self.grad_norm_small_batch.item()),
-            G_2="{:.4f}".format(self.G_2),
-            S="{:.4f}".format(self.S),
-            B_noise="{:.4f}".format(self.S/(self.G_2 + 1e-8)),
-        )
-
     def backward(self, loss, loss_stats=None):
         self.model.backward(loss)
 
     def _all_reduce_loss(self, loss):
-        dist.all_reduce(loss, group=self.dp_group, op=dist.ReduceOp.SUM)
-        return (loss / self.dp_world_size).item()
+        _loss = loss.clone().detach()
+        dist.all_reduce(_loss, group=self.dp_group, op=dist.ReduceOp.SUM)
+        return (_loss / self.dp_world_size).item()
 
-    def first_print(self, model_batch, no_model_batch):
+    def first_print(self, model_batch, no_model_batch, save_name=""):
         if self.dp_rank == 0:
-            print(model_batch["input_ids"][0].cpu().tolist())
-            print(self.tokenizer.decode(model_batch["input_ids"][0].cpu().tolist(), skip_special_tokens=True))
-            print(model_batch["attention_mask"][0].cpu().tolist())
-            print(no_model_batch["label"][0].cpu().tolist())
-            print(no_model_batch["loss_mask"][0].int().cpu().tolist())
-            print("#### Size:", model_batch["input_ids"].size(), "####")
-            torch.save(model_batch, os.path.join(self.args.save, "model_batch_0.pt"))
-            torch.save(no_model_batch, os.path.join(self.args.save, "no_model_batch_0.pt"))
+            if "input_ids" in model_batch:
+                print("#### input_ids BEGIN ####")
+                print(model_batch["input_ids"][0].cpu().tolist())
+                print(self.tokenizer.decode(model_batch["input_ids"][0].cpu().tolist(), skip_special_tokens=True))
+                print("#### Size:", model_batch["input_ids"].size(), "####")
+                print("#### input_ids END ####")
+            if "attention_mask" in model_batch:
+                print("#### attention_mask BEGIN ####")
+                print(model_batch["attention_mask"][0].cpu().tolist())
+                print("#### attention_mask END ####")
+            if "label" in no_model_batch:
+                print("#### label BEGIN ####")
+                print(no_model_batch["label"][0].cpu().tolist())
+                print("#### label END ####")
+            if "loss_mask" in no_model_batch:
+                print("#### loss_mask BEGIN ####")
+                print(no_model_batch["loss_mask"][0].int().cpu().tolist())
+                print("#### loss_mask END ####")
+            torch.save(model_batch, os.path.join(self.args.save, f"model_batch_{save_name}_0.pt"))
+            torch.save(no_model_batch, os.path.join(self.args.save, f"no_model_batch_{save_name}_0.pt"))
 
     def set_train(self):
         self.model.train()
 
-    def train(self):
-        
-        if self.args.do_train:
-            train_sampler = DistributedSampler(self.train_dataset, shuffle=((not self.args.precompute_data_order) and (not self.args.no_shuffle)), drop_last=True, rank=self.dp_rank, num_replicas=self.dp_world_size)
-            train_dataloader = DataLoader(
-                self.train_dataset, sampler=train_sampler, batch_size=self.args.batch_size, num_workers=self.args.num_workers, collate_fn=self.train_dataset.collate, drop_last=True)
-        
+    def _train_pass(self, model_batch, no_model_batch, stats):
+        self.preforward_callback()
+        # forward
+        torch.cuda.synchronize()
+        forward_time = time()
+        loss, loss_stats = self.compute_loss(model_batch, no_model_batch)
+        stats.update({k:v for k,v in loss_stats.items() if "NO_LOGGING" not in k})
+        torch.cuda.synchronize()
+        forward_time = time() - forward_time
+
+        # backward
+        backward_time = time()
+        self.backward(loss, loss_stats)
+        torch.cuda.synchronize()
+        backward_time = time() - backward_time
+
+        self.grad_norm = 0.0
+        if self.model.is_gradient_accumulation_boundary():
+            if self.args.fp32:
+                self.grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.clip_grad)
+            else:
+                self.grad_norm = self.optimizer.scaled_global_norm() / self.optimizer.cur_scale
+                
+        # step
+        step_time = time()
+        self.model.step()
+        torch.cuda.synchronize()
+        step_time = time() - step_time
+
+        stats["loss"] = self._all_reduce_loss(loss)
+            
+        elapsed_time = forward_time + backward_time + step_time
+        stats["elasped_time"] = elapsed_time
+
+        self.post_backward_callback()
+
+        return stats
+
+    def train(self):        
         logging_stats = defaultdict(float)
-        if self.args.do_train and dist.get_rank() == 0:
+        if self.args.do_train and self.dp_rank == 0:
             wandb_id = self.args.wandb_id or (str(int(time())) + "-" + str(uuid.uuid4()))
             run = wandb.init(
                 id=wandb_id,
                 name=self.wandb_name,
-                project="ol",
+                project=WANDB_PROJ_NAME,
                 group=self.group_name,
                 config=self.args,
                 reinit=True,
-                tags=[self.args.time_stamp, self.args.data_names])
+                tags=[self.args.time_stamp, self.args.data_name],
+                mode=self.args.wandb_mode)
         
         if self.args.do_train and not self.args.resume_training and not self.args.no_eval_when_start:
             self.evaluate()
-
+        
+        if self.args.do_train and not self.args.resume_training and not self.args.no_save_when_start:
+            self.save(self.args.save, global_steps=0)
+            
         st_time = time()
+        
+        assert self.epochs is not None
+        assert self.total_steps is not None
+        
         for epoch in range(0, self.epochs):
             self.set_train()
             self.epoch = epoch
-            train_sampler.set_epoch(epoch)
+            if isinstance(self.train_sampler, DistributedSampler):
+                self.train_sampler.set_epoch(epoch)
             self.train_dataset.set_epoch(epoch)
-            print("new epoch")
-            for it, (model_batch, no_model_batch) in enumerate(train_dataloader):
-                if self.args.resume_training or self.args.start_from_global_step is not None:
+            self.preepoch_callback()
+            for it, (model_batch, no_model_batch) in enumerate(self.train_dataloader):
+                if self.args.resume_training or (self.args.start_from_global_step is not None):
                     if self.global_steps <= self.last_global_steps:
                         if (self.steps % self.args.gradient_accumulation_steps == 0) and (self.global_steps % 1000 == 0):
-                            print_rank(f"Skipping global step {self.global_steps}")                        
+                            print_and_save_rank(f"Skipping global step {self.global_steps}", os.path.join(self.args.save, "log.txt"))                        
                         self.steps += 1
                         if self.steps % self.args.gradient_accumulation_steps == 0:
                             self.global_steps += 1
                         continue
                     if (self.steps % self.args.gradient_accumulation_steps == 0):
-                        print_rank(f"Starting from global step {self.global_steps}")
+                        print_and_save_rank(f"Starting from global step {self.global_steps}", os.path.join(self.args.save, "log.txt"))
                         if self.args.resume_training:
                             torch.set_rng_state(self.last_rng_states["torch"])
                             torch.cuda.set_rng_state(self.last_rng_states["cuda"])
@@ -413,53 +389,14 @@ class BaseTrainer():
                             random.setstate(self.last_rng_states["python"])
 
                 if not self.first_printed:
-                    self.first_print(model_batch, no_model_batch)
+                    self.first_print(model_batch, no_model_batch, "train")
                     self.first_printed = True
 
-                # print_rank(f"Epoch {epochs}, Iter {it}")
                 self.train_dataset.move_to_device(model_batch, no_model_batch, self.device)
-                
-                # if get_rank() == 0:
-                #     print(model_batch["input_ids"].size(), no_model_batch["label"].size())
-                
+                                
                 stats = {}
-                
-                # forward
-                torch.cuda.synchronize()
-                forward_time = time()
-                loss, loss_stats = self.compute_loss(model_batch, no_model_batch)
-                stats.update({k:v for k,v in loss_stats.items() if "NO_LOGGING" not in k})
-                torch.cuda.synchronize()
-                forward_time = time() - forward_time
-
-                # backward
-                backward_time = time()
-                self.backward(loss, loss_stats)
-                torch.cuda.synchronize()
-                backward_time = time() - backward_time
-
-                self.grad_norm = 0.0
-                if self.model.is_gradient_accumulation_boundary():
-                    if self.args.fp32:
-                        self.grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.clip_grad)
-                    else:
-                        self.grad_norm = self.optimizer.scaled_global_norm() / self.optimizer.cur_scale
-                
-                noise_batch_stats = {}
-                if self.args.calc_noise_batch:
-                    noise_batch_stats = self.compute_noise_batch()
-                
-                # step
-                step_time = time()
-                self.model.step()
-                torch.cuda.synchronize()
-                step_time = time() - step_time
-
-                stats["loss"] = self._all_reduce_loss(loss)
-                    
-                elapsed_time = forward_time + backward_time + step_time
-                stats["elasped_time"] = elapsed_time
-                
+                stats = self._train_pass(model_batch, no_model_batch, stats)
+                                
                 # logging
                 for k in stats:
                     logging_stats[k] += stats[k]
@@ -469,14 +406,17 @@ class BaseTrainer():
                 
                 # print first step
                 if self.steps == 0:
-                    print_rank(self.get_log(stats, "train",
+                    print_and_save_rank(self.get_log(stats, "train",
+                        it=it,
                         lr="{:.4e}".format(self.lr_scheduler.get_last_lr()[0]),
-                        scale=self.optimizer.cur_scale if hasattr(self.optimizer, "cur_scale") else 0),)
+                        scale=self.optimizer.cur_scale if hasattr(self.optimizer, "cur_scale") else 0),
+                        os.path.join(self.args.save, "log.txt"))
                     print_rank("-" * 100)
                     print_rank("-" * 100)
                 
                 if (self.args.mid_log_num > 0) and ((self.steps+1) % mid_log_step == 0):
                     print_rank(self.get_log(stats, "train",
+                                            it=it,
                                             lr="{:.4e}".format(self.lr_scheduler.get_last_lr()[0]),
                                             scale=self.optimizer.cur_scale if hasattr(self.optimizer, "cur_scale") else 0),)
 
@@ -490,14 +430,14 @@ class BaseTrainer():
                     real_step_time = (now_time - st_time) / self.args.log_interval
                     st_time = now_time
                     log_str = self.get_log(logging_stats, "train", 
+                                           it=it,
                                            grad_norm="{:.4f}".format(self.grad_norm),
-                                           **noise_batch_stats,
                                            lr="{:.4e}".format(self.lr_scheduler.get_last_lr()[0]),
                                            scale=self.optimizer.cur_scale if hasattr(self.optimizer, "cur_scale") else 0,
                                            step_time=logging_stats.get("elasped_time", 0) * self.args.gradient_accumulation_steps,
                                            real_step_time = real_step_time)
                     
-                    if dist.get_rank() == 0:
+                    if self.dp_rank == 0:
                         wandb_logging_stats = {
                             **logging_stats,
                             "grad_norm": self.grad_norm,
@@ -533,10 +473,12 @@ class BaseTrainer():
                     self.save(self.args.save)
                     self.evaluate()
                     return
-                
+                                
                 self.steps += 1
                 if self.steps % self.args.gradient_accumulation_steps == 0:
                     self.global_steps += 1
+            
+            self.post_epoch_callback()
 
         if self.args.do_infer:
             self.inference()
@@ -544,7 +486,7 @@ class BaseTrainer():
         if self.args.do_eval:
             self.evaluate()
 
-        if self.args.do_train and dist.get_rank() == 0:
+        if self.args.do_train and self.dp_rank == 0:
             run.finish()
 
     def inference(self):
@@ -571,7 +513,7 @@ class BaseTrainer():
         with torch.no_grad():
             for i, (model_batch, no_model_batch) in enumerate(tqdm(eval_dataloader, f"LM Evaluation", disable=(not get_rank() == 0))):
                 if i == 0 and self.dp_rank == 0:
-                    self.first_print(model_batch, no_model_batch)
+                    self.first_print(model_batch, no_model_batch, f"eval_{eval_dataset.data_name}")
                 eval_dataset.move_to_device(model_batch, no_model_batch, self.device)
                 loss = self.compute_lm_loss(model_batch, no_model_batch, mean=False)
                 all_losses.append(loss)
@@ -586,7 +528,7 @@ class BaseTrainer():
         
         dist.barrier()
         return res
-    
+        
     def evaluate_gen(self):
         eval_sampler = DistributedSampler(self.eval_dataset, shuffle=False, drop_last=False, rank=self.dp_rank, num_replicas=self.dp_world_size)
         eval_dataloader = DataLoader(
@@ -611,25 +553,27 @@ class BaseTrainer():
         all_prompt_ids = torch.cat(all_prompt_ids, dim=0)
         all_prompt_ids = all_gather(all_prompt_ids, dim=1, group=self.dp_group, world_size=self.dp_world_size, op="stack")
         all_prompt_ids = all_prompt_ids.view(-1, all_prompt_ids.size(-1))
+        all_prompt_ids = all_prompt_ids[:len(self.eval_dataset)]
         all_response_ids = torch.cat(all_response_ids, dim=0)
         all_response_ids = all_gather(all_response_ids, dim=1, group=self.dp_group, world_size=self.dp_world_size, op="stack")
         all_response_ids = all_response_ids.view(-1, all_response_ids.size(-1))
+        all_response_ids = all_response_ids[:len(self.eval_dataset)]
 
         all_gen_times = all_gather(torch.tensor(all_gen_times, device=self.device), dim=1, group=self.dp_group, world_size=self.dp_world_size, op="stack").view(-1)
         gen_time = all_gen_times.sum().item()
 
         if get_rank() == 0:
             response_strs = self.tokenizer.batch_decode(all_response_ids, skip_special_tokens=True)            
-            res = compute_metrics(response_strs[:len(self.eval_dataset.answers)], self.eval_dataset.answers)
+            res = self.compute_metrics(response_strs[:len(self.eval_dataset.answers)], self.eval_dataset.answers)
         else:
             res, response_strs = None, None
         
         dist.barrier()
         return all_prompt_ids, all_response_ids, res, response_strs
 
-    def get_generattion_config(self, batch):
+    def get_generation_config(self, batch, **kwargs):
         max_new_tokens = self.args.max_length - batch["input_ids"].size(1)
-        generation_config = GenerationConfig(
+        generation_dict = dict(
             do_sample=self.args.do_sample,
             top_p=self.args.top_p,
             top_k=self.args.top_k,
@@ -640,16 +584,32 @@ class BaseTrainer():
             eos_token_id=self.tokenizer.eos_token_id,
             pad_token_id=self.tokenizer.eos_token_id,
             return_dict_in_generate=True,
-            output_scores=False
+            output_scores=False,            
         )
+        generation_dict.update(kwargs)
+        generation_config, unused_kwargs = GenerationConfig.from_dict(generation_dict, return_unused_kwargs=True)
+        if len(unused_kwargs) > 0:
+            print_and_save_rank(f"Unused kwargs in generation config: {unused_kwargs}", os.path.join(self.args.save, "log.txt"))
         return generation_config
     
-    def generate(self, batch, decode_type="trm_ar"):
-        generation_config = self.get_generattion_config(batch)
+    def generate(self, batch, **kwargs):
+        generation_config = self.get_generation_config(batch, **kwargs)
         gen_out = self.model.generate(**batch, generation_config=generation_config)
         return gen_out
-        
-    def save_evals(self, preds, results, response_texts, directory = None):
+    
+    def preepoch_callback(self):
+        print_and_save_rank(f"new epoch {self.epoch}", os.path.join(self.args.save, "log.txt"))
+    
+    def preforward_callback(self):
+        pass
+    
+    def post_backward_callback(self):
+        pass
+    
+    def post_epoch_callback(self):
+        pass
+    
+    def save_evals(self, preds, results, directory = None):
         """Creates a checkpoint of the optimizer, scheduler and model"""
         """Creates checkpoint of optimizer, scheduler and a model"""
         base_ckpt_path = directory or self.args.save
@@ -659,21 +619,19 @@ class BaseTrainer():
         if get_rank() == 0:
             torch.save(preds, os.path.join(save_dir, "preds.pt"))
             torch.save(results, os.path.join(save_dir, "results.pt"))
-            with open(os.path.join(save_dir, "answers.jsonl"), "w") as f:
-                for resp in response_texts:
-                    f.write(json.dumps({"text": resp}) + "\n")
 
-    def save(self, directory):
+    def save(self, directory, global_steps=None):
+        global_steps = global_steps if global_steps is not None else self.global_steps
         """Creates a checkpoint of the optimizer, scheduler and model"""
         """Creates checkpoint of optimizer, scheduler and a model"""
         base_ckpt_path = directory or self.args.save
-        ckpt_dir = os.path.join(base_ckpt_path, f"{self.global_steps}")
+        ckpt_dir = os.path.join(base_ckpt_path, f"{global_steps}")
         os.makedirs(ckpt_dir, exist_ok=True)
         if self.args.model_parallel:
             if get_rank() == 0:
                 self.model.module.config.to_json_file(os.path.join(ckpt_dir, "config.json"))
                 self.tokenizer.save_pretrained(ckpt_dir)
-            if mpu.get_data_parallel_rank() == 0:
+            if self.dp_rank == 0:
                 save_parallel(self.model.module.base_model, ckpt_dir)
         else:
             if get_rank() == 0:
@@ -681,7 +639,7 @@ class BaseTrainer():
                 self.tokenizer.save_pretrained(ckpt_dir)
 
             if self.args.save_all:
-                self.model.save_checkpoint(base_ckpt_path, tag=f"{self.global_steps}")
+                self.model.save_checkpoint(base_ckpt_path, tag=f"{global_steps}")
                 rng_states = {
                     "torch": torch.get_rng_state(),
                     "cuda": torch.cuda.get_rng_state(),
@@ -694,12 +652,10 @@ class BaseTrainer():
                         json.dump({
                             "step": self.steps,
                             "epoch": self.epoch,
-                            "global_steps": self.global_steps,
-                            "skip_offset": (self.epoch, self.global_steps * self.total_batch_size)
+                            "global_steps": global_steps,
+                            "skip_offset": (self.epoch, global_steps * self.total_batch_size)
                         }, f)
-            else:
-                if get_rank() == 0:
-                    self.model.module.save_pretrained(ckpt_dir, safe_serialization=False)
-                # torch.save(self.model.module.value_model.state_dict(), os.path.join(ckpt_dir, "value_model.ckpt"))
+            if get_rank() == 0:
+                self.model.module.save_pretrained(ckpt_dir, safe_serialization=False)
         
         dist.barrier()

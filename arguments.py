@@ -16,7 +16,6 @@
 import argparse
 import os
 import deepspeed
-import numpy as np
 from numerize.numerize import numerize
 
 
@@ -37,17 +36,14 @@ def add_model_args(parser: argparse.ArgumentParser):
     group.add_argument("--base-ckpt-name", type=str)
     group.add_argument("--model-parallel", action="store_true")
     group.add_argument("--model-parallel-size", type=int, default=None)
-    group.add_argument("--no-value", action="store_true")
-    group.add_argument("--dropout-path-rate", type=float, default=None)
-    group.add_argument("--draft-model-type", type=str, default=None)
-    group.add_argument("--draft-ckpt-name", type=str, default=None)
-    group.add_argument("--draft-model-path", type=str, default=None)
-    group.add_argument("--mos-experts", type=int, default=None)
     group.add_argument("--fp32", action="store_true")
     
     group.add_argument("--attn-impl", type=str, default=None)
     group.add_argument("--xops-attn", action="store_true")
     group.add_argument("--torch-compile", type=str, default=None)
+    
+    group.add_argument("--ckpt-start", type=int, default=0)
+    group.add_argument("--ckpt-end", type=int, default=None)
     
     return parser
 
@@ -71,25 +67,29 @@ def add_runtime_args(parser: argparse.ArgumentParser):
     group.add_argument('--save-interval', type=int, default=10000000,
                        help='number of iterations between saves')
     group.add_argument("--eval-interval", type=int, default=10000000)
-    group.add_argument('--local_rank', type=int, default=None,
-                       help='local rank passed from distributed launcher')
-    group.add_argument("--save-additional-suffix", type=str, default="")
-    group.add_argument("--save-rollout", action="store_true")
-    group.add_argument("--eb-sample-times", type=int, default=3)
-    group.add_argument("--from-scratch", action="store_true")
     
+    group.add_argument('--local-rank', type=int, default=None,
+                       help='local rank passed from distributed launcher')
+    
+    group.add_argument("--save-additional-suffix", type=str, default="")
+    
+    group.add_argument("--from-scratch", action="store_true")
     group.add_argument("--resume-training", action="store_true")
     group.add_argument("--start-from-global-step", type=int, default=None)
     group.add_argument("--resume-dir", type=str, default=None)
     group.add_argument("--resume-tag", type=str, default=None)
     group.add_argument("--no-eval-when-start", action="store_true")
+    group.add_argument("--no-save-when-start", action="store_true")
     
-    group.add_argument("--calc-noise-batch", action="store_true")
-
-    group.add_argument("--load-cache", type=str)
     group.add_argument("--wandb-name", type=str, default=None)
     group.add_argument("--wandb-group", type=str, default=None)
     group.add_argument("--wandb-id", type=str, default=None)
+    group.add_argument("--wandb-mode", type=str, default=None)
+
+    group.add_argument('--seed', type=int, default=1234,
+                       help='random seed for reproducibility')
+    group.add_argument("--seed-data", type=int, default=42)
+
     return parser
 
 
@@ -100,19 +100,17 @@ def add_data_args(parser: argparse.ArgumentParser):
     group.add_argument("--dev-data-dir", type=str, default=None)
     group.add_argument("--test-data-dir", type=str, default=None)
     group.add_argument("--processed-data-dir", type=str, default=None)
-    group.add_argument("--force-process", action="store_true")
-    group.add_argument("--force-process-demo", action="store_true")
-    group.add_argument("--data-process-workers", type=int, default=-1)
+    group.add_argument("--data-process-workers", type=int, default=0)
     group.add_argument("--precompute-data-order", action="store_true")
-    group.add_argument("--train-num", type=int, default=-1)
+    group.add_argument("--train-num", type=int, default=None)
     group.add_argument("--train-ratio", type=float, default=1)
-    group.add_argument("--dev-num", type=int, default=-1)
+    group.add_argument("--dev-num", type=int, default=None)
     group.add_argument("--dev-ratio", type=float, default=1)
-    group.add_argument("--test-num", type=int, default=-1)
+    group.add_argument("--test-num", type=int, default=None)
     group.add_argument("--test-ratio", type=float, default=1)
-    group.add_argument("--gen-num", type=int, default=-1)
-    group.add_argument("--infer-num", type=int, default=-1)
-    group.add_argument("--data-names", type=str, default=None)
+    group.add_argument("--gen-num", type=int, default=None)
+    group.add_argument("--infer-num", type=int, default=None)
+    group.add_argument("--data-name", type=str, default=None)
     group.add_argument("--prompt-type", type=str, default=None)
     group.add_argument("--num-workers", type=int, default=1)
     group.add_argument("--max-prompt-length", type=int, default=512)
@@ -129,17 +127,19 @@ def add_data_args(parser: argparse.ArgumentParser):
     group.add_argument("--data-split", type=str, default=None)
     group.add_argument("--no-shuffle", action="store_true")
     
-    group.add_argument("--prompt-data-dir", type=str)
-    group.add_argument("--lm-data-dir", type=str)
     group.add_argument("--eval-ppl", action="store_true")
-    group.add_argument("--eval-tvd", action="store_true")
     group.add_argument("--eval-gen", action="store_true")
     
-    group.add_argument("--only-prompt", action="store_true")
     
+    group.add_argument("--only-prompt", action="store_true")
+    group.add_argument("--prompt-data-full-loss", action="store_true",
+                       help="Compute loss on the entire sentence in prompt data type.")
+
     group.add_argument("--chunk-num-per-shard", type=int, default=10000)
     group.add_argument("--max-shard-num", type=int, default=10000000)
     group.add_argument("--max-sample-num", type=int, default=None)
+    group.add_argument("--shard-start", type=int, default=0)
+    group.add_argument("--shard-end", type=int, default=None)
 
     return parser
 
@@ -158,18 +158,10 @@ def add_hp_args(parser: argparse.ArgumentParser):
                        help='total number of iterations per epoch')
     group.add_argument('--max-length', type=int, default=1024,
                        help='max length of input')
-    group.add_argument('--seed', type=int, default=1234,
-                       help='random seed for reproducibility')
-    group.add_argument("--seed-order", type=int, default=42)
-    group.add_argument("--seed-data", type=int, default=42)
-    group.add_argument("--seed-ppo", type=int, default=42)
-    group.add_argument("--seed-lm", type=int, default=7)
-    group.add_argument("--seed-gd", type=int, default=7)
     group.add_argument('--epochs', type=int, default=None,
                        help='total number of epochs to train over all training runs')
     group.add_argument("--gradient-accumulation-steps", type=int, default=1)
     group.add_argument("--gradient-checkpointing", action="store_true")
-    group.add_argument("--attn-dtype", default=None)
     
     group.add_argument('--lr', type=float, help='initial learning rate')
     group.add_argument("--lr-min", type=float, default=0.0000001)
@@ -181,51 +173,24 @@ def add_hp_args(parser: argparse.ArgumentParser):
     group.add_argument('--adam-beta', type=float, default=0.9),
     group.add_argument('--adam-beta2', type=float, default=0.999),
     group.add_argument('--adam-eps', type=float, default=1e-8),
-    group.add_argument("--kd-ratio", type=float, default=None)
-    group.add_argument("--kd-rsd-loss", type=float, default=None)
 
     group.add_argument('--warmup-iters', type=int, default=0,
                        help='percentage of data to warmup on (.01 = 1% of all '
                        'training iters). Default 0.01')
-    group.add_argument('--lr-decay-iters', type=int, default=None,
-                       help='number of iterations to decay LR over,'
-                       ' If None defaults to `--train-iters`*`--epochs`')
-    group.add_argument('--lr-decay-style', type=str, default='noam',
-                       choices=['constant', 'linear', 'cosine', 'exponential', 'noam'],
-                       help='learning rate decay function')
-    group.add_argument("--scheduler-name", type=str, default="constant_trm")
-
-    group.add_argument("--residual-base-weight", type=float, default=1.0)
-    group.add_argument("--residual-num", type=int, default=1)
-    group.add_argument("--teacher-temperature", type=float, default=1.0)
-    group.add_argument("--base-temperature", type=float, default=1.0)
-    group.add_argument("--rsd-mix-ratio", type=float, default=1.0)
-    group.add_argument("--input-base-probs", action="store_true")
+    group.add_argument("--scheduler-name", type=str, default="constant")
 
     return parser
 
 
-def add_ppo_args(parser: argparse.ArgumentParser):
-    group = parser.add_argument_group('ppo', 'ppo configurations')
+def add_eval_args(parser: argparse.ArgumentParser):
+    group = parser.add_argument_group('evaluation', 'evaluation configurations')
+    group.add_argument("--eval-start-ckpt", type=int, default=None)
+    group.add_argument("--eval-end-ckpt", type=int, default=None)
     
-    group.add_argument("--reward-scaling", type=float, default=None)
-    group.add_argument("--cliprange-reward", type=float, default=1)
-    group.add_argument("--inner-epochs", type=int, default=None)
-    group.add_argument("--num-rollouts", type=int, default=None)
-    group.add_argument("--cliprange", type=float, default=0.2)
-    group.add_argument("--chunk-size", type=int, default=None)
-    group.add_argument("--gamma", type=float, default=0.95)
-    
-    return parser
-
-
-def add_minillm_args(parser: argparse.ArgumentParser):
-    group = parser.add_argument_group('minillm', 'minillm configurations')
-    
-    group.add_argument("--length-norm", action="store_true")
-    group.add_argument("--single-step-reg", action="store_true")
-    group.add_argument("--teacher-mixed-alpha", type=float, default=None)
-    group.add_argument("--lm-coef", type=float, default=1)
+    # harness
+    group.add_argument("--eval-shot", type=int, default=0)
+    group.add_argument("--eval-no-calc-stderr", action="store_true")
+    group.add_argument("--eval-data-names", type=str, default=None)
     
     return parser
 
@@ -233,60 +198,79 @@ def add_minillm_args(parser: argparse.ArgumentParser):
 def add_gen_args(parser: argparse.ArgumentParser):
     group = parser.add_argument_group('generation', 'generation configurations')
     
-    group.add_argument("--top-k", type=int, default=0)
-    group.add_argument("--top-p", type=float, default=1.0)
+    group.add_argument("--top-k", type=int, default=None)
+    group.add_argument("--top-p", type=float, default=None)
     group.add_argument("--do-sample", action="store_true")
     group.add_argument("--no-repeat-ngram-size", type=int, default=6)
     group.add_argument("--repetition-penalty", type=float, default=None)
     group.add_argument("--num-beams", type=int, default=1)
     group.add_argument("--temperature", type=float, default=1)
-    group.add_argument("--decode-type", type=str, default="trm_ar")
-    group.add_argument("--lookahead", type=int, default=1)
+
+    return parser
+
+
+def add_peft_args(parser: argparse.ArgumentParser):
+    group = parser.add_argument_group('peft', 'peft configurations')
     
-    # contrastive decoding
-    group.add_argument("--amateur-alpha", type=float, default=1.0)
-    group.add_argument("--amateur-beta", type=float, default=1.0)
+    group.add_argument("--peft-path", type=str, default=None)
+    group.add_argument("--peft", action="store_true")
+    group.add_argument("--teacher-peft-path", type=str, default=None)
+    group.add_argument("--teacher-peft", action="store_true")
     
     return parser
 
 
-def base_save_path(args):
-    if args.do_train:
-        return os.path.join(
-            args.save,
-            (f"{args.data_names.replace('/', '_')}"),
-            (f"{args.ckpt_name.replace('/', '_')}"),
-            (f"e{args.epochs}" if args.epochs is not None else f"t{numerize(args.total_iters)}") + \
-            (f"-w{numerize(args.warmup_iters)}" if args.warmup_iters > 0 else "") + \
-            (f"-bs{args.batch_size}-lr{args.lr}{args.lr_decay_style}{args.lr_min}-G{args.gradient_accumulation_steps}-N{args.n_gpu}-NN{args.n_nodes}") + \
-            (f"-mp{args.model_parallel_size}" if args.model_parallel > 0 else "") + \
-            (f"-scr" if args.from_scratch else "") + \
-            args.save_additional_suffix
-        )
-    else:
-        return base_save_path_eval(args)
+def add_kd_args(parser: argparse.ArgumentParser):
+    group = parser.add_argument_group('kd', 'kd configurations')
+    
+    group.add_argument("--kd-ratio", type=float, default=0.5)
+    
+    return parser
 
 
-def base_save_path_eval(args):
-    return os.path.join(
-        args.save,
-        (f"{args.data_names.replace('/', '_')}"),
-        (f"{args.ckpt_name.replace('/', '_')}"),
-        args.save_additional_suffix
-    )
+def base_training_hp_suffix(args):
+    suffix = ""
+    suffix += (f"e{args.epochs}" if args.epochs is not None else f"t{numerize(args.total_iters)}") + \
+        (f"-w{numerize(args.warmup_iters)}" if args.warmup_iters > 0 else "") + \
+        (f"-bs{args.batch_size}-lr{args.lr}{args.scheduler_name}{args.lr_min}-G{args.gradient_accumulation_steps}-N{args.n_gpu}-NN{args.n_nodes}") + \
+        (f"-mp{args.model_parallel_size}" if args.model_parallel > 0 else "")
+    return suffix
 
 
-def get_args():
+def base_infer_hp_suffix(args):
+    return ""
+
+
+def base_model_suffix(args):
+    return f"{args.ckpt_name.replace('/', '_')}"
+
+
+def base_data_suffix(args):
+    return f"{args.data_name.replace('/', '_')}"
+
+
+def gen_path(args):
+    s = "sample" if args.do_sample else "greedy"
+    s += f"-t{args.temperature}-lp{args.max_prompt_length}-l{args.max_length}-p{args.top_p}-k{args.top_k}"
+    return s
+
+
+def get_parser():
     parser = argparse.ArgumentParser()
     parser = add_model_args(parser)
     parser = add_runtime_args(parser)
     parser = add_data_args(parser)
     parser = add_hp_args(parser)
-    parser = add_ppo_args(parser)
-    parser = add_minillm_args(parser)
     parser = add_gen_args(parser)
+    parser = add_eval_args(parser)
+    parser = add_peft_args(parser)
+    parser = add_kd_args(parser)
     parser = deepspeed.add_config_arguments(parser)
-    
+    return parser
+
+
+def get_args():
+    parser = get_parser()
     args, unknown = parser.parse_known_args()
     
     assert all(["--" not in x for x in unknown]), unknown
@@ -295,93 +279,62 @@ def get_args():
     args.n_gpu = args.n_gpu * args.n_nodes
     
     assert args.model_type is not None
-    assert args.data_names is not None
+    assert args.data_name is not None
         
-    if args.type == "eval_main":
-        if args.ckpt_name is not None:
-            tmp = args.ckpt_name.split("/")
-            if tmp[-1].isdigit():
-                ckpt_name = "_".join(tmp[:-1]) + "/" + tmp[-1]
-            else:
-                ckpt_name = "_".join(tmp)
-        else:
-            ckpt_name = None
-        save_path = os.path.join(
-            args.save,
-            f"{args.data_names}-{args.max_length}" + (f"-mp{args.model_parallel_size}" if args.model_parallel > 0 else ""),
-            ckpt_name,
-            f"{args.seed}",
-        )
-        args.save = save_path
-    elif args.type == "eval_sp":
-        if args.ckpt_name is not None:
-            tmp = args.ckpt_name.split("/")
-            if tmp[-1].isdigit():
-                ckpt_name = "_".join(tmp[:-1]) + "/" + tmp[-1]
-            else:
-                ckpt_name = "_".join(tmp)
-        else:
-            ckpt_name = None
-        
-        if args.draft_ckpt_name is not None:
-            tmp = args.draft_ckpt_name.split("/")
-            if tmp[-1].isdigit():
-                draft_ckpt_name = "_".join(tmp[:-1]) + "/" + tmp[-1]
-            else:
-                draft_ckpt_name = "_".join(tmp)
-        
-        save_path = os.path.join(
-            args.save,
-            f"{args.decode_type}-{args.data_names}-{args.max_length}" + (f"-mp{args.model_parallel_size}" if args.model_parallel > 0 else ""),
-            f"{ckpt_name}" + (f"-{draft_ckpt_name}" if args.draft_ckpt_name is not None else ""),
-            f"{args.lookahead}",
-            f"{args.seed}",
-        )
-        args.save = save_path
-    elif args.type in ["sft", "pretrain", "sft_lm"]:
+    if args.type in ["pretrain"]:
         args.save = os.path.join(
-            base_save_path(args),
-            (f"-mos{args.mos_experts}" if args.mos_experts is not None else ""),
-        )
-    elif args.type in ["kd", "kd_pretrain", "kd_contrastive"]:
-        args.save = os.path.join(
-            base_save_path(args),
-            f"{args.teacher_ckpt_name.replace('/', '_')}" + f"-kd{args.kd_ratio}",
-            (f"-mos{args.mos_experts}" if args.mos_experts is not None else ""),
-        )
-    elif args.type in ["pt_rsd"]:
-        args.save = os.path.join(
-            base_save_path(args),
-            f"rsd{args.residual_base_weight}-num{args.residual_num}",
-        )
-    elif args.type in ["kd_rsd"]:
-        args.save = os.path.join(
-            base_save_path(args),
-            f"{args.teacher_ckpt_name.replace('/', '_')}" + f"-{args.base_ckpt_name.replace('/', '_')}" + f"-kd{args.kd_ratio}",
-        )
-    elif args.type == "gen":
-        save_path = os.path.join(
             args.save,
-            (f"{args.ckpt_name}"),
-            (f"t{args.temperature}-l{args.max_length}"),
+            base_data_suffix(args),
+            base_model_suffix(args),
+            base_training_hp_suffix(args) + (f"-scr" if args.from_scratch else "") + args.save_additional_suffix
         )
-        args.save = save_path
-    elif args.type == "minillm":
-        ppo_prefix = f"pe{args.inner_epochs}" + \
-                     (f"_nr{args.num_rollouts}" if args.num_rollouts is not None else "")
-        save_path = os.path.join(
+    elif args.type == "vanilla_kd":
+        args.save = os.path.join(
+            base_data_suffix(args),
+            base_model_suffix(args),
+            base_training_hp_suffix(args) + (f"-scr" if args.from_scratch else ""),
+            f"{args.teacher_ckpt_name.replace('/', '_')}" + f"-kd{args.kd_ratio}" + args.save_additional_suffix,
+        )
+    elif args.type == "seqkd":
+        args.save = os.path.join(
             args.save,
-            (f"{args.ckpt_name}-{args.teacher_ckpt_name}"),
-            (f"bs{args.batch_size}-lr{args.lr}-G{args.gradient_accumulation_steps}-N{args.n_gpu}-lm{args.lm_coef}-len{args.max_length}" + \
-                (f"-mp{args.model_parallel_size}" if args.model_parallel > 0 else "")),
-            ppo_prefix + args.save_additional_suffix
+            base_data_suffix(args),
+            base_model_suffix(args),
+            base_training_hp_suffix(args) + (f"-scr" if args.from_scratch else "") + args.save_additional_suffix
         )
-        args.save = save_path
-        
-        if args.warmup_iters > 0:
-            assert args.scheduler_name is not None
-    elif args.type == "sft_lm_infer":
-        args.save = base_save_path_eval(args)
+    elif args.type == "miniplm":
+        args.save = os.path.join(
+            args.save,
+            base_data_suffix(args),
+            base_model_suffix(args),
+            base_training_hp_suffix(args) + (f"-scr" if args.from_scratch else "") + args.save_additional_suffix
+        )
+    elif args.type == "pt_lm_infer":
+        args.save = os.path.join(
+            args.save,
+            base_data_suffix(args),
+            base_model_suffix(args),
+            base_infer_hp_suffix(args) + args.save_additional_suffix
+        )
+    elif args.type == "pt_gen_infer":
+        args.save = os.path.join(
+            base_data_suffix(args),
+            base_model_suffix(args),
+            gen_path(args) + args.save_additional_suffix
+        )
+    elif args.type == "eval_harness":
+        args.save = os.path.join(
+            args.save,
+            base_data_suffix(args),
+            base_model_suffix(args),
+            f"{args.eval_shot}shot" + args.save_additional_suffix
+        )
+    elif args.type == "eval_lm":
+        args.save = os.path.join(
+            args.save,
+            base_data_suffix(args),
+            base_model_suffix(args) + args.save_additional_suffix
+        )
     elif args.type == "tokenize":
         pass
     elif args.type == "dummy":

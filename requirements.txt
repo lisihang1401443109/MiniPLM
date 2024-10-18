@@ -1,0 +1,11 @@
+torch
+deepspeed
+numerize
+torchtyping
+rich
+accelerate
+datasets
+sentencepiece
+peft
+matplotlib
+wandb

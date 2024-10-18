@@ -22,7 +22,7 @@ import torch
 from utils import naive_copy_to_blob
 
 
-def __best_fitting_dtype(vocab_size=None):
+def best_fitting_dtype(vocab_size=None):
     if vocab_size is not None and vocab_size < 65500:
         return np.uint16
     else:
@@ -126,12 +126,20 @@ def create_doc_idx(sizes):
 
 
 class ChunkedDatasetBuilder():
-    def __init__(self, base_path, chunk_num_per_shard, split, output_path, dtype, tmp_output_path=None):
+    def __init__(self,
+                 base_path,
+                 output_path,
+                 dtype,
+                 split="data",
+                 chunk_num_per_shard=1000000,
+                 tmp_output_path=None,
+                 do_shuffle=False,
+                 output_start_state=0):
         self.base_path = base_path
         self.split = split
-        self.chunk_num_per_shard = chunk_num_per_shard
-        self.ofid = 0
+        self.ofid = output_start_state
         self.dtype = dtype
+        self.do_shuffle = do_shuffle
         self.output_path = output_path
         self.bin_file = os.path.join(self.output_path, f"{self.split}_{self.ofid}.bin")
         self.idx_file = os.path.join(self.output_path, f"{self.split}_{self.ofid}.idx")
@@ -147,8 +155,15 @@ class ChunkedDatasetBuilder():
     def add_np_item(self, item):
         self._chunks.append(np.array(item, dtype=self.dtype))
         if len(self._chunks) % self.chunk_num_per_shard == 0:
+            if self.do_shuffle:
+                np.random.shuffle(self._chunks)
+                print("Shuffling chunks in shard {}.".format(self.ofid))
+            print("Writing to {}".format(self.bin_file))
             self.builder.add_np_items(self._chunks)
-            self.builder.finalize(self.tmp_idx_file)
+            if self.tmp_output_path is not None:
+                self.builder.finalize(self.tmp_idx_file)
+            else:
+                self.builder.finalize(self.idx_file)
             self._chunks = []
 
             if self.tmp_output_path is not None:
@@ -167,9 +182,17 @@ class ChunkedDatasetBuilder():
                 self.builder = make_builder(self.bin_file, impl="mmap", dtype=self.dtype)
     
     def finalize(self):
+        print("Finalizing at {}".format(self.bin_file))
         if len(self._chunks) > 0:
+            if self.do_shuffle:
+                np.random.shuffle(self._chunks)
+                print("Shuffling chunks in shard {}.".format(self.ofid))
+            print("Writing to {}".format(self.bin_file))
             self.builder.add_np_items(self._chunks)
-            self.builder.finalize(self.tmp_idx_file)
+            if self.tmp_output_path is not None:
+                self.builder.finalize(self.tmp_idx_file)
+            else:
+                self.builder.finalize(self.idx_file)
             self._chunks = []
         if self.tmp_output_path is not None:
             naive_copy_to_blob(self.base_path, self.tmp_bin_file, self.bin_file.replace(self.base_path, ""), rm_source=True)
@@ -393,6 +416,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
             class _Writer(object):
                 def __enter__(self):
                     self._file = open(path, 'wb')
+                    self._path = path
 
                     self._file.write(cls._HDR_MAGIC)
                     self._file.write(struct.pack('<Q', 1))
@@ -417,6 +441,8 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
 
                     self._file.write(struct.pack('<Q', len(sizes)))
                     self._file.write(struct.pack('<Q', len(doc_idx)))
+
+                    print("Finalize: instance number: {}, path: {}".format(len(sizes), self._path))
 
                     sizes = np.array(sizes, dtype=np.int32)
                     self._file.write(sizes.tobytes(order='C'))
@@ -616,6 +642,7 @@ class MMapIndexedDatasetBuilder(object):
     def add_np_items(self, np_arrays):
         sizes = [np_array.size for np_array in np_arrays]
         np_arrays = np.concatenate(np_arrays, axis=0)
+        np_arrays = np.array(np_arrays, dtype=self._dtype)
         self._data_file.write(np_arrays.tobytes(order='C'))
         self._sizes.extend(sizes)
 

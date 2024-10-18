@@ -1,5 +1,3 @@
-import random
-import torch
 import os
 from torch.utils.data import Dataset
 from .distributed_indexed import DistributedMMapIndexedDataset
@@ -12,7 +10,7 @@ import numpy as np
 
 
 class BaseDataset(Dataset):
-    def __init__(self, args, tokenizer, split, data_path=None, num=-1, ada_max_length=False, **kwargs):
+    def __init__(self, args, tokenizer, split, data_path=None, num=None, ada_max_length=False, data_name="", **kwargs):
         super().__init__()
         
         num_log = str(num) if num >= 0 else "ALL"
@@ -22,15 +20,19 @@ class BaseDataset(Dataset):
         self.args = args
         self.tokenizer = tokenizer
         self.split = split
+        self.num = num
+        self.data_name = data_name
         self.data_path = data_path
         self.pad_id = self.tokenizer.pad_token_id
         self.eod_id = self.tokenizer.eos_token_id
         self.max_length = args.max_length
+        self.min_prompt_length = args.min_prompt_length
+        self.max_prompt_length = args.max_prompt_length
         self.answers = None
         self.order = None
         self.epoch = 0
         self.skip_offset = (-1, -1)
-        self.ada_max_length = ada_max_length
+        self.ada_max_length = ada_max_length or self.args.ada_max_length
 
         self.load_data(**kwargs)
         
@@ -48,7 +50,8 @@ class BaseDataset(Dataset):
         if self.answers is not None:
             self.label_map = {tokenizer.encode(x[0], add_special_tokens=False)[0]: x[0] for x in self.answers}
             
-        self.num = min(num, len(self.data)) if num > 0 else len(self.data)
+        self.num = min(num, len(self.data)) if num is not None else len(self.data)
+        assert self.num is not None and self.num > 0
         print_rank(f"Num instances: {len(self.data)}")
             
     def __len__(self):
@@ -138,11 +141,14 @@ class BaseDataset(Dataset):
     def __getitem__(self, index):
         raise NotImplementedError
 
-    def move_to_device(self, model_batch, no_model_batch, device):
+    def move_to_device(self, model_batch, no_model_batch=None, device="cpu"):
         for k in model_batch:
             model_batch[k] = model_batch[k].to(device)   
-             
-        for k in no_model_batch:
-            no_model_batch[k] = no_model_batch[k].to(device)    
+            
+        if no_model_batch is not None:
+            for k in no_model_batch:
+                no_model_batch[k] = no_model_batch[k].to(device)    
         
-        return model_batch, no_model_batch
+            return model_batch, no_model_batch
+        else:
+            return model_batch

@@ -159,15 +159,10 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-minillm_ckpts
 pretrain_data
 processed_data
 results
-checkpoints
 data
 debug
-api_keys.json
-processed_data_1
-azcopy
 downstream_data
 wandb

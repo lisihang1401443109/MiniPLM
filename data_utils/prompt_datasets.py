@@ -1,13 +1,5 @@
-import random
 import torch
-import os
-from torch.utils.data import Dataset
-from .distributed_indexed import DistributedMMapIndexedDataset
-
-from torch.distributed import get_rank, get_world_size
-from utils import print_rank
-from tqdm import tqdm
-import json
+from utils import POSITION_ID_MODELS
 import numpy as np
 from .base_datasets import BaseDataset
 
@@ -39,10 +31,18 @@ class PromptDataset(BaseDataset):
         elif self.args.json_data:
             prompt_ids = data["prompt_ids"]
             response_ids = data["output_ids"]
+        else:
+            raise ValueError("Data format not supported")
 
         if self.args.trunc_data:
-            prompt_ids = prompt_ids[-self.args.max_prompt_length:]
-            response_ids = response_ids[:self.args.max_length + 1 - len(prompt_ids)]
+            if len(prompt_ids) + len(response_ids) > self.args.max_length + 1 and self.args.trunc_data:
+                if prompt_ids[0] == self.tokenizer.bos_token_id:
+                    prompt_ids = prompt_ids[1:]
+                    prompt_ids = prompt_ids[-self.args.max_prompt_length+1:]
+                    prompt_ids = np.concatenate([np.array([self.tokenizer.bos_token_id]), prompt_ids], axis=0)
+                else:
+                    prompt_ids = prompt_ids[-self.args.max_prompt_length:]
+                response_ids = response_ids[:self.args.max_length + 1 - len(prompt_ids)]
 
         assert len(prompt_ids) + len(response_ids) <= self.args.max_length + 1, \
             f"Prompt and response too long: {len(prompt_ids)} + {len(response_ids)} > {self.args.max_length + 1}"        
@@ -67,6 +67,9 @@ class PromptDataset(BaseDataset):
             # "position_ids": torch.zeros(bs, self.max_length, dtype=torch.long)
         }
         
+        if self.args.model_type in POSITION_ID_MODELS:
+            model_batch["position_ids"] = torch.zeros(bs, max_length, dtype=torch.long)
+        
         no_model_batch = {
             "label": torch.ones(bs, max_length, dtype=torch.long) * self.pad_id,
             "loss_mask": torch.zeros(bs, max_length, dtype=torch.float)
@@ -76,11 +79,13 @@ class PromptDataset(BaseDataset):
             full_ids = np.concatenate([prompt, response], axis=0)
             model_batch["input_ids"][i][:len(full_ids)-1] = torch.tensor(full_ids[:-1], dtype=torch.long)
             model_batch["attention_mask"][i][:len(full_ids)-1] = 1
-            # model_batch["position_ids"][i][-len(prompt):] = torch.arange(len(prompt))
+            if self.args.model_type in POSITION_ID_MODELS:
+                model_batch["position_ids"][i][:len(full_ids)-1] = torch.arange(0, len(full_ids)-1, dtype=torch.long)
             no_model_batch["label"][i][:len(full_ids)-1] = torch.tensor(full_ids[1:], dtype=torch.long)
             st = max(len(prompt)-1, 0)
             no_model_batch["loss_mask"][i][:len(full_ids)-1] = (torch.tensor(full_ids[:-1], dtype=torch.long) != self.pad_id)
-            no_model_batch["loss_mask"][i][:st] = 0.0
+            if not self.args.prompt_data_full_loss:
+                no_model_batch["loss_mask"][i][:st] = 0.0
             assert torch.sum(no_model_batch["loss_mask"][i]) > 0, (prompt, response, no_model_batch["loss_mask"][i])
         
         return model_batch, no_model_batch
@@ -94,8 +99,11 @@ class PromptDataset(BaseDataset):
         model_batch = {
             "input_ids": torch.ones(bs, max_prompt_length, dtype=torch.long) * self.pad_id,
             "attention_mask": torch.zeros(bs, max_prompt_length, dtype=torch.long),
-            # "position_ids": torch.zeros(bs, max_prompt_length, dtype=torch.long)
         }
+    
+        # NOTE: gpt2 should not have position ids during generation seems like a bug of transformer
+        # if self.args.model_type in POSITION_ID_MODELS:
+            # model_batch["position_ids"] = torch.zeros(bs, max_prompt_length, dtype=torch.long)
         
         no_model_batch = {
             "idx": torch.zeros(bs, dtype=torch.long),
@@ -106,7 +114,6 @@ class PromptDataset(BaseDataset):
             # left padding
             model_batch["input_ids"][i][-len(prompt):] = torch.tensor(prompt, dtype=torch.long)
             model_batch["attention_mask"][i][-len(prompt):] = 1
-            # model_batch["position_ids"][i][-len(prompt):] = torch.arange(len(prompt))
             no_model_batch["idx"][i] = idx
             no_model_batch["response_ids"][i][:len(response)] = torch.tensor(response, dtype=torch.long)
         

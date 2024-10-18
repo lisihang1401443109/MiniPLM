@@ -16,8 +16,6 @@
 import os
 import struct
 
-from itertools import accumulate
-
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -138,7 +136,7 @@ class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
         if max_ratio is not None:
             self.max_offset = int(max_ratio * self.total_length)
 
-        self.valid_length = (self.max_offset if self.max_offset is not None else self.total_length) - self.min_offset
+        self.valid_length = min((self.max_offset if self.max_offset is not None else self.total_length), self.total_length) - self.min_offset
 
         if not dist.is_initialized() or dist.get_rank() == 0:  
             print(f"Probing end. Max data state {self.max_state}, total length {self.history[self.max_state-1][1]}, valid_length {self.valid_length}, min_offset {self.min_offset}")
@@ -155,7 +153,7 @@ class DistributedMMapIndexedDataset(torch.utils.data.Dataset):
         while state < max_state:
             if state % 10 == 0:
                 if not dist.is_initialized() or dist.get_rank() == 0:
-                    print(f"Find State {state}")
+                    print(f"Find data state {state}")
             if do_probe:
                 source_file = os.path.join(path, name + f"_{state}")
             else:
