@@ -166,3 +166,4 @@ data
 debug
 downstream_data
 wandb
+checkpoints

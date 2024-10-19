@@ -1,6 +1,4 @@
 BASE_PATH=$1
-SHARD_START=$2
-SHARD_END=$3
 
 export PYTHONPATH=${BASE_PATH}
 python3 tools/process_data/tokenize_pile.py \

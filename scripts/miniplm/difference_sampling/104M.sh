@@ -17,7 +17,7 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
 TYPE="pt_lm_infer"
 # model
 CKPT_NAME="qwen_104M"
-CKPT="${BASE_PATH}/results/104M_ref"
+CKPT="${BASE_PATH}/checkpoints/qwen/104M_ref"
 # data
 DATA_DIR="${BASE_PATH}/processed_data/pretrain/pile_ref/qwen-1025"
 # hp
