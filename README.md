@@ -49,6 +49,7 @@ python3 scripts/miniplm/difference_sampling/construct_pretrain_data.py /PATH/TO/
 We open-source the [refined data]() (50B tokens) for reproducbility.
 
 #### Pre-Training
+Before pre-training, you need to put the `config.json` and the tokenizer-related files in `checkpoints/qwen/200M`, `checkpoints/qwen/500M`, and `checkpoints/qwen/1.2B`, which can be downloaded from [our huggingface hub](https://huggingface.co/collections/MiniLLM/miniplm-6712c0fdf09ef7e8da7d39bd).
 ```bash
 bash scripts/miniplm/pretraining/qwen/200M.sh /PATH/TO/MiniPLM
 bash scripts/miniplm/pretraining/qwen/500M.sh /PATH/TO/MiniPLM
@@ -56,7 +57,7 @@ bash scripts/miniplm/pretraining/qwen/1.2B.sh /PATH/TO/MiniPLM
 ```
 
 #### KD Across Model Families
-To distill the knowledge of QWen models to Mamba or LLaMA3.1, you just need to convert the QWen tokenization to the target tokenization:
+To distill the knowledge of QWen models to Mamba or LLaMA3.1, first prepare the `config.json` and tokenization-related files in `checkpoints/mamba/130M` and `checkpoints/llama3.1/212M`, which can be downloaded from [our huggingface hub](https://huggingface.co/collections/MiniLLM/miniplm-6712c0fdf09ef7e8da7d39bd). Then, convert the QWen tokenization to the target tokenization:
 ```bash
 bash scripts/tools/convert_tokenization/convert_tokenization_qwen_mamba.sh /PATH/TO/MiniPLM
 bash scripts/tools/convert_tokenization/convert_tokenization_qwen_llama3_1.sh /PATH/TO/MiniPLM

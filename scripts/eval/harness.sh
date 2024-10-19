@@ -16,8 +16,8 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
 # type
 TYPE="eval_harness"
 # model
-CKPT_NAME="200M_pretrain"
-CKPT="${BASE_PATH}/results/pretrain/200M"
+CKPT_NAME="200M_miniplm"
+CKPT="${BASE_PATH}/results/miniplm/200M"
 # data
 DATA_NAME="end_tasks"
 EVAL_DATA_NAMES="hellaswag,lambada_openai,winogrande,openbookqa,arc_easy,arc_challenge,piqa,social_iqa,storycloze_2018"
@@ -29,14 +29,14 @@ SAVE_PATH="${BASE_PATH}/results/${TYPE}"
 # seed
 SEED=10
 # wandb
-WANDB_NAME="200M_pretrain"
+WANDB_NAME="200M_miniplm"
 
 
 OPTS=""
 # type
 OPTS+=" --type ${TYPE}"
 # model
-OPTS+=" --model-type mistral"
+OPTS+=" --model-type qwen"
 OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --model-path ${CKPT}"
 OPTS+=" --ckpt-name ${CKPT_NAME}"

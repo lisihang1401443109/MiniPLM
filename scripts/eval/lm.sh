@@ -16,8 +16,8 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
 # type
 TYPE="eval_lm"
 # model
-CKPT_NAME="200M_pretrain"
-CKPT="${BASE_PATH}/results/pretrain/200M"
+CKPT_NAME="200M_miniplm"
+CKPT="${BASE_PATH}/results/miniplm/200M"
 # data
 DATA_NAME="dclm"
 # hp
@@ -27,21 +27,21 @@ SAVE_PATH="${BASE_PATH}/results/${TYPE}"
 # seed
 SEED=10
 # wandb
-WANDB_NAME="200M_pretrain"
+WANDB_NAME="200M_miniplm"
 
 
 OPTS=""
 # type
 OPTS+=" --type ${TYPE}"
 # model
-OPTS+=" --model-type mistral"
+OPTS+=" --model-type qwen"
 OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --model-path ${CKPT}"
 OPTS+=" --ckpt-name ${CKPT_NAME}"
 OPTS+=" --n-gpu ${GPUS_PER_NODE}"
 OPTS+=" --n-nodes ${NNODES}"
 # data
-OPTS+=" --data-dir ${BASE_PATH}/processed_data/dclm/mistral-1025"
+OPTS+=" --data-dir ${BASE_PATH}/processed_data/dclm/qwen-1025"
 OPTS+=" --data-name ${DATA_NAME}"
 OPTS+=" --data-split test"
 OPTS+=" --bin-data"
@@ -49,7 +49,7 @@ OPTS+=" --bin-data"
 OPTS+=" --eval-batch-size ${EVAL_BATCH_SIZE}"
 # runtime
 OPTS+=" --save ${SAVE_PATH}"
-OPTS+=" --wandb-group eval_harness"
+OPTS+=" --wandb-group eval_lm"
 OPTS+=" --wandb-name ${WANDB_NAME}"
 OPTS+=" --wandb-mode disabled"
 # seed
