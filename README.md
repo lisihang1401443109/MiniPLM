@@ -38,7 +38,7 @@ First, run inference of the teacher LM and the reference LM on the Pile data:
 bash scripts/miniplm/difference_sampling/1.8B.sh /PATH/TO/MiniPLM
 bash scripts/miniplm/difference_sampling/104M.sh /PATH/TO/MiniPLM
 ```
-Then, compute the difference scores $r(x,p,p_{\text{ref}})=\frac{\log p(\bm{x})}{\log p_{\text{ref}}(\bm{x})}$:
+Then, compute the difference scores $r(x,p,p_{\text{ref}})=\frac{\log p(x)}{\log p_{\text{ref}}(x)}$:
 ```bash
 python3 scripts/miniplm/difference_sampling/compute_difference_scores.py /PATH/TO/MiniPLM
 ```
