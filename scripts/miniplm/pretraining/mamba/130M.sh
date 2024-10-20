@@ -84,7 +84,7 @@ OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
 # additional suffix
 # OPTS+=" --save-additional-suffix _fp32"
 # wandb
-OPTS+=" --wandb-group pile-pt-mamba"
+OPTS+=" --wandb-group pretrain_scratch"
 OPTS+=" --wandb-name ${WANDB_NAME}"
 
 

@@ -12,14 +12,14 @@ DISTRIBUTED_ARGS="--num_gpus $GPUS_PER_NODE \
                   #--hostfile $BASE_PATH/configs/hostfiles/$HOSTFILE
 
 # type
-TYPE="pretrain"
+TYPE="seqkd"
 # model
 CKPT_NAME="qwen/500M"
 CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
 # data
 DATA_DIR="${BASE_PATH}/processed_data/pretrain/pile_qwen_infer/qwen-1025"
 DATA_NAMES="pile-qwen_1.8B-gen"
-WANDB_NAME="500M-seqkd"
+WANDB_NAME="500M-seqkd-qwen_1.8B-gen"
 # hp
 BATCH_SIZE=4
 LR=0.0003

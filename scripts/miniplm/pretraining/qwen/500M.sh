@@ -12,7 +12,7 @@ DISTRIBUTED_ARGS="--num_gpus $GPUS_PER_NODE \
                   #--hostfile $BASE_PATH/configs/hostfiles/$HOSTFILE
 
 # type
-TYPE="pretrain"
+TYPE="miniplm"
 # model
 CKPT_NAME="qwen/500M"
 CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"

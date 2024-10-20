@@ -45,7 +45,7 @@ def main():
     
     args.deepspeed_config = None
     
-    if args.type == "pretrain":
+    if args.type in ["pretrain", "seqkd", "miniplm"]:
         trainer = PreTrainer(args, ds_config, device, args.do_train)
     elif args.type == "vanilla_kd":
         trainer = VanillaKDPreTrainer(args, ds_config, device, args.do_train)
