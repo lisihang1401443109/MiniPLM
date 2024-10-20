@@ -1,11 +1,12 @@
+numpy==1.26.4
 torch
+transformers
 deepspeed
+lm_eval
 numerize
-torchtyping
-rich
 accelerate
 datasets
+wandb
+matplotlib
 sentencepiece
 peft
-matplotlib
-wandb

@@ -5,5 +5,9 @@ pip3 install transformers
 pip3 install deepspeed
 pip3 install lm_eval
 pip3 install numerize
+pip3 install accelerate
+pip3 install datasets
 pip3 install wandb
 pip3 install matplotlib
+pip3 install sentencepiece
+pip3 install peft

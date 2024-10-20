@@ -1,5 +1,5 @@
 # MiniPLM: Knowledge Distillation of Pre-Training Language Models
-[paper]() | [hf](https://huggingface.co/MiniLLM)
+[paper]() | [huggingface](https://huggingface.co/MiniLLM)
 
 
 <img src="figures/method.png"></img>

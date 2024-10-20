@@ -291,6 +291,7 @@ def get_args():
         )
     elif args.type == "vanilla_kd":
         args.save = os.path.join(
+            args.save,
             base_data_suffix(args),
             base_model_suffix(args),
             base_training_hp_suffix(args) + (f"-scr" if args.from_scratch else ""),
