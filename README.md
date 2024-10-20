@@ -7,6 +7,8 @@
 ## 1 Setup
 ```bash
 pip3 install -r requirements.txt
+git clone https://github.com/EleutherAI/lm-evaluation-harness
+pip3 install -e lm-evaluation-harness
 ```
 or
 ```bash
@@ -96,7 +98,7 @@ We use the official codebase of [MiniLLM](https://github.com/microsoft/LMOps/tre
 ```bash
 bash scripts/eval/harness.sh /PATH/TO/MiniPLM --model-path /PATH/TO/TRAINED_CKPT --ckpt-name NAME_OF_CKPT
 ```
-NOTE: The `story_cloze` dataset may require manually downloading. Please follow the instructions in this [link](https://huggingface.co/datasets/LSDSem/story_cloze/blob/734b4e1771508f38d8a05f034b48a42986446669/story_cloze.py#L50) to download the test sets. After downloading, you will need to replace the [task configuration file](lm_eval/tasks/storycloze/storycloze_2018.yaml) with [the one](configs/lm_harness_tasks/storycloze_2018.yaml) pointing to the downloaded directory.
+NOTE: The `story_cloze` dataset may require manually downloading. Please follow the instructions in this [link](https://huggingface.co/datasets/LSDSem/story_cloze/blob/734b4e1771508f38d8a05f034b48a42986446669/story_cloze.py#L50) to download the test sets. After downloading, you will need to replace the task configuration file `lm-evaluation-harness/tasks/storycloze/storycloze_2018.yaml` with `configs/lm_harness_tasks/storycloze_2018.yaml`that refers to the downloaded directory.
 
 #### Language Modeling
 ```bash
