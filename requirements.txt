@@ -2,7 +2,6 @@ numpy==1.26.4
 torch
 transformers
 deepspeed
-lm_eval
 numerize
 accelerate
 datasets
