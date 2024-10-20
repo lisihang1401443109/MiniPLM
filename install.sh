@@ -6,3 +6,4 @@ pip3 install deepspeed
 pip3 install lm_eval
 pip3 install numerize
 pip3 install wandb
+pip3 install matplotlib

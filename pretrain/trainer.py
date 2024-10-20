@@ -23,7 +23,7 @@ class PreTrainer(BaseTrainer):
         data_split = args.data_split or "data"
         if do_train:
             print_and_save_rank("### Using data from directory: {}".format(args.data_dir), os.path.join(args.save, "log.txt"))
-            assert not os.path.samefile(args.dev_data_dir, args.data_dir)
+            assert args.dev_data_dir is None or not os.path.samefile(args.dev_data_dir, args.data_dir)
             self.train_dataset = LMDataset(args, self.tokenizer, data_split, args.data_dir, args.train_num, min_state=self.args.min_state)
             print_and_save_rank("### Training Data Number:", len(self.train_dataset), os.path.join(args.save, "log.txt"))
             if args.dev_data_dir is not None:

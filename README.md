@@ -18,7 +18,7 @@ We use [the Pile](https://huggingface.co/datasets/monology/pile-uncopyrighted) a
 ```bash
 bash scripts/tools/process_data/pile_qwen.sh /PATH/TO/MiniPLM
 ```
-The processed data is stored in `processed_data/pretrain/pile/qwen-1025`, containing several shards (a pair of `.bin` and `.idx` files). Each shard contains about 1B tokens.
+The processed data is stored in `processed_data/pretrain/pile/qwen-1025`, containing several shards (a pair of `.bin` and `.idx` files). Each shard contains about 1B tokens. We provide the processed version (100B tokens) for reproducibility.
 
 
 ## 3 Models
@@ -27,7 +27,7 @@ We use [QWen1.5-1.8B](https://huggingface.co/Qwen/Qwen1.5-1.8B) as the teacher L
 ### 3.2 Reference Model
 The [reference model](https://huggingface.co/MiniLLM/MiniPLM-QWen-104M-ref) is a 104M QWen LM trained on 5B tokens randomly split from the Pile, which should be put in `checkpoints/qwen/104M_ref`.
 ### 3.3 Pre-Trained Models
-The [MiniPLM models](https://huggingface.co/collections/MiniLLM/miniplm-6712c0fdf09ef7e8da7d39bd) and [baseline models](https://huggingface.co/collections/MiniLLM/miniplm-baselines-671304a5b6b6ae7167d89000) can be found in the [HuggingFace Hub](https://huggingface.co/MiniLLM).
+The [MiniPLM models](https://huggingface.co/collections/MiniLLM/miniplm-6712c0fdf09ef7e8da7d39bd) and baseline models can be found in the [HuggingFace Hub](https://huggingface.co/MiniLLM).
 
 
 ## 4 Training
@@ -46,7 +46,7 @@ Finally, construct the refined pre-training corpus with the difference scores:
 ```bash
 python3 scripts/miniplm/difference_sampling/construct_pretrain_data.py /PATH/TO/MiniPLM
 ```
-We open-source the [refined data]() (50B tokens) for reproducbility.
+This process constructs a 50B-token corpus from a 100B-token corpus. We open-source the [refined data](https://huggingface.co/datasets/MiniLLM/pile-diff_samp-qwen_1.8B-qwen_104M-r0.5) (50B tokens) for reproducibility.
 
 #### Pre-Training
 Before pre-training, you need to put the `config.json` and the tokenizer-related files in `checkpoints/qwen/200M`, `checkpoints/qwen/500M`, and `checkpoints/qwen/1.2B`, which can be downloaded from [our huggingface hub](https://huggingface.co/collections/MiniLLM/miniplm-6712c0fdf09ef7e8da7d39bd).
@@ -62,6 +62,8 @@ To distill the knowledge of QWen models to Mamba or LLaMA3.1, first prepare the 
 bash scripts/tools/convert_tokenization/convert_tokenization_qwen_mamba.sh /PATH/TO/MiniPLM
 bash scripts/tools/convert_tokenization/convert_tokenization_qwen_llama3_1.sh /PATH/TO/MiniPLM
 ```
+
+NOTE: You may need to setup the environments following the official repo of [Mamba](https://github.com/state-spaces/mamba) before runing the mamba experiments.
 
 ### 4.2 Baselines
 #### Conventional Pre-Training
@@ -94,7 +96,7 @@ We use the official codebase of [MiniLLM](https://github.com/microsoft/LMOps/tre
 ```bash
 bash scripts/eval/harness.sh /PATH/TO/MiniPLM --model-path /PATH/TO/TRAINED_CKPT --ckpt-name NAME_OF_CKPT
 ```
-Note: The `story_cloze` dataset may require manually downloading. Please follow the instructions in this [link](https://huggingface.co/datasets/LSDSem/story_cloze/blob/734b4e1771508f38d8a05f034b48a42986446669/story_cloze.py#L50) to download the test sets. After downloading, you will need to replace the [task configuration file](lm_eval/tasks/storycloze/storycloze_2018.yaml) with [the one](configs/lm_harness_tasks/storycloze_2018.yaml) pointing to the downloaded directory.
+NOTE: The `story_cloze` dataset may require manually downloading. Please follow the instructions in this [link](https://huggingface.co/datasets/LSDSem/story_cloze/blob/734b4e1771508f38d8a05f034b48a42986446669/story_cloze.py#L50) to download the test sets. After downloading, you will need to replace the [task configuration file](lm_eval/tasks/storycloze/storycloze_2018.yaml) with [the one](configs/lm_harness_tasks/storycloze_2018.yaml) pointing to the downloaded directory.
 
 #### Language Modeling
 ```bash

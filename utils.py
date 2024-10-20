@@ -163,8 +163,6 @@ def _get_base_model(args, device, model_path=None, config=None, from_scratch=Non
     if config is None:
         config = AutoConfig.from_pretrained(model_path, attn_implementation=args.attn_impl)
         
-    if args.dropout_path_rate is not None:
-        config.drop_path_rate = args.dropout_path_rate
     if args.xops_attn:
         assert args.attn_impl == "eager"
         import xformers

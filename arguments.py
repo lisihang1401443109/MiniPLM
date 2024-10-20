@@ -52,6 +52,7 @@ def add_runtime_args(parser: argparse.ArgumentParser):
     group = parser.add_argument_group('runtime', 'runtime configurations')
 
     group.add_argument("--type", type=str, default=None)
+    group.add_argument("--local_rank", type=int, default=None)
     group.add_argument("--do-train", action="store_true")
     group.add_argument("--do-valid", action="store_true")
     group.add_argument("--do-eval", action="store_true")

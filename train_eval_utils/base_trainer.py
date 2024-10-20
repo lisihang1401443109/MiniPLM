@@ -79,7 +79,7 @@ class BaseTrainer():
             optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay, eps=args.adam_eps, betas=(args.adam_beta, args.adam_beta2))
         else:
             raise ValueError(f"Optimizer of type {self.args.optimizer_name} is not supported yet.")
-        print_and_save_rank(f'Optimizer = {optimizer.__class__.__name__}')
+        print_and_save_rank(f'Optimizer = {optimizer.__class__.__name__}', os.path.join(args.save, "log.txt"))
         return optimizer
         
     def get_lr_scheduler(self, optimizer, args=None):
@@ -339,7 +339,11 @@ class BaseTrainer():
 
         return stats
 
-    def train(self):        
+    def train(self): 
+        self.steps = 0
+        self.global_steps = 1
+        self.epoch = 0
+               
         logging_stats = defaultdict(float)
         if self.args.do_train and self.dp_rank == 0:
             wandb_id = self.args.wandb_id or (str(int(time())) + "-" + str(uuid.uuid4()))

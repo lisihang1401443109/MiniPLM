@@ -13,7 +13,7 @@ class BaseDataset(Dataset):
     def __init__(self, args, tokenizer, split, data_path=None, num=None, ada_max_length=False, data_name="", **kwargs):
         super().__init__()
         
-        num_log = str(num) if num >= 0 else "ALL"
+        num_log = str(num) if num is not None else "ALL"
         print_rank(f"Load {split} from {data_path} with {num_log} instances")
         self.tokenizer = tokenizer
 

@@ -39,8 +39,6 @@ OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --model-path ${CKPT}"
 OPTS+=" --ckpt-name ${CKPT_NAME}"
 OPTS+=" --n-gpu ${GPUS_PER_NODE}"
-OPTS+=" --attn-impl eager"
-OPTS+=" --xops-attn"
 # OPTS+=" --torch-compile reduce-overhead"
 # data
 OPTS+=" --data-name pile"
