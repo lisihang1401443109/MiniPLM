@@ -1,8 +1,11 @@
 # MiniPLM: Knowledge Distillation of Pre-Training Language Models
-[paper]() | [huggingface](https://huggingface.co/MiniLLM)
-
+[paper](https://arxiv.org/abs/2410.17215) | [huggingface](https://huggingface.co/MiniLLM)
 
 <img src="figures/method.png"></img>
+
+#### See also:
++ [MiniLLM](https://github.com/microsoft/LMOps/tree/main/minillm) (Knowledge Distillation for in SFT for LLMs)
++ [DPKD](https://github.com/microsoft/LMOps/tree/main/dpkd) (An improved version of MiniLLM with better performance and more simple implementation) 
 
 ## 1 Setup
 ```bash
@@ -25,9 +28,9 @@ The processed data is stored in `processed_data/pretrain/pile/qwen-1025`, contai
 
 ## 3 Models
 ### 3.1 Teacher Model
-We use [QWen1.5-1.8B](https://huggingface.co/Qwen/Qwen1.5-1.8B) as the teacher LM. You can download this model can put it in `checkpoints/qwen/1.8B`.
+We use [Qwen1.5-1.8B](https://huggingface.co/Qwen/Qwen1.5-1.8B) as the teacher LM. You can download this model can put it in `checkpoints/qwen/1.8B`.
 ### 3.2 Reference Model
-The [reference model](https://huggingface.co/MiniLLM/MiniPLM-QWen-104M-ref) is a 104M QWen LM trained on 5B tokens randomly split from the Pile, which should be put in `checkpoints/qwen/104M_ref`.
+The [reference model](https://huggingface.co/MiniLLM/MiniPLM-Qwen-104M-ref) is a 104M Qwen LM trained on 5B tokens randomly split from the Pile, which should be put in `checkpoints/qwen/104M_ref`.
 ### 3.3 Pre-Trained Models
 The [MiniPLM models](https://huggingface.co/collections/MiniLLM/miniplm-6712c0fdf09ef7e8da7d39bd) and baseline models can be found in the [HuggingFace Hub](https://huggingface.co/MiniLLM).
 
@@ -59,7 +62,7 @@ bash scripts/miniplm/pretraining/qwen/1.2B.sh /PATH/TO/MiniPLM
 ```
 
 #### KD Across Model Families
-To distill the knowledge of QWen models to Mamba or LLaMA3.1, first prepare the `config.json` and tokenization-related files in `checkpoints/mamba/130M` and `checkpoints/llama3.1/212M`, which can be downloaded from [our huggingface hub](https://huggingface.co/collections/MiniLLM/miniplm-6712c0fdf09ef7e8da7d39bd). Then, convert the QWen tokenization to the target tokenization:
+To distill the knowledge of Qwen models to Mamba or LLaMA3.1, first prepare the `config.json` and tokenization-related files in `checkpoints/mamba/130M` and `checkpoints/llama3.1/212M`, which can be downloaded from [our huggingface hub](https://huggingface.co/collections/MiniLLM/miniplm-6712c0fdf09ef7e8da7d39bd). Then, convert the Qwen tokenization to the target tokenization:
 ```bash
 bash scripts/tools/convert_tokenization/convert_tokenization_qwen_mamba.sh /PATH/TO/MiniPLM
 bash scripts/tools/convert_tokenization/convert_tokenization_qwen_llama3_1.sh /PATH/TO/MiniPLM
@@ -106,4 +109,11 @@ bash scripts/eval/lm.sh /PATH/TO/MiniPLM --model-path /PATH/TO/TRAINED_CKPT --ck
 ```
 
 ## 6 Citation
-TODO
+```
+@article{miniplm,
+    title={MiniPLM: Knowledge Distillation for Pre-Training Language Models}, 
+    author={Yuxian Gu and Hao Zhou and Fandong Meng and Jie Zhou and Minlie Huang},
+    journal={arXiv preprint arXiv:2410.17215},
+    year={2024}
+}
+```

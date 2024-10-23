@@ -291,9 +291,3 @@ def save_parallel(model, save_dir):
     checkpoint_name = os.path.join(save_dir, f"mp{mpu.get_model_parallel_world_size()}", f"pytorch_model_{mp_rank}.bin")
     torch.save(model.state_dict(), checkpoint_name)
     print(f"Rank {get_rank()}: {checkpoint_name} saved.")
-
-
-def remove_path(path):
-    print("Remove", path)
-    if os.path.exists(path):
-        os.system(f"rm -rf {path}")
