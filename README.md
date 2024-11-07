@@ -4,7 +4,7 @@
 <img src="figures/method.png"></img>
 
 #### See also:
-+ [MiniLLM](https://github.com/microsoft/LMOps/tree/main/minillm) (Knowledge Distillation for in SFT for LLMs)
++ [MiniLLM](https://github.com/microsoft/LMOps/tree/main/minillm) (Knowledge Distillation of LLMs during SFT)
 + [DPKD](https://github.com/microsoft/LMOps/tree/main/dpkd) (An improved version of MiniLLM with better performance and more simple implementation) 
 
 ## 1 Setup
