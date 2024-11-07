@@ -141,6 +141,7 @@ class ChunkedDatasetBuilder():
         self.output_path = output_path
         self.bin_file = os.path.join(self.output_path, f"{self.split}_{self.ofid}.bin")
         self.idx_file = os.path.join(self.output_path, f"{self.split}_{self.ofid}.idx")
+        self.chunk_num_per_shard = chunk_num_per_shard
         self.tmp_output_path = tmp_output_path
         if self.tmp_output_path is not None:
             self.tmp_bin_file = os.path.join(self.tmp_output_path, f"{self.split}_{self.ofid}.bin")
