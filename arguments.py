@@ -232,7 +232,7 @@ def add_kd_args(parser: argparse.ArgumentParser):
 def add_infer_args(parser: argparse.ArgumentParser):
     group = parser.add_argument_group('inference', 'inference configurations')
     
-    group.add_argument("--grouped-infer", type=int, default=None)
+    group.add_argument("--grouped-infer", action="store_true")
     
     return parser
 
