@@ -229,6 +229,14 @@ def add_kd_args(parser: argparse.ArgumentParser):
     return parser
 
 
+def add_infer_args(parser: argparse.ArgumentParser):
+    group = parser.add_argument_group('inference', 'inference configurations')
+    
+    group.add_argument("--grouped-infer", type=int, default=None)
+    
+    return parser
+
+
 def base_training_hp_suffix(args):
     suffix = ""
     suffix += (f"e{args.epochs}" if args.epochs is not None else f"t{numerize(args.total_iters)}") + \
@@ -266,6 +274,7 @@ def get_parser():
     parser = add_eval_args(parser)
     parser = add_peft_args(parser)
     parser = add_kd_args(parser)
+    parser = add_infer_args(parser)
     parser = deepspeed.add_config_arguments(parser)
     return parser
 
