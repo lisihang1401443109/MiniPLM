@@ -55,3 +55,7 @@ def main():
             print(tokenizer.decode(data.astype(int)))
         builder.add_np_item(data)
     builder.finalize()
+    
+    
+if __name__ == "__main__":
+    main()

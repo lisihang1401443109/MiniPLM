@@ -49,7 +49,7 @@ python3 scripts/miniplm/difference_sampling/compute_difference_scores.py /PATH/T
 ```
 Finally, construct the refined pre-training corpus with the difference scores:
 ```bash
-python3 scripts/miniplm/difference_sampling/construct_pretrain_data.py /PATH/TO/MiniPLM
+python3 scripts/miniplm/difference_sampling/construct_pretrain_data.py /PATH/TO/MiniPLM 0.5 # selection ratio
 ```
 This process constructs a 50B-token corpus from a 100B-token corpus. We open-source the [refined data](https://huggingface.co/datasets/MiniLLM/pile-diff_samp-qwen_1.8B-qwen_104M-r0.5) (50B tokens) for reproducibility.
 
