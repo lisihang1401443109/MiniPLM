@@ -80,16 +80,16 @@ bash scripts/pretrain/qwen/1.2B.sh /PATH/TO/MiniPLM
 
 #### Vanilla KD
 ```bash
-bash scripts/pretrain/qwen/200M.sh /PATH/TO/MiniPLM
-bash scripts/pretrain/qwen/500M.sh /PATH/TO/MiniPLM
-bash scripts/pretrain/qwen/1.2B.sh /PATH/TO/MiniPLM
+bash scripts/vanilla_kd/qwen/200M.sh /PATH/TO/MiniPLM
+bash scripts/vanilla_kd/qwen/500M.sh /PATH/TO/MiniPLM
+bash scripts/vanilla_kd/qwen/1.2B.sh /PATH/TO/MiniPLM
 ```
 
 #### SeqKD
 ```bash
-bash scripts/pretrain/qwen/200M.sh /PATH/TO/MiniPLM
-bash scripts/pretrain/qwen/500M.sh /PATH/TO/MiniPLM
-bash scripts/pretrain/qwen/1.2B.sh /PATH/TO/MiniPLM
+bash scripts/seqkd/qwen/200M.sh /PATH/TO/MiniPLM
+bash scripts/seqkd/qwen/500M.sh /PATH/TO/MiniPLM
+bash scripts/seqkd/qwen/1.2B.sh /PATH/TO/MiniPLM
 ```
 
 #### MiniLLM
