@@ -69,7 +69,6 @@ OPTS+=" --total-iters 100000"
 OPTS+=" --max-length ${MAX_LENGTH}"
 # runtime
 OPTS+=" --do-train"
-OPTS+=" --do-valid"
 OPTS+=" --save-interval 5000"
 OPTS+=" --log-interval 10"
 OPTS+=" --mid-log-num -1"

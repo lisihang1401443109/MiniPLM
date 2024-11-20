@@ -357,7 +357,7 @@ class BaseTrainer():
                 tags=[self.args.time_stamp, self.args.data_name],
                 mode=self.args.wandb_mode)
         
-        if self.args.do_train and not self.args.resume_training and not self.args.no_eval_when_start:
+        if self.args.do_train and self.args.do_valid and not self.args.resume_training and not self.args.no_eval_when_start:
             self.evaluate()
         
         if self.args.do_train and not self.args.resume_training and not self.args.no_save_when_start:
@@ -469,13 +469,15 @@ class BaseTrainer():
                 # eval
                 if (self.steps > 0) and (self.global_steps > 0) and ((self.steps+1) % self.args.gradient_accumulation_steps == 0) and \
                     (self.global_steps % self.args.eval_interval == 0):
-                    self.evaluate()
+                    if self.args.do_valid:
+                        self.evaluate()
                     self.set_train()
 
                 # end
                 if ((self.steps+1) % self.args.gradient_accumulation_steps == 0) and (self.global_steps >= self.total_steps):
                     self.save(self.args.save)
-                    self.evaluate()
+                    if self.args.do_valid:
+                        self.evaluate()
                     return
                                 
                 self.steps += 1

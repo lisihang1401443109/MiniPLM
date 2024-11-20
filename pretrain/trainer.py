@@ -26,7 +26,7 @@ class PreTrainer(BaseTrainer):
             assert args.dev_data_dir is None or not os.path.samefile(args.dev_data_dir, args.data_dir)
             self.train_dataset = LMDataset(args, self.tokenizer, data_split, args.data_dir, args.train_num, min_state=self.args.min_state)
             print_and_save_rank("### Training Data Number:", len(self.train_dataset), os.path.join(args.save, "log.txt"))
-            if args.dev_data_dir is not None:
+            if self.args.do_valid and args.dev_data_dir is not None:
                 self.eval_dataset = LMDataset(args, self.tokenizer, data_split, args.dev_data_dir, args.dev_num, max_offset=100000)
                 print_and_save_rank("### Dev Data Number:", len(self.eval_dataset), os.path.join(args.save, "log.txt"))
             else:

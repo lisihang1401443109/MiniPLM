@@ -187,7 +187,8 @@ def _get_base_model(args, device, model_path=None, config=None, from_scratch=Non
         from_scratch = from_scratch if from_scratch is not None else args.from_scratch
         model_cls = model_cls if model_cls is not None else AutoModelForCausalLM
         if from_scratch:
-            model = model_cls.from_config(config, attn_implementation=args.attn_impl).to(device)
+            dtype = torch.float32 if args.fp32 else torch.float16
+            model = model_cls.from_config(config, attn_implementation=args.attn_impl, torch_dtype=dtype).to(device)
         else:
             dtype = torch.float32 if args.fp32 else torch.float16
             model = model_cls.from_pretrained(model_path, config=config, device_map={"": device}, torch_dtype=dtype)

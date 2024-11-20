@@ -34,9 +34,11 @@ class PretrainInferer(BaseTrainer):
         else:
             self.min_offset = 0
             self.min_shard_idx = 0
-        self.eval_dataset = LMDataset(args, self.tokenizer, args.data_split, args.data_dir, args.infer_num-self.min_offset, min_offset=(args.min_offset+self.min_offset),
+        
+        load_num = args.infer_num-self.min_offset if args.infer_num is not None else None
+        self.eval_dataset = LMDataset(args, self.tokenizer, args.data_split, args.data_dir, load_num, min_offset=(args.min_offset+self.min_offset),
                                       min_state=self.args.shard_start, max_state=self.args.shard_end)
-        self.infer_num = args.infer_num if args.infer_num > 0 else (len(self.eval_dataset) + self.min_offset)
+        self.infer_num = args.infer_num if args.infer_num is not None else (len(self.eval_dataset) + self.min_offset)
         print_and_save_rank("Inference dataset size: {}".format(len(self.eval_dataset)), os.path.join(args.save, "log.txt"))
 
     def get_dataloader(self, eval_dataset: LMDataset):
