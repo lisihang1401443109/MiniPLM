@@ -5,7 +5,8 @@ python3 tools/process_data/tokenize_pile.py \
     --base-path $BASE_PATH \
     --model-path checkpoints/qwen/200M \
     --data-dir data/pile/train \
-    --save processed_data/pretrain/pile/ \
+    --save processed_data/pretrain/ \
+    --data-name pile \
     --max-length 1025 \
     --log-interval 10000 \
     --data-process-workers 32 \
