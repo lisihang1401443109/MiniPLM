@@ -8,7 +8,7 @@ import time
 import multiprocessing
 from utils import print_args, PAD_EOS_MODELS, BOS_MODELS
 from data_utils import ChunkedDatasetBuilder, best_fitting_dtype
-from arguments import add_data_args, add_runtime_args, add_hp_args, add_model_args
+from arguments import add_data_args, add_runtime_args, add_hp_args, add_model_args, add_peft_args
 import argparse
 from transformers import AutoTokenizer
 
@@ -130,8 +130,8 @@ class Writer():
 def get_args():
     parser = argparse.ArgumentParser()
 
-    parser = add_hp_args(add_model_args(
-        add_data_args(add_runtime_args(parser))))
+    parser = add_peft_args(add_hp_args(add_model_args(
+        add_data_args(add_runtime_args(parser)))))
     args = parser.parse_args()
 
     return args
