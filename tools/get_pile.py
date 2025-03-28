@@ -4,10 +4,10 @@ from tqdm import tqdm
 import json
 
 
-data = datasets.load_dataset("monology/pile-uncopyrighted")
+data = datasets.load_dataset("monology/pile-uncopyrighted", cache_dir='/mnt/work/data/pile')
 print(data)
 
-output_dir = "data/pile/"
+output_dir = "/mnt/work/data/pile"
 os.makedirs(output_dir, exist_ok=True)
 
 max_num_per_shard = 1000000
