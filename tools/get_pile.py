@@ -4,6 +4,9 @@ from tqdm import tqdm
 import json
 
 os.environ["HF_HOME"] = "/mnt/work/data/pile"
+os.environ["HF_HUB_CACHE"] = "/mnt/work/data/pile/hub"
+os.environ["TRANSFORMERS_CACHE"] = "/mnt/work/data/pile/transformers"
+os.environ["HF_DATASETS_CACHE"] = "/mnt/work/data/pile/datasets"
 
 
 data = datasets.load_dataset("monology/pile-uncopyrighted", cache_dir=os.environ["HF_HOME"])
