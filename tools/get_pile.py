@@ -3,8 +3,10 @@ import os
 from tqdm import tqdm
 import json
 
+os.environ["HF_HOME"] = "/mnt/work/data/pile"
 
-data = datasets.load_dataset("monology/pile-uncopyrighted", cache_dir='/mnt/work/data/pile')
+
+data = datasets.load_dataset("monology/pile-uncopyrighted", cache_dir=os.environ["HF_HOME"])
 print(data)
 
 output_dir = "/mnt/work/data/pile"
