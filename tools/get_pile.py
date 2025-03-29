@@ -15,7 +15,8 @@ os.environ["TRANSFORMERS_CACHE"] = "/mnt/work/data/pile/transformers"
 os.environ["HF_DATASETS_CACHE"] = "/mnt/work/data/pile/datasets"
 
 
-data = datasets.load_dataset("monology/pile-uncopyrighted", cache_dir="/mnt/work/data/pile")
+# data = datasets.load_dataset("monology/pile-uncopyrighted", cache_dir="/mnt/work/data/pile")
+data = datasets.load_dataset("JeanKaddour/minipile", cache_dir="/mnt/work/data/pile")
 print(data)
 
 output_dir = "/mnt/work/data/pile"
