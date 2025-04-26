@@ -167,3 +167,6 @@ debug
 downstream_data
 wandb
 checkpoints
+
+
+train_small/mlruns

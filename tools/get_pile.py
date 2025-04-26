@@ -5,21 +5,14 @@ import json
 
 from pathlib import Path
 
-datasets.config.DOWNLOADED_DATASETS_PATH = Path("/mnt/work/data/pile")
-datasets.config.HF_DATASETS_CACHE = Path("/mnt/work/data/pile")
 
-
-os.environ["HF_HOME"] = "/mnt/work/data/pile"
-os.environ["HF_HUB_CACHE"] = "/mnt/work/data/pile/hub"
-os.environ["TRANSFORMERS_CACHE"] = "/mnt/work/data/pile/transformers"
-os.environ["HF_DATASETS_CACHE"] = "/mnt/work/data/pile/datasets"
 
 
 # data = datasets.load_dataset("monology/pile-uncopyrighted", cache_dir="/mnt/work/data/pile")
-data = datasets.load_dataset("JeanKaddour/minipile", cache_dir="/mnt/work/data/pile")
+data = datasets.load_dataset("JeanKaddour/minipile")
 print(data)
 
-output_dir = "/mnt/work/data/pile"
+output_dir = "./data"
 os.makedirs(output_dir, exist_ok=True)
 
 max_num_per_shard = 1000000

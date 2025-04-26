@@ -36,7 +36,8 @@ class Encoder(object):
         doc_id, json_line = id_with_json_line
         line = json.loads(json_line)
         doc = line["text"]
-        label = line["meta"]["pile_set_name"]
+        # label = line["meta"]["pile_set_name"]
+        label = 'MiniPile'
         tokens = Encoder.tokenizer.encode(
             doc, add_special_tokens=False) + [Encoder.tokenizer.eos_token_id]
         # del doc
@@ -228,6 +229,8 @@ def main():
     for fid, file_name in enumerate(files_names):
         print_and_save(f"Processing {file_name}. {fid}/{len(files_names)}", output_path)
         input_file = os.path.join(args.data_dir, file_name)
+        if not os.path.isfile(input_file):
+            continue
         fin = open(input_file)
 
         # use the tokenizer to encode the sentences

@@ -1,59 +1,56 @@
-#! /bin/bash
+#!/bin/bash
 
-BASE_PATH=${1-"/home/MiniPLM"}
-MASTER_PORT=${2-2030}
-GPUS_PER_NODE=${3-1}
+BASE_PATH=${1:-"/home/MiniPLM"}
+MASTER_PORT=${2:-2030}
+GPUS_PER_NODE=${3:-1}
 NNODES=1
-# HOSTFILE=${5-hostfile_8V100_0_1}
 
 DISTRIBUTED_ARGS="--num_gpus $GPUS_PER_NODE \
                   --num_nodes $NNODES \
                   --master_port $MASTER_PORT"
-                  #--hostfile $BASE_PATH/configs/hostfiles/$HOSTFILE
 
-# type
-TYPE="miniplm"
-# model
-CKPT_NAME="qwen/100M-weighted"
-# CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
-CKPT="/mnt/work/MiniPLM/checkpoints/qwen/100M"
-# data
-DATA_DIR="${BASE_PATH}/processed_data/pretrain/pile-diff_samp-qwen_1.8B-qwen_50M-weighted-r0.5/qwen-1025"
-DATA_NAME="pile-diff_samp-qwen_1.8B-qwen_100M-weighted-r0.5"
-WANDB_NAME="100M-miniplm-weighted"
-# hp
+# Type
+TYPE="pretrain"
+
+# Model
+CKPT_NAME="qwen/50M"
+CKPT="${BASE_PATH}/checkpoints/${CKPT_NAME}/"
+
+# Data
+DATA_DIR="${BASE_PATH}/processed_data/ref_pretrain/pile/qwen-1025"
+DATA_NAME="pile"
+WANDB_NAME="50M-pretrain"
+
+# Hyperparameters
 BATCH_SIZE=8
 LR=0.0006
 LR_MIN=0.00006
 GRAD_ACC=8
-# length
+
+# Sequence length
 MAX_LENGTH=1024
-# runtime
+
+# Runtime
 SAVE_PATH="${BASE_PATH}/results/${TYPE}"
-# seed
+
+# Seed
 SEED=10
 
-
+# Options
 OPTS=""
-# type
 OPTS+=" --type ${TYPE}"
-# model
 OPTS+=" --model-type qwen"
 OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --model-path ${CKPT}"
 OPTS+=" --ckpt-name ${CKPT_NAME}"
 OPTS+=" --n-gpu ${GPUS_PER_NODE}"
 OPTS+=" --n-nodes ${NNODES}"
-# OPTS+=" --gradient-checkpointing"
 OPTS+=" --from-scratch"
-# OPTS+=" --torch-compile reduce-overhead"
-# data
 OPTS+=" --data-name ${DATA_NAME}"
 OPTS+=" --data-dir ${DATA_DIR}"
 OPTS+=" --num-workers 8"
 OPTS+=" --bin-data"
 OPTS+=" --no-shuffle"
-# hp
 OPTS+=" --lr ${LR}"
 OPTS+=" --lr-min ${LR_MIN}"
 OPTS+=" --batch-size ${BATCH_SIZE}"
@@ -65,30 +62,25 @@ OPTS+=" --clip-grad 1.0"
 OPTS+=" --adam-beta 0.9"
 OPTS+=" --adam-beta2 0.98"
 OPTS+=" --adam-eps 1e-6"
-OPTS+=" --total-iters 50000"
-# length
+OPTS+=" --total-iters 10000"
 OPTS+=" --max-length ${MAX_LENGTH}"
-# runtime
 OPTS+=" --do-train"
-OPTS+=" --save-interval 10000"
-OPTS+=" --log-interval 10"
+OPTS+=" --save-interval 5000"
+OPTS+=" --log-interval 1000"
 OPTS+=" --mid-log-num -1"
 OPTS+=" --save ${SAVE_PATH}"
 OPTS+=" --no-eval-when-start"
-# seed
 OPTS+=" --seed ${SEED}"
-# deepspeed
 OPTS+=" --deepspeed"
 OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
-# wandb
 OPTS+=" --wandb-group pretrain_scratch"
 OPTS+=" --wandb-name ${WANDB_NAME}"
-
 
 export NCCL_DEBUG=""
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
 export OMP_NUM_THREADS=16
+
 CMD="deepspeed ${DISTRIBUTED_ARGS} ${BASE_PATH}/train.py ${OPTS} $@"
 
 echo ${CMD}

@@ -5,7 +5,7 @@ MASTER_ADDR=localhost
 MASTER_PORT=${2-2012}
 NNODES=1
 NODE_RANK=0
-GPUS_PER_NODE=${3-16}
+GPUS_PER_NODE=${3-1}
 
 DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
                   --nnodes $NNODES \
@@ -16,10 +16,10 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
 # type
 TYPE="pt_lm_infer"
 # model
-CKPT_NAME="qwen_104M"
-CKPT="${BASE_PATH}/checkpoints/qwen/104M_ref"
+CKPT_NAME="qwen_50M"
+CKPT="/mnt/work/MiniPLM/results/pretrain/pile/qwen_50M/t10K-w2K-bs8-lr0.0006cosine6e-05-G8-N1-NN1-scr/10000"
 # data
-DATA_DIR="${BASE_PATH}/processed_data/pretrain/pile_ref/qwen-1025"
+DATA_DIR="${BASE_PATH}/processed_data/pretrain/pile/qwen-1025"
 # hp
 EVAL_BATCH_SIZE=16
 # length

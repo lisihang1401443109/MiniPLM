@@ -27,6 +27,14 @@ def save(tokenizer, dataset, indices, scores, large_scores, small_scores, output
 
 def compute_diff_scores(large_scores, small_scores, output_path):
     diff_scores = small_scores - large_scores
+    
+    # !modification
+    tau = np.percentile(large_scores, 50)
+    print('choice of tau:', tau)
+    weights = 1 / (1 + np.exp(-(large_scores - tau)))
+    
+    diff_scores = weights * diff_scores
+    
     print_and_save_rank("diff_scores size: {}".format(len(diff_scores)), 
                         os.path.join(output_path, "log.txt"))
     
@@ -138,13 +146,14 @@ def main():
     random.seed(42)
     torch.random.manual_seed(42)
     
-    model_path = os.path.join(base_path, "checkpoints/qwen/200M/")
-    data_path = os.path.join(base_path, "processed_data/pile/qwen-1025")
+    # model_path = os.path.join(base_path, "checkpoints/qwen/200M/")
+    model_path = os.path.join(base_path, "/mnt/work/MiniPLM/results/pretrain/pile/qwen_100M/t100K-w2K-bs8-lr0.0006cosine6e-05-G8-N1-NN1-scr/100000")
+    data_path = os.path.join(base_path, "processed_data/pretrain/pile/qwen-1025")
     
-    large_score_path = os.path.join(base_path, "results/lm_infer/qwen_1.8B/")
-    small_score_path = os.path.join(base_path, "results/lm_infer/pile/qwen_104M/")
+    large_score_path = os.path.join(base_path, "results/pt_lm_infer/pile/qwen_1.8B/")
+    small_score_path = os.path.join(base_path, "results/pt_lm_infer/pile/qwen_50M/")
     
-    output_path = os.path.join(base_path, "results/lm_infer/pile/diff-qwen_1.8B-qwen_104M/")
+    output_path = os.path.join(base_path, "results/lm_infer/pile/diff-qwen_1.8B-qwen_50M/")
 
     os.makedirs(output_path, exist_ok=True)
 

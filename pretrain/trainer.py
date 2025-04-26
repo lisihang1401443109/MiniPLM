@@ -35,6 +35,7 @@ class PreTrainer(BaseTrainer):
             self.eval_dataset = LMDataset(args, self.tokenizer, data_split, args.data_dir, args.dev_num, max_offset=100000)
     
     def compute_loss(self, model_batch, no_model_batch):
+        # print(f'MODEL_BATCH:', model_batch, model_batch)
         return self.compute_lm_loss(model_batch, no_model_batch), {}
 
     def evaluate(self):

@@ -5,7 +5,7 @@ MASTER_ADDR=localhost
 MASTER_PORT=${2-2012}
 NNODES=1
 NODE_RANK=0
-GPUS_PER_NODE=${3-16}
+GPUS_PER_NODE=${3-1}
 SHARD_START=${4-0}
 SHARD_END=${5-200}
 
@@ -19,7 +19,8 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
 TYPE="pt_lm_infer"
 # model
 CKPT_NAME="qwen_1.8B"
-CKPT="${BASE_PATH}/checkpoints/qwen/1.8B/"
+CKPT="${BASE_PATH}/checkpoints/qwen/1.5B/"
+# CKPT="Qwen/Qwen-1_8B"
 # data
 DATA_DIR="${BASE_PATH}/processed_data/pretrain/pile/qwen-1025"
 # hp

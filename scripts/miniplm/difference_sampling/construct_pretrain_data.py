@@ -17,13 +17,15 @@ def main():
     np.random.seed(42)
     random.seed(42)
 
-    model_path = os.path.join(base_path, "checkpoints/qwen/200M/")
+    # model_path = os.path.join(base_path, "checkpoints/qwen/200M/")
+    model_path = os.path.join(base_path, "/mnt/work/MiniPLM/results/pretrain/pile/qwen_100M/t100K-w2K-bs8-lr0.0006cosine6e-05-G8-N1-NN1-scr/100000")
+    # data_path = os.path.join(base_path, "processed_data/pretrain/pile/qwen-1025")
     data_path = os.path.join(base_path, "processed_data/pretrain/pile/qwen-1025")
 
     ratio = float(sys.argv[2])
 
-    score_path = os.path.join(base_path, f"results/lm_infer/pile/diff-qwen_1.8B-qwen_104M/diff_scores.pt")
-    output_path = os.path.join(base_path, f"processed_data/pretrain/pile-diff_samp-qwen_1.8B-qwen_104M-r{ratio}/qwen-1025")
+    score_path = os.path.join(base_path, f"results/lm_infer/pile/diff-qwen_1.8B-qwen_50M/diff_scores.pt")
+    output_path = os.path.join(base_path, f"processed_data/pretrain/pile-diff_samp-qwen_1.8B-qwen_50M-weighted-r{ratio}/qwen-1025")
 
     os.makedirs(output_path, exist_ok=True)
 
